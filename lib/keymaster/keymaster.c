@@ -77,31 +77,104 @@ static long await_response(keymaster_session_t session,
     return rc;
 }
 
-static long read_response(keymaster_session_t session,
-                          uint32_t msg_id,
-                          uint32_t cmd,
-                          uint8_t* buf,
-                          uint32_t size) {
+/*
+ * Reads a Keymaster Response message with a sized buffer. The format of the
+ * response is as follows:
+ *
+ * command header : 4 bytes
+ * error          : 4 bytes
+ * data length    : 4 bytes
+ * data           : |data length| bytes
+ *
+ * Returns 0 on success, a negative error code otherwise. On success, error is
+ * filled. If error is zero, data and size are also filled.
+ */
+static int read_response(keymaster_session_t session,
+                         struct ipc_msg_info* inf,
+                         uint32_t cmd,
+                         uint8_t** data,
+                         uint32_t* size) {
+    int rc;
     struct keymaster_message msg;
+    struct km_raw_buffer_resp resp;
+    size_t key_buf_len = 0;
+    uint8_t* key_buf = NULL;
 
-    struct iovec rx_iov[2] = {
+    if (inf->len > sizeof(msg) + sizeof(resp)) {
+        key_buf_len = inf->len - sizeof(msg) - sizeof(resp);
+        key_buf = malloc(key_buf_len);
+        if (!key_buf) {
+            TLOGE("%s: out of memory (%zu)\n", __func__, key_buf_len);
+            return ERR_NO_MEMORY;
+        }
+    }
+
+    struct iovec iov[] = {
             {.iov_base = &msg, .iov_len = sizeof(msg)},
-            {.iov_base = buf, .iov_len = size},
+            {.iov_base = &resp, .iov_len = sizeof(resp)},
+            {.iov_base = key_buf, .iov_len = key_buf_len},
     };
-    struct ipc_msg rx_msg = {
-            .iov = rx_iov,
-            .num_iov = 2,
+    struct ipc_msg ipc_msg = {
+            .iov = iov,
+            .num_iov = countof(iov),
     };
 
-    long rc = read_msg(session, msg_id, 0, &rx_msg);
-    put_msg(session, msg_id);
+    rc = read_msg(session, inf->id, 0, &ipc_msg);
+    if (rc < 0) {
+        TLOGE("%s: read_msg() failed: %d", __func__, rc);
+        goto err;
+    }
 
+    if ((size_t)rc < sizeof(msg) + sizeof(resp.error)) {
+        TLOGE("%s: unexpected number of bytes: %d\n", __func__, rc);
+        rc = ERR_BAD_LEN;
+        goto err;
+    }
+
+    /* Check cmd */
     if ((cmd | KM_RESP_BIT) != (msg.cmd & ~(KM_STOP_BIT))) {
         TLOGE("%s: invalid response (0x%x) for cmd (0x%x)\n", __func__, msg.cmd,
               cmd);
-        return ERR_NOT_VALID;
+        rc = ERR_NOT_VALID;
+        goto err;
     }
 
+    /* We can return if there is an error */
+    if (resp.error) {
+        if ((size_t)rc != sizeof(msg) + sizeof(resp.error)) {
+            TLOGE("%s: unexpected number of bytes: %d\n", __func__, rc);
+            rc = ERR_BAD_LEN;
+        }
+        TLOGE("%s: KM response returned an error (%d)\n", __func__, resp.error);
+        rc = ERR_GENERIC;
+        goto err;
+    }
+
+    if ((size_t)rc < sizeof(msg) + sizeof(resp)) {
+        TLOGE("%s: unexpected number of bytes: %d\n", __func__, rc);
+        rc = ERR_BAD_LEN;
+        goto err;
+    }
+
+    /* Check data_len */
+    if (resp.data_size != key_buf_len) {
+        TLOGE("%s: unexpected data length: %d\n", __func__, resp.data_size);
+        rc = ERR_BAD_LEN;
+        goto err;
+    }
+
+    if ((size_t)rc != sizeof(msg) + sizeof(resp) + resp.data_size) {
+        TLOGE("%s: unexpected number of bytes: %d\n", __func__, rc);
+        rc = ERR_BAD_LEN;
+        goto err;
+    }
+
+    *data = key_buf;
+    *size = resp.data_size;
+    return NO_ERROR;
+
+err:
+    free(key_buf);
     return rc;
 }
 
@@ -133,42 +206,14 @@ int keymaster_get_auth_token_key(keymaster_session_t session,
         return rc;
     }
 
-    if (inf.len <= sizeof(struct keymaster_message)) {
-        TLOGE("%s: invalid auth token len (%zu)\n", __func__, inf.len);
-        put_msg(session, inf.id);
-        return ERR_NOT_FOUND;
-    }
-
-    size_t size = inf.len - sizeof(struct keymaster_message);
-    uint8_t* key_buf = malloc(size);
-    if (key_buf == NULL) {
-        TLOGE("%s: out of memory (%zu)\n", __func__, inf.len);
-        put_msg(session, inf.id);
-        return ERR_NO_MEMORY;
-    }
-
-    rc = read_response(session, inf.id, KM_GET_AUTH_TOKEN_KEY, key_buf, size);
+    rc = read_response(session, &inf, KM_GET_AUTH_TOKEN_KEY, key_buf_p, size_p);
+    put_msg(session, inf.id);
     if (rc < 0) {
-        goto err_bad_read;
+        TLOGE("%s: failed read_response (%ld)\n", __func__, rc);
+        return rc;
     }
 
-    size_t read_len = (size_t)rc;
-    if (read_len != inf.len) {
-        // data read in does not match message length
-        TLOGE("%s: invalid read length: (%zu != %zu)\n", __func__, read_len,
-              inf.len);
-        rc = ERR_IO;
-        goto err_bad_read;
-    }
-
-    *size_p = (uint32_t)size;
-    *key_buf_p = key_buf;
     return NO_ERROR;
-
-err_bad_read:
-    free(key_buf);
-    TLOGE("%s: failed read_msg (%ld)", __func__, rc);
-    return rc;
 }
 
 static int mint_hmac(uint8_t* key,
