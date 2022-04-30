@@ -19,10 +19,12 @@ MODULE := $(LOCAL_DIR)
 
 MODULE_SRCS := $(LOCAL_DIR)/trusty_rng.c
 
-GLOBAL_INCLUDES += $(LOCAL_DIR)/include/
+MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include/
 
-MODULE_DEPS := \
-	interface/hwrng \
-	openssl
+MODULE_LIBRARY_DEPS := \
+	external/boringssl \
 
-include make/module.mk
+MODULE_LIBRARY_EXPORTED_DEPS := \
+	trusty/user/base/interface/hwrng \
+
+include make/library.mk

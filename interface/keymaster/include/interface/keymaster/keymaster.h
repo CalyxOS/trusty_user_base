@@ -23,12 +23,10 @@
  * @GET_AUTH_TOKEN_KEY: retrieves the auth token key from KM.
  *                      Payload not required.
  */
-enum secure_keymaster_command {
-	KM_RESP_BIT            = 1,
-	KM_REQ_SHIFT           = 1,
-
-	KM_GET_AUTH_TOKEN_KEY  = (0 << KM_REQ_SHIFT),
-};
+#define KM_RESP_BIT 1U
+#define KM_STOP_BIT 2U
+#define KM_REQ_SHIFT 2U
+#define KM_GET_AUTH_TOKEN_KEY (0U << KM_REQ_SHIFT)
 
 /**
  * keymaster_message - Serial header for communicating with KM server
@@ -36,7 +34,6 @@ enum secure_keymaster_command {
  * @payload: start of the serialized command specific payload
  */
 struct keymaster_message {
-	uint32_t cmd;
-	uint8_t payload[0];
+    uint32_t cmd;
+    uint8_t payload[0];
 };
-

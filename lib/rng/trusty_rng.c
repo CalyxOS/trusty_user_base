@@ -19,16 +19,18 @@
  * in this library are currently not threadsafe. It is designed to be used
  * from a single-threaded Trusty application.
  */
-#include <openssl/aes.h>
-
-#include <err.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
 
 #include <lib/rng/trusty_rng.h>
+
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <trusty_ipc.h>
+#include <uapi/err.h>
+
 #include <interface/hwrng/hwrng.h>
-#include <trusty_std.h>
+#include <openssl/aes.h>
+#include <openssl/rand.h>
 
 /*
  *	This is the generic part of the trusty app rng service.
@@ -43,7 +45,7 @@
  *	overhead.
  */
 
-#define AES256_KEY_SIZE		32
+#define AES256_KEY_SIZE 32
 
 /* CSPRNG state */
 static uint8_t entropy_pool[AES256_KEY_SIZE];
@@ -52,170 +54,180 @@ static uint8_t rand_bytes_buf[AES_BLOCK_SIZE];
 static uint32_t rand_bytes_pos;
 static bool rng_initialized;
 
-static int aes_encrypt_ecb(uint8_t *dst, const uint8_t *src,
-			const uint8_t *key_bytes, size_t key_size_bits)
-{
-	AES_KEY key;
-	if (AES_set_encrypt_key(key_bytes, key_size_bits, &key) != 0)
-		return ERR_INVALID_ARGS;
+static int aes_encrypt_ecb(uint8_t* dst,
+                           const uint8_t* src,
+                           const uint8_t* key_bytes,
+                           size_t key_size_bits) {
+    AES_KEY key;
+    if (AES_set_encrypt_key(key_bytes, key_size_bits, &key) != 0)
+        return ERR_INVALID_ARGS;
 
-	AES_encrypt(src, dst, &key);
-	return NO_ERROR;
+    AES_encrypt(src, dst, &key);
+    return NO_ERROR;
 }
 
-static int trusty_rng_init(void)
-{
-	int err = NO_ERROR;
+static int trusty_rng_init(void) {
+    int err = NO_ERROR;
 
-	if (rng_initialized)
-		goto done;
+    if (rng_initialized)
+        goto done;
 
-	err = trusty_rng_hw_rand(entropy_pool, sizeof(entropy_pool));
-	if (err)
-		goto done;
+    err = trusty_rng_hw_rand(entropy_pool, sizeof(entropy_pool));
+    if (err)
+        goto done;
 
-	counter = 0;
-	rand_bytes_pos = sizeof(rand_bytes_buf);
-	rng_initialized = true;
+    counter = 0;
+    rand_bytes_pos = sizeof(rand_bytes_buf);
+    rng_initialized = true;
 done:
-	return err;
+    return err;
 }
 
-int trusty_rng_secure_rand(uint8_t *data, size_t len)
-{
-	int err = NO_ERROR;
+int trusty_rng_secure_rand(uint8_t* data, size_t len) {
+    if (!data || !len)
+        return ERR_INVALID_ARGS;
 
-	if (!data || !len)
-		return ERR_INVALID_ARGS;
+    int ssl_err = RAND_bytes(data, len);
+    if (ssl_err != 1) {
+        /*
+         * BoringSSL never returns anything but success, so we should never hit
+         * this.
+         */
+        return ERR_GENERIC;
+    }
 
-	if (!rng_initialized) {
-		err = trusty_rng_init();
-		if (err)
-			goto done;
-	}
+    return NO_ERROR;
+}
 
-	while (len > 0) {
-		if (rand_bytes_pos == sizeof(rand_bytes_buf)) {
-			/* Increment the counter and put the counter value into a buffer */
-			uint8_t counter_buf[AES_BLOCK_SIZE];
-			++counter;
-			memset(counter_buf, 0, sizeof(counter_buf));
-			memcpy(counter_buf, &counter, sizeof(counter));
+int trusty_rng_internal_system_rand(uint8_t* data, size_t len) {
+    int err = NO_ERROR;
 
-			/* Encrypt the counter, placing the results in rand_bytes_buf */
-			err = aes_encrypt_ecb(rand_bytes_buf, counter_buf, entropy_pool,
-					sizeof(entropy_pool) * 8);
-			if (err)
-				goto done;
+    if (!data || !len)
+        return ERR_INVALID_ARGS;
 
-			rand_bytes_pos = 0;
-		}
+    if (!rng_initialized) {
+        err = trusty_rng_init();
+        if (err)
+            goto done;
+    }
 
-		/* Copy random bytes into the output buffer */
-		while (rand_bytes_pos < sizeof(rand_bytes_buf) && len > 0) {
-			*data++ = rand_bytes_buf[rand_bytes_pos++];
-			len--;
-		}
-	}
+    while (len > 0) {
+        if (rand_bytes_pos == sizeof(rand_bytes_buf)) {
+            /* Increment the counter and put the counter value into a buffer */
+            uint8_t counter_buf[AES_BLOCK_SIZE];
+            ++counter;
+            memset(counter_buf, 0, sizeof(counter_buf));
+            memcpy(counter_buf, &counter, sizeof(counter));
+
+            /* Encrypt the counter, placing the results in rand_bytes_buf */
+            err = aes_encrypt_ecb(rand_bytes_buf, counter_buf, entropy_pool,
+                                  sizeof(entropy_pool) * 8);
+            if (err)
+                goto done;
+
+            rand_bytes_pos = 0;
+        }
+
+        /* Copy random bytes into the output buffer */
+        while (rand_bytes_pos < sizeof(rand_bytes_buf) && len > 0) {
+            *data++ = rand_bytes_buf[rand_bytes_pos++];
+            len--;
+        }
+    }
 done:
-	return err;
+    return err;
 }
 
-int trusty_rng_add_entropy(const uint8_t *data, size_t len)
-{
-	/* Re-initialize the entropy pool, seeding from CSPRNG (based on current pool) */
-	uint8_t new_pool[sizeof(entropy_pool)];
-	u_int i;
-	int err;
+int trusty_rng_add_entropy(const uint8_t* data, size_t len) {
+    /* Re-initialize the entropy pool, seeding from CSPRNG (based on current
+     * pool) */
+    uint8_t new_pool[sizeof(entropy_pool)];
+    int err;
 
-	err = trusty_rng_secure_rand(new_pool, sizeof(new_pool));
-	if (err)
-		goto done;
+    err = trusty_rng_secure_rand(new_pool, sizeof(new_pool));
+    if (err)
+        goto done;
 
-	memcpy(entropy_pool, new_pool, sizeof(new_pool));
+    memcpy(entropy_pool, new_pool, sizeof(new_pool));
 
-	/* XOR new entropy bytes into the pool */
-	for (i = 0; (i < sizeof(entropy_pool)) && (i < len); ++i)
-		entropy_pool[i] ^= data[i];
+    /* XOR new entropy bytes into the pool */
+    for (size_t i = 0; (i < sizeof(entropy_pool)) && (i < len); ++i)
+        entropy_pool[i] ^= data[i];
 done:
-	return err;
+    return err;
 }
 
-__WEAK int trusty_rng_hw_rand(uint8_t *data, size_t len)
-{
-	struct hwrng_req req_hdr = {
-		.len = len
-	};
+__WEAK int trusty_rng_hw_rand(uint8_t* data, size_t len) {
+    struct hwrng_req req_hdr = {.len = len};
 
-	iovec_t tx_iov = {
-		.base = &req_hdr,
-		.len = sizeof(req_hdr),
-	};
+    struct iovec tx_iov = {
+            .iov_base = &req_hdr,
+            .iov_len = sizeof(req_hdr),
+    };
 
-	ipc_msg_t tx_msg = {
-		.iov = &tx_iov,
-		.num_iov = 1,
-	};
+    ipc_msg_t tx_msg = {
+            .iov = &tx_iov,
+            .num_iov = 1,
+    };
 
-	iovec_t rx_iov = {
-		.base = data,
-		.len = len,
-	};
-	ipc_msg_t rx_msg = {
-		.iov = &rx_iov,
-		.num_iov = 1,
-	};
+    struct iovec rx_iov = {
+            .iov_base = data,
+            .iov_len = len,
+    };
+    ipc_msg_t rx_msg = {
+            .iov = &rx_iov,
+            .num_iov = 1,
+    };
 
-	long rc = connect(HWRNG_PORT, IPC_CONNECT_WAIT_FOR_PORT);
-	if (rc < 0) {
-		return rc;
-	}
+    long rc = connect(HWRNG_PORT, IPC_CONNECT_WAIT_FOR_PORT);
+    if (rc < 0) {
+        return rc;
+    }
 
-	handle_t chan = (handle_t) rc;
+    handle_t chan = (handle_t)rc;
 
-	rc = send_msg(chan, &tx_msg);
-	if (rc < 0) {
-		goto err;
-	}
+    rc = send_msg(chan, &tx_msg);
+    if (rc < 0) {
+        goto err;
+    }
 
-	if (rc != sizeof(req_hdr)) {
-		rc = ERR_IO;
-		goto err;
-	}
+    if (rc != sizeof(req_hdr)) {
+        rc = ERR_IO;
+        goto err;
+    }
 
-	while (rx_msg.iov[0].len > 0) {
-		uevent_t uevt;
-		rc = wait(chan, &uevt, -1);
-		if (rc != NO_ERROR) {
-			goto err;
-		}
+    while (rx_msg.iov[0].iov_len > 0) {
+        uevent_t uevt;
+        rc = wait(chan, &uevt, INFINITE_TIME);
+        if (rc != NO_ERROR) {
+            goto err;
+        }
 
-		ipc_msg_info_t inf;
-		rc = get_msg(chan, &inf);
-		if (rc != NO_ERROR) {
-			goto err;
-		}
+        ipc_msg_info_t inf;
+        rc = get_msg(chan, &inf);
+        if (rc != NO_ERROR) {
+            goto err;
+        }
 
-		if (inf.len > rx_msg.iov[0].len) {
-			// received too much data
-			rc = ERR_BAD_LEN;
-			goto err;
-		}
+        if (inf.len > rx_msg.iov[0].iov_len) {
+            // received too much data
+            rc = ERR_BAD_LEN;
+            goto err;
+        }
 
-		rc = read_msg(chan, inf.id, 0, &rx_msg);
-		if (rc < 0) {
-			goto err;
-		}
+        rc = read_msg(chan, inf.id, 0, &rx_msg);
+        if (rc < 0) {
+            goto err;
+        }
 
-		size_t rx_size = (size_t) rc;
-		rx_msg.iov[0].base += rx_size;
-		rx_msg.iov[0].len -= rx_size;
-		put_msg(chan, inf.id);
-	}
+        size_t rx_size = (size_t)rc;
+        rx_msg.iov[0].iov_base += rx_size;
+        rx_msg.iov[0].iov_len -= rx_size;
+        put_msg(chan, inf.id);
+    }
 
-	rc = NO_ERROR;
+    rc = NO_ERROR;
 err:
-	close(chan);
-	return rc;
+    close(chan);
+    return rc;
 }
-

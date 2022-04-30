@@ -52,4 +52,3 @@
 struct hwrng_req {
     uint32_t len;
 };
-

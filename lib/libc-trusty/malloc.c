@@ -26,39 +26,49 @@
 #define LACKS_SYS_PARAM_H
 #define LACKS_ERRNO_H
 
-#define MALLOC_FAILURE_ACTION do {} while(0)
-#define ABORT exit(-1)
+#define MALLOC_FAILURE_ACTION \
+    do {                      \
+    } while (0)
+#define ABORT abort()
 #define HAVE_MMAP 0
 #define MORECORE sbrk
+
+#include <sys/auxv.h>
+#define malloc_getpagesize getauxval(AT_PAGESZ)
 
 #define ENOMEM ERR_NO_MEMORY
 #define EINVAL ERR_INVALID_ARGS
 
-#include <err.h>
+#include <errno.h>
+#include <lk/macros.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <trusty_std.h>
+#include <trusty_syscalls.h>
+#include <uapi/err.h>
+#include <unistd.h>
 
-static char *__libc_brk;
+static char* __libc_brk;
 
-#define SBRK_ALIGN	32
-static void *sbrk(ptrdiff_t increment)
-{
-	char *new_brk;
-	char *start;
-	char *end;
+#define SBRK_ALIGN 32
+void* sbrk(ptrdiff_t increment) {
+    char* new_brk;
+    char* start;
+    char* end;
 
-	if (!__libc_brk)
-		__libc_brk = (char *)brk(0);
+    if (!__libc_brk)
+        __libc_brk = (char*)_trusty_brk(0);
 
-	start = (char *)ROUNDUP((long)__libc_brk, SBRK_ALIGN);
-	end   = start + ROUNDUP((long)increment, SBRK_ALIGN);
+    start = (char*)round_up((uintptr_t)__libc_brk, SBRK_ALIGN);
+    end = (char*)round_up((uintptr_t)(start + increment), SBRK_ALIGN);
 
-	new_brk = (char *)brk((uint32_t)end);
-	if (new_brk < end)
-		return (void *)-1;
+    new_brk = (char*)_trusty_brk(end);
+    if (new_brk < end) {
+        errno = ENOMEM;
+        return (void*)-1;
+    }
 
-	__libc_brk = new_brk;
-	return start;
+    __libc_brk = new_brk;
+    return start;
 }
 
 #include "dlmalloc.c"

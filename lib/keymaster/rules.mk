@@ -19,10 +19,14 @@ MODULE := $(LOCAL_DIR)
 
 MODULE_SRCS := $(LOCAL_DIR)/keymaster.c
 
-GLOBAL_INCLUDES += $(LOCAL_DIR)/include/
+MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include/ \
+		   $(TRUSTY_TOP)/hardware/libhardware/include
 
-MODULE_DEPS := \
-	interface/keymaster \
-	lib/libc-trusty
+MODULE_LIBRARY_DEPS := \
+	trusty/user/base/lib/libc-trusty \
+	external/boringssl \
 
-include make/module.mk
+MODULE_LIBRARY_EXPORTED_DEPS := \
+	trusty/user/base/interface/keymaster \
+
+include make/library.mk

@@ -18,12 +18,14 @@
 
 #pragma once
 
-#include <compiler.h>
+#include <lk/compiler.h>
+#include <stddef.h>
+#include <stdint.h>
 
 __BEGIN_CDECLS
 
-int trusty_rng_secure_rand(uint8_t *data, size_t len);
-int trusty_rng_add_entropy(const uint8_t *data, size_t len);
-int trusty_rng_hw_rand(uint8_t *data, size_t len);
+int trusty_rng_secure_rand(uint8_t* data, size_t len);
+int trusty_rng_add_entropy(const uint8_t* data, size_t len);
+int trusty_rng_hw_rand(uint8_t* data, size_t len);
 
 __END_CDECLS

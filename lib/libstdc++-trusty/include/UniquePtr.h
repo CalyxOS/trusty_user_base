@@ -17,11 +17,12 @@
 #ifndef UNIQUE_PTR_H_included
 #define UNIQUE_PTR_H_included
 
-#include <stdlib.h> // For NULL.
+#include <stdlib.h>  // For NULL.
 
 // This is a fake declaration of std::swap to avoid including <algorithm>
 namespace std {
-template <class T> void swap(T&, T&);
+template <class T>
+void swap(T&, T&);
 }
 
 // Default deleter for pointer types.
@@ -29,18 +30,14 @@ template <typename T>
 struct DefaultDelete {
     enum { type_must_be_complete = sizeof(T) };
     DefaultDelete() {}
-    void operator()(T* p) const {
-        delete p;
-    }
+    void operator()(T* p) const { delete p; }
 };
 
 // Default deleter for array types.
 template <typename T>
 struct DefaultDelete<T[]> {
     enum { type_must_be_complete = sizeof(T) };
-    void operator()(T* p) const {
-        delete[] p;
-    }
+    void operator()(T* p) const { delete[] p; }
 };
 
 // A smart pointer that deletes the given pointer on destruction.
@@ -55,12 +52,9 @@ template <typename T, typename D = DefaultDelete<T> >
 class UniquePtr {
 public:
     // Construct a new UniquePtr, taking ownership of the given raw pointer.
-    explicit UniquePtr(T* ptr = NULL) : mPtr(ptr) {
-    }
+    explicit UniquePtr(T* ptr = NULL) : mPtr(ptr) {}
 
-    ~UniquePtr() {
-        reset();
-    }
+    ~UniquePtr() { reset(); }
 
     // Accessors.
     T& operator*() const { return *mPtr; }
@@ -86,17 +80,17 @@ public:
     }
 
     // Swap with another unique pointer.
-    void swap(UniquePtr<T>& other) {
-      std::swap(mPtr, other.mPtr);
-    }
+    void swap(UniquePtr<T>& other) { std::swap(mPtr, other.mPtr); }
 
 private:
     // The raw pointer.
     T* mPtr;
 
     // Comparing unique pointers is probably a mistake, since they're unique.
-    template <typename T2> bool operator==(const UniquePtr<T2>& p) const;
-    template <typename T2> bool operator!=(const UniquePtr<T2>& p) const;
+    template <typename T2>
+    bool operator==(const UniquePtr<T2>& p) const;
+    template <typename T2>
+    bool operator!=(const UniquePtr<T2>& p) const;
 
     // Disallow copy and assignment.
     UniquePtr(const UniquePtr&);
@@ -108,16 +102,11 @@ private:
 template <typename T, typename D>
 class UniquePtr<T[], D> {
 public:
-    explicit UniquePtr(T* ptr = NULL) : mPtr(ptr) {
-    }
+    explicit UniquePtr(T* ptr = NULL) : mPtr(ptr) {}
 
-    ~UniquePtr() {
-        reset();
-    }
+    ~UniquePtr() { reset(); }
 
-    T& operator[](size_t i) const {
-        return mPtr[i];
-    }
+    T& operator[](size_t i) const { return mPtr[i]; }
     T* get() const { return mPtr; }
 
     T* release() __attribute__((warn_unused_result)) {
@@ -239,4 +228,3 @@ int main(int argc, char* argv[]) {
 #endif
 
 #endif  // UNIQUE_PTR_H_included
-

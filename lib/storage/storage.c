@@ -14,46 +14,54 @@
  * limitations under the License.
  */
 
-#include <err.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <trusty_ipc.h>
+#include <uapi/err.h>
 
 #include <lib/storage/storage.h>
-#include <trusty_std.h>
 
 #define LOCAL_TRACE 0
 
 #define LOG_TAG "storage_client"
 
 #define TLOGE(fmt, ...) \
-    fprintf(stderr, "%s: %d: " fmt, LOG_TAG, __LINE__,  ## __VA_ARGS__)
+    fprintf(stderr, "%s: %d: " fmt, LOG_TAG, __LINE__, ##__VA_ARGS__)
+
+#define TLOGE_APP_NAME(fmt, ...)                                       \
+    fprintf(stderr, "%s: %d: %s: " fmt, LOG_TAG, __LINE__, __progname, \
+            ##__VA_ARGS__)
 
 #if LOCAL_TRACE
 #define TLOGI(fmt, ...) \
-    fprintf(stderr, "%s: %d: " fmt, LOG_TAG, __LINE__,  ## __VA_ARGS__)
+    fprintf(stderr, "%s: %d: " fmt, LOG_TAG, __LINE__, ##__VA_ARGS__)
 #else
 #define TLOGI(fmt, ...)
 #endif
 
 #define MAX_CHUNK_SIZE 4040
 
-static inline file_handle_t make_file_handle(storage_session_t s, uint32_t fid)
-{
+/* At what delay threshold should wait_infinite_logged() start logging? */
+#define WAIT_INFINITE_LOG_THRESHOLD_MSEC 1000
+
+/* Initialized by __init_libc in ./trusty/musl/src/env/__libc_start_main.c */
+extern char* __progname;
+
+static inline file_handle_t make_file_handle(storage_session_t s,
+                                             uint32_t fid) {
     return ((uint64_t)s << 32) | fid;
 }
 
-static inline storage_session_t _to_session(file_handle_t fh)
-{
+static inline storage_session_t _to_session(file_handle_t fh) {
     return (storage_session_t)(fh >> 32);
 }
 
-static inline uint32_t _to_handle(file_handle_t fh)
-{
-    return (uint32_t) fh;
+static inline uint32_t _to_handle(file_handle_t fh) {
+    return (uint32_t)fh;
 }
 
-static inline uint32_t _to_msg_flags(uint32_t opflags)
-{
+static inline uint32_t _to_msg_flags(uint32_t opflags) {
     uint32_t msg_flags = 0;
 
     if (opflags & STORAGE_OP_COMPLETE)
@@ -62,8 +70,7 @@ static inline uint32_t _to_msg_flags(uint32_t opflags)
     return msg_flags;
 }
 
-static ssize_t check_response(struct storage_msg *msg, ssize_t res)
-{
+static ssize_t check_response(struct storage_msg* msg, ssize_t res) {
     if (res < 0)
         return res;
 
@@ -74,7 +81,7 @@ static ssize_t check_response(struct storage_msg *msg, ssize_t res)
 
     TLOGI("cmd 0x%x: server returned %u\n", msg->cmd, msg->result);
 
-    switch(msg->result) {
+    switch (msg->result) {
     case STORAGE_NO_ERROR:
         return res - sizeof(*msg);
 
@@ -102,29 +109,58 @@ static ssize_t check_response(struct storage_msg *msg, ssize_t res)
         return ERR_GENERIC;
 
     default:
-        TLOGE("cmd 0x%x: unhandled server response %u\n",
-              msg->cmd, msg->result);
+        TLOGE("cmd 0x%x: unhandled server response %u\n", msg->cmd,
+              msg->result);
     }
 
     return ERR_IO;
 }
 
+int wait_infinite_logged(storage_session_t session,
+                         uevent_t* ev,
+                         const char* caller) {
+    unsigned long wait_time = WAIT_INFINITE_LOG_THRESHOLD_MSEC;
+
+    /* wait for reply */
+    int rc;
+    do {
+        rc = wait(session, ev, wait_time);
+        if (rc == ERR_TIMED_OUT) {
+            TLOGE_APP_NAME(
+                    "Timed out after %ld milliseconds, retrying; "
+                    "called by %s\n",
+                    wait_time, caller);
+            wait_time = wait_time * 2;
+        }
+    } while (rc == ERR_TIMED_OUT);
+
+    if (wait_time != WAIT_INFINITE_LOG_THRESHOLD_MSEC) {
+        TLOGE_APP_NAME(
+                "Finally succeeded (last wait: < %ld milliseconds); "
+                "called by %s\n",
+                wait_time, caller);
+    }
+
+    return rc;
+}
+
 static ssize_t get_response(storage_session_t session,
-                            struct iovec *rx_iovs, uint rx_iovcnt)
+                            struct iovec* rx_iovs,
+                            uint32_t rx_iovcnt)
 
 {
     uevent_t ev;
     struct ipc_msg_info mi;
     struct ipc_msg rx_msg = {
-        .iov = rx_iovs,
-        .num_iov = rx_iovcnt,
+            .iov = rx_iovs,
+            .num_iov = rx_iovcnt,
     };
 
     if (!rx_iovcnt)
         return 0;
 
     /* wait for reply */
-    int rc = wait(session, &ev, -1);
+    int rc = wait_infinite_logged(session, &ev, __func__);
     if (rc != NO_ERROR) {
         TLOGE("%s: interrupted waiting for response", __func__);
         return rc;
@@ -144,20 +180,19 @@ static ssize_t get_response(storage_session_t session,
     }
 
     if ((size_t)rc != mi.len) {
-        TLOGE("%s: partial message read (%zd vs. %zd)\n",
-              __func__, (size_t)rc, mi.len);
+        TLOGE("%s: partial message read (%zd vs. %zd)\n", __func__, (size_t)rc,
+              mi.len);
         return ERR_IO;
     }
 
     return rc;
 }
 
-static int wait_to_send(handle_t session, struct ipc_msg *msg)
-{
+static int wait_to_send(handle_t session, struct ipc_msg* msg) {
     int rc;
     struct uevent ev;
 
-    rc = wait(session, &ev, -1);
+    rc = wait_infinite_logged(session, &ev, __func__);
     if (rc < 0) {
         TLOGE("failed to wait for outgoing queue to free up\n");
         return rc;
@@ -179,14 +214,15 @@ static int wait_to_send(handle_t session, struct ipc_msg *msg)
 }
 
 ssize_t send_reqv(storage_session_t session,
-                         struct iovec *tx_iovs, uint tx_iovcnt,
-                         struct iovec *rx_iovs, uint rx_iovcnt)
-{
+                  struct iovec* tx_iovs,
+                  uint32_t tx_iovcnt,
+                  struct iovec* rx_iovs,
+                  uint32_t rx_iovcnt) {
     ssize_t rc;
 
     struct ipc_msg tx_msg = {
-        .iov = tx_iovs,
-        .num_iov = tx_iovcnt,
+            .iov = tx_iovs,
+            .num_iov = tx_iovcnt,
     };
 
     rc = send_msg(session, &tx_msg);
@@ -208,29 +244,32 @@ ssize_t send_reqv(storage_session_t session,
     return rc;
 }
 
-int storage_open_session(storage_session_t *session_p, const char *type)
-{
+int storage_open_session(storage_session_t* session_p, const char* type) {
     long rc = connect(type, IPC_CONNECT_WAIT_FOR_PORT);
     if (rc < 0) {
         return rc;
     }
 
-    *session_p = (storage_session_t) rc;
+    *session_p = (storage_session_t)rc;
     return NO_ERROR;
 }
 
-void storage_close_session(storage_session_t session)
-{
+void storage_close_session(storage_session_t session) {
     close(session);
 }
 
-int storage_open_file(storage_session_t session, file_handle_t *handle_p,
-                      const char *name, uint32_t flags, uint32_t opflags)
-{
-    struct storage_msg msg = { .cmd = STORAGE_FILE_OPEN, .flags = _to_msg_flags(opflags) };
-    struct storage_file_open_req req = { .flags = flags };
-    struct iovec tx[3] = {{&msg, sizeof(msg)}, {&req, sizeof(req)}, {(void *)name, strlen(name)}};
-    struct storage_file_open_resp rsp = { 0 };
+int storage_open_file(storage_session_t session,
+                      file_handle_t* handle_p,
+                      const char* name,
+                      uint32_t flags,
+                      uint32_t opflags) {
+    struct storage_msg msg = {.cmd = STORAGE_FILE_OPEN,
+                              .flags = _to_msg_flags(opflags)};
+    struct storage_file_open_req req = {.flags = flags};
+    struct iovec tx[3] = {{&msg, sizeof(msg)},
+                          {&req, sizeof(req)},
+                          {(void*)name, strlen(name)}};
+    struct storage_file_open_resp rsp = {0};
     struct iovec rx[2] = {{&msg, sizeof(msg)}, {&rsp, sizeof(rsp)}};
 
     ssize_t rc = send_reqv(session, tx, 3, rx, 2);
@@ -239,17 +278,17 @@ int storage_open_file(storage_session_t session, file_handle_t *handle_p,
         return rc;
 
     if ((size_t)rc != sizeof(rsp)) {
-        TLOGE("%s: invalid response length (%zd != %zd)\n", __func__, (size_t)rc, sizeof(rsp));
+        TLOGE("%s: invalid response length (%zd != %zd)\n", __func__,
+              (size_t)rc, sizeof(rsp));
         return ERR_IO;
     }
     *handle_p = make_file_handle(session, rsp.handle);
     return NO_ERROR;
 }
 
-void storage_close_file(file_handle_t fh)
-{
-    struct storage_msg msg = { .cmd = STORAGE_FILE_CLOSE };
-    struct storage_file_close_req req = { .handle = _to_handle(fh)};
+void storage_close_file(file_handle_t fh) {
+    struct storage_msg msg = {.cmd = STORAGE_FILE_CLOSE};
+    struct storage_file_close_req req = {.handle = _to_handle(fh)};
     struct iovec tx[2] = {{&msg, sizeof(msg)}, {&req, sizeof(req)}};
     struct iovec rx[1] = {{&msg, sizeof(msg)}};
 
@@ -260,35 +299,200 @@ void storage_close_file(file_handle_t fh)
     }
 }
 
-int storage_delete_file(storage_session_t session, const char *name,
-                        uint32_t opflags)
-{
-    struct storage_msg msg = { .cmd = STORAGE_FILE_DELETE, .flags = _to_msg_flags(opflags) };
-    struct storage_file_delete_req req = { .flags = 0, };
-    struct iovec tx[3] = {{&msg, sizeof(msg)}, {&req, sizeof(req)}, {(void *)name, strlen(name)}};
+int storage_move_file(storage_session_t session,
+                      file_handle_t handle,
+                      const char* old_name,
+                      const char* new_name,
+                      uint32_t flags,
+                      uint32_t opflags) {
+    size_t old_name_len = strlen(old_name);
+    size_t new_name_len = strlen(new_name);
+    struct storage_msg msg = {
+            .cmd = STORAGE_FILE_MOVE,
+            .flags = _to_msg_flags(opflags),
+    };
+    struct storage_file_move_req req = {
+            .flags = flags,
+            .handle = _to_handle(handle),
+            .old_name_len = old_name_len,
+    };
+    struct iovec tx[4] = {
+            {&msg, sizeof(msg)},
+            {&req, sizeof(req)},
+            {(void*)old_name, old_name_len},
+            {(void*)new_name, new_name_len},
+    };
+    struct iovec rx[1] = {{&msg, sizeof(msg)}};
+
+    ssize_t rc = send_reqv(session, tx, 4, rx, 1);
+    return (int)check_response(&msg, rc);
+}
+
+int storage_delete_file(storage_session_t session,
+                        const char* name,
+                        uint32_t opflags) {
+    struct storage_msg msg = {.cmd = STORAGE_FILE_DELETE,
+                              .flags = _to_msg_flags(opflags)};
+    struct storage_file_delete_req req = {
+            .flags = 0,
+    };
+    struct iovec tx[3] = {{&msg, sizeof(msg)},
+                          {&req, sizeof(req)},
+                          {(void*)name, strlen(name)}};
     struct iovec rx[1] = {{&msg, sizeof(msg)}};
 
     ssize_t rc = send_reqv(session, tx, 3, rx, 1);
     return (int)check_response(&msg, rc);
 }
 
-static ssize_t _read_chunk(file_handle_t fh, storage_off_t off, void *buf, size_t size)
-{
-    struct storage_msg msg = { .cmd = STORAGE_FILE_READ };
-    struct storage_file_read_req req = { .handle = _to_handle(fh), .size = size, .offset = off };
-    struct iovec tx[2] = {{&msg, sizeof(msg)}, {&req, sizeof(req)}};
-    struct iovec rx[2] = {{&msg, sizeof(msg)}, {buf, size}};
+struct storage_open_dir_state {
+    uint8_t buf[MAX_CHUNK_SIZE];
+    size_t buf_size;
+    size_t buf_last_read;
+    size_t buf_read;
+};
+
+int storage_open_dir(storage_session_t session,
+                     const char* path,
+                     struct storage_open_dir_state** state) {
+    struct storage_file_list_resp* resp;
+
+    if (path && strlen(path)) {
+        return ERR_NOT_FOUND; /* current server does not support directories */
+    }
+    *state = malloc(sizeof(**state));
+    if (*state == NULL) {
+        return ERR_NO_MEMORY;
+    }
+    resp = (void*)(*state)->buf;
+    resp->flags = STORAGE_FILE_LIST_START;
+    (*state)->buf_size = sizeof(*resp);
+    (*state)->buf_last_read = 0;
+    (*state)->buf_read = (*state)->buf_size;
+
+    return 0;
+}
+
+void storage_close_dir(storage_session_t session,
+                       struct storage_open_dir_state* state) {
+    free(state);
+}
+
+static int storage_read_dir_send_message(storage_session_t session,
+                                         struct storage_open_dir_state* state) {
+    struct storage_file_list_resp* last_item =
+            (void*)(state->buf + state->buf_last_read);
+    struct storage_msg msg = {.cmd = STORAGE_FILE_LIST};
+    struct storage_file_list_req req = {.flags = last_item->flags};
+    struct iovec tx[3] = {
+            {&msg, sizeof(msg)},
+            {&req, sizeof(req)},
+    };
+    uint32_t tx_count = 2;
+    struct iovec rx[2] = {{&msg, sizeof(msg)},
+                          {state->buf, sizeof(state->buf)}};
+    ssize_t rc;
+
+    if (last_item->flags != STORAGE_FILE_LIST_START) {
+        tx[2].iov_base = last_item->name;
+        tx[2].iov_len = strlen(last_item->name);
+        tx_count = 3;
+    }
+
+    rc = send_reqv(session, tx, tx_count, rx, 2);
+    rc = check_response(&msg, rc);
+
+    state->buf_size = (rc > 0) ? rc : 0;
+    state->buf_last_read = 0;
+    state->buf_read = 0;
+
+    if (rc < 0)
+        return rc;
+
+    return 0;
+}
+
+int storage_read_dir(storage_session_t session,
+                     struct storage_open_dir_state* state,
+                     uint8_t* flags,
+                     char* name,
+                     size_t name_out_size) {
+    int ret;
+    size_t rem;
+    size_t name_size;
+    struct storage_file_list_resp* item;
+
+    if (state->buf_size == 0) {
+        return ERR_IO;
+    }
+
+    if (state->buf_read >= state->buf_size) {
+        ret = storage_read_dir_send_message(session, state);
+        if (ret) {
+            return ret;
+        }
+    }
+    rem = state->buf_size - state->buf_read;
+    if (rem < sizeof(*item)) {
+        TLOGE("got short response\n");
+        return ERR_IO;
+    }
+    item = (void*)(state->buf + state->buf_read);
+    rem -= sizeof(*item);
+
+    *flags = item->flags;
+    if ((item->flags & STORAGE_FILE_LIST_STATE_MASK) == STORAGE_FILE_LIST_END) {
+        state->buf_size = 0;
+        name_size = 0;
+    } else {
+        name_size = strnlen(item->name, rem) + 1;
+        if (name_size > rem) {
+            TLOGE("got invalid filename size %zd >= %zd\n", name_size, rem);
+            return ERR_IO;
+        }
+        if (name_size >= name_out_size) {
+            return ERR_NOT_ENOUGH_BUFFER;
+        }
+        strcpy(name, item->name);
+    }
+
+    state->buf_last_read = state->buf_read;
+    state->buf_read += sizeof(*item) + name_size;
+
+    return 0;
+}
+
+static ssize_t _read_chunk(file_handle_t fh,
+                           storage_off_t off,
+                           void* buf,
+                           size_t size) {
+    struct storage_msg msg = {.cmd = STORAGE_FILE_READ};
+    struct storage_file_read_req req = {
+            .handle = _to_handle(fh),
+            .size = size,
+            .offset = off,
+    };
+    struct iovec tx[2] = {
+            {&msg, sizeof(msg)},
+            {&req, sizeof(req)},
+    };
+    struct iovec rx[2] = {
+            {&msg, sizeof(msg)},
+            {buf, size},
+    };
 
     ssize_t rc = send_reqv(_to_session(fh), tx, 2, rx, 2);
     return check_response(&msg, rc);
 }
 
-ssize_t storage_read(file_handle_t fh, storage_off_t off, void *buf, size_t size)
-{
+ssize_t storage_read(file_handle_t fh,
+                     storage_off_t off,
+                     void* buf,
+                     size_t size) {
     ssize_t rc;
     size_t bytes_read = 0;
     size_t chunk = MAX_CHUNK_SIZE;
-    uint8_t *ptr = buf;
+    uint8_t* ptr = buf;
 
     while (size) {
         if (chunk > size)
@@ -306,12 +510,21 @@ ssize_t storage_read(file_handle_t fh, storage_off_t off, void *buf, size_t size
     return bytes_read;
 }
 
-static ssize_t _write_req(file_handle_t fh, storage_off_t off,
-                          const void *buf, size_t size, uint32_t msg_flags)
-{
-    struct storage_msg msg = { .cmd = STORAGE_FILE_WRITE, .flags = msg_flags, };
-    struct storage_file_write_req req = { .handle = _to_handle(fh), .offset = off, };
-    struct iovec tx[3] = {{&msg, sizeof(msg)}, {&req, sizeof(req)}, {(void *)buf, size}};
+static ssize_t _write_req(file_handle_t fh,
+                          storage_off_t off,
+                          const void* buf,
+                          size_t size,
+                          uint32_t msg_flags) {
+    struct storage_msg msg = {
+            .cmd = STORAGE_FILE_WRITE,
+            .flags = msg_flags,
+    };
+    struct storage_file_write_req req = {
+            .handle = _to_handle(fh),
+            .offset = off,
+    };
+    struct iovec tx[3] = {
+            {&msg, sizeof(msg)}, {&req, sizeof(req)}, {(void*)buf, size}};
     struct iovec rx[1] = {{&msg, sizeof(msg)}};
 
     ssize_t rc = send_reqv(_to_session(fh), tx, 3, rx, 1);
@@ -319,13 +532,15 @@ static ssize_t _write_req(file_handle_t fh, storage_off_t off,
     return rc < 0 ? rc : (ssize_t)size;
 }
 
-ssize_t storage_write(file_handle_t fh, storage_off_t off,
-                      const void *buf, size_t size, uint32_t opflags)
-{
+ssize_t storage_write(file_handle_t fh,
+                      storage_off_t off,
+                      const void* buf,
+                      size_t size,
+                      uint32_t opflags) {
     ssize_t rc;
     size_t bytes_written = 0;
     size_t chunk = MAX_CHUNK_SIZE;
-    const uint8_t *ptr = buf;
+    const uint8_t* ptr = buf;
     uint32_t msg_flags = _to_msg_flags(opflags & ~STORAGE_OP_COMPLETE);
 
     while (size) {
@@ -349,10 +564,15 @@ ssize_t storage_write(file_handle_t fh, storage_off_t off,
     return bytes_written;
 }
 
-int storage_set_file_size(file_handle_t fh, storage_off_t file_size, uint32_t opflags)
-{
-    struct storage_msg msg = { .cmd = STORAGE_FILE_SET_SIZE, .flags = _to_msg_flags(opflags)};
-    struct storage_file_set_size_req req = { .handle = _to_handle(fh), .size = file_size, };
+int storage_set_file_size(file_handle_t fh,
+                          storage_off_t file_size,
+                          uint32_t opflags) {
+    struct storage_msg msg = {.cmd = STORAGE_FILE_SET_SIZE,
+                              .flags = _to_msg_flags(opflags)};
+    struct storage_file_set_size_req req = {
+            .handle = _to_handle(fh),
+            .size = file_size,
+    };
     struct iovec tx[2] = {{&msg, sizeof(msg)}, {&req, sizeof(req)}};
     struct iovec rx[1] = {{&msg, sizeof(msg)}};
 
@@ -360,10 +580,11 @@ int storage_set_file_size(file_handle_t fh, storage_off_t file_size, uint32_t op
     return (int)check_response(&msg, rc);
 }
 
-int storage_get_file_size(file_handle_t fh, storage_off_t *size_p)
-{
-    struct storage_msg msg = { .cmd = STORAGE_FILE_GET_SIZE };
-    struct storage_file_get_size_req  req = { .handle = _to_handle(fh), };
+int storage_get_file_size(file_handle_t fh, storage_off_t* size_p) {
+    struct storage_msg msg = {.cmd = STORAGE_FILE_GET_SIZE};
+    struct storage_file_get_size_req req = {
+            .handle = _to_handle(fh),
+    };
     struct iovec tx[2] = {{&msg, sizeof(msg)}, {&req, sizeof(req)}};
     struct storage_file_get_size_resp rsp;
     struct iovec rx[2] = {{&msg, sizeof(msg)}, {&rsp, sizeof(rsp)}};
@@ -374,8 +595,8 @@ int storage_get_file_size(file_handle_t fh, storage_off_t *size_p)
         return rc;
 
     if ((size_t)rc != sizeof(rsp)) {
-        TLOGE("%s: invalid response length (%zd != %zd)\n",
-              __func__, (size_t)rc, sizeof(rsp));
+        TLOGE("%s: invalid response length (%zd != %zd)\n", __func__,
+              (size_t)rc, sizeof(rsp));
         return ERR_IO;
     }
 
@@ -383,15 +604,13 @@ int storage_get_file_size(file_handle_t fh, storage_off_t *size_p)
     return NO_ERROR;
 }
 
-int storage_end_transaction(storage_session_t session, bool complete)
-{
+int storage_end_transaction(storage_session_t session, bool complete) {
     struct storage_msg msg = {
-        .cmd = STORAGE_END_TRANSACTION,
-        .flags = complete ? STORAGE_MSG_FLAG_TRANSACT_COMPLETE : 0,
+            .cmd = STORAGE_END_TRANSACTION,
+            .flags = complete ? STORAGE_MSG_FLAG_TRANSACT_COMPLETE : 0,
     };
     struct iovec iov = {&msg, sizeof(msg)};
 
     ssize_t rc = send_reqv(session, &iov, 1, &iov, 1);
     return (int)check_response(&msg, rc);
 }
-
