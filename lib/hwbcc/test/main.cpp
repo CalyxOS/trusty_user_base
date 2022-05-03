@@ -428,14 +428,13 @@ test_abort:;
 static bool validate_bcc_handover(const uint8_t* bcc_handover,
                                   size_t bcc_handover_size,
                                   CDI* next_cdi_attest,
-                                  CDI* next_cdi_seal,
-                                  PubKey* root_pub_key) {
+                                  CDI* next_cdi_seal) {
     /**
      * This is what we expect:
      * BccHandover = {
      *      1 : bstr .size 32,	// CDI_Attest
      *      2 : bstr .size 32,	// CDI_Seal
-     *      3 : Bcc,            // Cert_Chain
+     *      ? 3 : Bcc,            // Cert_Chain
      * }
      */
     auto [parsed_bcc_handover, _, err_msg] =
@@ -449,14 +448,6 @@ static bool validate_bcc_handover(const uint8_t* bcc_handover,
     std::copy(cdi_attest.begin(), cdi_attest.end(), next_cdi_attest->begin());
     std::copy(cdi_seal.begin(), cdi_seal.end(), next_cdi_seal->begin());
 
-    std::vector<PubKey> keys;
-    /* Position of the Bcc in the cbor encoded BccHandover */
-    size_t bcc_pos = 2 * DICE_CDI_SIZE + 8;
-    CHECK_EQ(validate_bcc(bcc_handover + bcc_pos, bcc_handover_size - bcc_pos,
-                          &keys),
-             true);
-
-    std::copy(keys[0].begin(), keys[0].end(), root_pub_key->begin());
     return true;
 }
 
@@ -471,11 +462,6 @@ static const uint8_t emulator_cdi_seal[DICE_CDI_SIZE] = {
         0xc9, 0xfd, 0xeb, 0xfe, 0x26, 0xfc, 0x28, 0x98, 0x5b, 0xe8,
 };
 
-static const uint8_t emulator_uds_pub_key[DICE_PUBLIC_KEY_SIZE] = {
-        0xce, 0x12, 0x50, 0x73, 0xf1, 0x49, 0xba, 0x03, 0xec, 0x82, 0xc1,
-        0xee, 0x73, 0x91, 0x5e, 0x4a, 0x6a, 0x3f, 0xdd, 0x7f, 0xfa, 0xca,
-        0x4d, 0xbc, 0x17, 0x93, 0x7e, 0xe3, 0x29, 0xf8, 0x2b, 0x18};
-
 /**
  * Test the two CDIs: CDI_Attest and CDI_Seal; and the UDS included
  * in the BCC, all of which are retrieved from get_dice_artifacts, with those
@@ -488,27 +474,23 @@ TEST(hwbcc, GENERIC_ARM64_PLATFORM_ONLY_TEST(test_get_dice_artifacts)) {
     size_t dice_artifacts_size;
     CDI next_cdi_attest;
     CDI next_cdi_seal;
-    PubKey root_pub_key;
 
     /**
      * dice_artifacts expects the following CBOR encoded structure.
+     * Since the implementation of hwbcc_get_dice_artifacts serves only the
+     * non-secure world, Bcc is not present in the returned dice_artifacts.
      * We calculate the expected size, including CBOR header sizes.
      * BccHandover = {
      *      1 : bstr .size 32,	// CDI_Attest
      *      2 : bstr .size 32,	// CDI_Seal
-     *      3 : Bcc,            // Cert_Chain
+     *      ? 3 : Bcc,          // Cert_Chain
      * }
      * Bcc = [
      *      PubKeyEd25519, // UDS
-     *      + BccEntry,    // Root -> leaf (KM_pub)
+     *      + BccEntry,    // Root -> leaf
      *  ]
      */
-    size_t UDS_encoded_size = 45;
-    size_t bcc_entry_encoded_size = 463;
-    size_t bcc_encoded_size =
-            UDS_encoded_size + bcc_entry_encoded_size + 1 /*array header*/;
-    size_t bcc_handover_size =
-            2 * DICE_CDI_SIZE + bcc_encoded_size + 8 /*map header*/;
+    size_t bcc_handover_size = 2 * DICE_CDI_SIZE + 7 /*CBOR tags*/;
 
     memset(dice_artifacts, 0, sizeof(dice_artifacts));
 
@@ -521,8 +503,7 @@ TEST(hwbcc, GENERIC_ARM64_PLATFORM_ONLY_TEST(test_get_dice_artifacts)) {
     ASSERT_EQ(dice_artifacts_size, bcc_handover_size);
 
     ASSERT_EQ(validate_bcc_handover(dice_artifacts, dice_artifacts_size,
-                                    &next_cdi_attest, &next_cdi_seal,
-                                    &root_pub_key),
+                                    &next_cdi_attest, &next_cdi_seal),
               true);
     if (system_state_app_loading_unlocked()) {
         ASSERT_EQ(memcmp(emulator_cdi_attest, next_cdi_attest.data(),
@@ -531,9 +512,6 @@ TEST(hwbcc, GENERIC_ARM64_PLATFORM_ONLY_TEST(test_get_dice_artifacts)) {
         ASSERT_EQ(
                 memcmp(emulator_cdi_seal, next_cdi_seal.data(), DICE_CDI_SIZE),
                 0);
-        ASSERT_EQ(memcmp(emulator_uds_pub_key, root_pub_key.data(),
-                         DICE_PUBLIC_KEY_SIZE),
-                  0);
     }
 
 test_abort:;

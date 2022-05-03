@@ -452,12 +452,10 @@ int swbcc_get_bcc(swbcc_session_t s,
 #define CONFIG_DESCRIPTOR_TOTAL_SIZE 48
 
 /*
- * Format and size of a DICE artifacts handed over from root is:
- * Map header + Two CDIs = 72
- * Bcc (root pub key + certificate) = 509
- * Total BCC Handover = 581
+ * Size of a DICE artifacts handed over from root (without Bcc) is:
+ * CBOR tags + Two CDIs = 71
  */
-#define DICE_ARTIFACTS_FROM_ROOT_TOTAL_SIZE 587
+#define DICE_ARTIFACTS_WO_BCC_TOTAL_SIZE 71
 
 int swbcc_get_dice_artifacts(swbcc_session_t s,
                              uint64_t context,
@@ -465,14 +463,24 @@ int swbcc_get_dice_artifacts(swbcc_session_t s,
                              size_t dice_artifacts_buf_size,
                              size_t* dice_artifacts_size) {
     assert(s);
-
     int rc;
     DiceResult result;
     assert(dice_artifacts);
     assert(dice_artifacts_size);
-    assert(dice_artifacts_buf_size >= DICE_ARTIFACTS_FROM_ROOT_TOTAL_SIZE);
+    assert(dice_artifacts_buf_size >= DICE_ARTIFACTS_WO_BCC_TOTAL_SIZE);
 
     struct DICEArtifacts dice_artifacts_for_target = {};
+
+    /**
+     * TODO: Currently, we assume that the only caller of this method is ABL
+     * (i.e. non-secure world). Therefore, we return DICE artifacts (i.e.
+     * BccHandover) without a Bcc, for privacy reasons. However, when this
+     * method serves TAs, certain refactoring will be required, such as:
+     * differentiating the caller from the caller's UUID,
+     * having multiple child nodes in DICE root corresponding to the TAs, which
+     * contain their DICE information, and including the Bcc in the DICE
+     * chain returned to the TAs.
+     */
 
     /* Initialize the DICE input values. */
     DiceInputValues input_values = {};
@@ -511,64 +519,49 @@ int swbcc_get_dice_artifacts(swbcc_session_t s,
         input_values.mode = kDiceModeNormal;
     }
 
+    /*
+     * DICE artifacts to be handed over from root to the child nodes takes the
+     * following format.
+     * BccHandover = {
+     *   1 : bstr .size 32,	// CDI_Attest
+     *   2 : bstr .size 32,	// CDI_Seal
+     *   ? 3 : Bcc,        	// Cert_Chain
+     * }
+     * where Bcc = [
+     *         PubKeyEd25519 / PubKeyECDSA256, // Root pub key
+     *         BccEntry,                       // Root -> leaf
+     *       ]
+     * In the BccHandover returned to non-secure world, we do not include
+     * anything pre-FRS. Therefore, only the two CDIs are included in the
+     * BccHandover.
+     */
+
+    // Factory reset secret is mixed in only for the non-secure world.
     memcpy(input_values.hidden, srv_state.dice_root.FRS,
            sizeof(srv_state.dice_root.FRS));
 
     result = DiceMainFlow(NULL, srv_state.dice_root.UDS,
-                          srv_state.dice_root.UDS, &input_values,
-                          sizeof(dice_artifacts_for_target.next_certificate),
-                          dice_artifacts_for_target.next_certificate,
-                          &dice_artifacts_for_target.next_certificate_size,
+                          srv_state.dice_root.UDS, &input_values, 0, NULL, NULL,
                           dice_artifacts_for_target.next_cdi_attest,
                           dice_artifacts_for_target.next_cdi_seal);
     rc = dice_result_to_err(result);
 
     if (rc != NO_ERROR) {
-        TLOGE("Failed to do the DICE derivation : %d\n", rc);
+        TLOGE("Failed to derive DICE CDIs : %d\n", rc);
         return rc;
     }
 
-    /*
-     * Encode DICE artifacts to be handed over from root to the child nodes.
-     * BccHandover = {
-     *	1 : bstr .size 32,	// CDI_Attest
-     *	2 : bstr .size 32,	// CDI_Seal
-     *	3 : bstr .cbor Bcc,	// Cert_Chain
-     * }
-     */
     struct CborOut out;
     CborOutInit(dice_artifacts, dice_artifacts_buf_size, &out);
-    CborWriteMap(3, &out);
+    CborWriteMap(2, &out);
     CborWriteInt(1, &out);
     CborWriteBstr(DICE_CDI_SIZE, dice_artifacts_for_target.next_cdi_attest,
                   &out);
     CborWriteInt(2, &out);
     CborWriteBstr(DICE_CDI_SIZE, dice_artifacts_for_target.next_cdi_seal, &out);
-    CborWriteInt(3, &out);
-    CborWriteArray(2, &out);
     assert(!CborOutOverflowed(&out));
-    size_t encoded_size_used = CborOutSize(&out);
 
-    dice_artifacts += encoded_size_used;
-    dice_artifacts_buf_size -= encoded_size_used;
-    *dice_artifacts_size = encoded_size_used;
+    *dice_artifacts_size = CborOutSize(&out);
 
-    size_t encoded_pub_key_size = 0;
-    result = DiceCoseEncodePublicKey(NULL, srv_state.dice_root.UDS_pub_key,
-                                     dice_artifacts_buf_size, dice_artifacts,
-                                     &encoded_pub_key_size);
-    rc = dice_result_to_err(result);
-    if (rc != NO_ERROR) {
-        TLOGE("Failed to encode the public key : %d\n", rc);
-        return rc;
-    }
-
-    dice_artifacts += encoded_pub_key_size;
-    dice_artifacts_buf_size -= encoded_pub_key_size;
-    *dice_artifacts_size += encoded_pub_key_size;
-
-    memcpy(dice_artifacts, dice_artifacts_for_target.next_certificate,
-           dice_artifacts_for_target.next_certificate_size);
-    *dice_artifacts_size += dice_artifacts_for_target.next_certificate_size;
     return NO_ERROR;
 }
