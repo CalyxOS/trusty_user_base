@@ -23,10 +23,12 @@ const HWCRYPTO_UNITTEST_DERIVED_KEYBOX_ID: &'static [u8] =
     b"com.android.trusty.hwcrypto.unittest.derived_key32\0";
 const HWCRYPTO_UNITTEST_KEYBOX_ID: &'static [u8] = b"com.android.trusty.hwcrypto.unittest.key32\0";
 const RPMB_STORAGE_AUTH_KEY_ID: &'static [u8] = b"com.android.trusty.storage_auth.rpmb\0";
-const HWCRYPTO_UNITTEST_OPAQUE_HANDLE_NOACCESS_ID: &'static [u8] =
-    b"com.android.trusty.hwcrypto.unittest.opaque_handle_noaccess\0";
 const HWCRYPTO_UNITTEST_OPAQUE_HANDLE_ID: &'static [u8] =
     b"com.android.trusty.hwcrypto.unittest.opaque_handle\0";
+
+#[cfg(feature = "hwcrypto-unittest")]
+const HWCRYPTO_UNITTEST_OPAQUE_HANDLE_NOACCESS_ID: &'static [u8] =
+    b"com.android.trusty.hwcrypto.unittest.opaque_handle_noaccess\0";
 
 const UNITTEST_KEYSLOT: &'static [u8] = b"unittestkeyslotunittestkeyslotun";
 const UNITTEST_DERIVED_KEYSLOT: &'static [u8] = b"unittestderivedkeyslotunittestde";
