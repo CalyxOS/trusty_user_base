@@ -36,6 +36,7 @@ TRUSTY_USER_TESTS += \
 
 TRUSTY_RUST_USER_TESTS += \
 	trusty/user/base/lib/tipc/rust \
+	trusty/user/base/lib/hwkey/rust \
 
 ifeq (true,$(call TOBOOL,$(USER_COVERAGE_ENABLED)))
 TRUSTY_USER_TESTS += \

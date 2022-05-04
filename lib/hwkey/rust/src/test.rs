@@ -1,0 +1,276 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+use super::*;
+use ::test::{assert, assert_eq, assert_ne};
+
+::test::init!();
+
+const HWCRYPTO_UNITTEST_DERIVED_KEYBOX_ID: &'static [u8] =
+    b"com.android.trusty.hwcrypto.unittest.derived_key32\0";
+const HWCRYPTO_UNITTEST_KEYBOX_ID: &'static [u8] = b"com.android.trusty.hwcrypto.unittest.key32\0";
+const RPMB_STORAGE_AUTH_KEY_ID: &'static [u8] = b"com.android.trusty.storage_auth.rpmb\0";
+const HWCRYPTO_UNITTEST_OPAQUE_HANDLE_NOACCESS_ID: &'static [u8] =
+    b"com.android.trusty.hwcrypto.unittest.opaque_handle_noaccess\0";
+const HWCRYPTO_UNITTEST_OPAQUE_HANDLE_ID: &'static [u8] =
+    b"com.android.trusty.hwcrypto.unittest.opaque_handle\0";
+
+const UNITTEST_KEYSLOT: &'static [u8] = b"unittestkeyslotunittestkeyslotun";
+const UNITTEST_DERIVED_KEYSLOT: &'static [u8] = b"unittestderivedkeyslotunittestde";
+
+const NONSENSE_DATA_32B: &'static [u8] = b"thirtytwo-bytes-of-nonsense-data";
+
+const KEY_SIZE: usize = 32;
+
+fn keys_are_sufficiently_distinct(key1: &[u8], key2: &[u8]) -> bool {
+    let (sk, lk) = if key1.len() < key2.len() { (key1, key2) } else { (key2, key1) };
+    let differing_bytes = sk.iter().zip(lk).filter(|&(s, l)| s ^ l != 0).count();
+    sk.len() - differing_bytes <= 4
+}
+
+#[test]
+fn test_hwkey_derive_repeatable_versioned() {
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+
+    // derive key once
+    let buf = &mut [0 as u8; KEY_SIZE as usize];
+    let DeriveResult { kdf_version, os_rollback_version } = hwkey_session
+        .derive_key_req()
+        .unique_key()
+        .kdf(KdfVersion::Best)
+        .os_rollback_version(OsRollbackVersion::Version(0))
+        .rollback_version_source(RollbackVersionSource::CommittedVersion)
+        .derive(NONSENSE_DATA_32B, buf)
+        .expect("could not derive key");
+    assert_ne!(kdf_version, KdfVersion::Best);
+
+    // derive key again
+    let buf2 = &mut [0 as u8; KEY_SIZE as usize];
+    let _ = hwkey_session
+        .derive_key_req()
+        .unique_key()
+        .kdf(kdf_version)
+        .os_rollback_version(os_rollback_version)
+        .rollback_version_source(RollbackVersionSource::CommittedVersion)
+        .derive(NONSENSE_DATA_32B, buf2)
+        .expect("could not derive key");
+
+    // ensure they are the same
+    assert_eq!(buf, buf2);
+    assert_ne!(buf, NONSENSE_DATA_32B);
+
+    // ensure that we don't derive the same key if deriving a shared key
+    buf2.fill(0);
+    let _ = hwkey_session
+        .derive_key_req()
+        .shared_key()
+        .kdf(kdf_version)
+        .os_rollback_version(os_rollback_version)
+        .rollback_version_source(RollbackVersionSource::CommittedVersion)
+        .derive(NONSENSE_DATA_32B, buf2)
+        .expect("could not derive key");
+    assert_ne!(buf, buf2);
+
+    assert!(keys_are_sufficiently_distinct(buf, buf2));
+
+    // ensure that we don't derive the same key if deriving
+    // a device-unique key that specifies the running version
+    // as the rollback version source
+    buf2.fill(0);
+    let DeriveResult { os_rollback_version, .. } = hwkey_session
+        .derive_key_req()
+        .unique_key()
+        .kdf(kdf_version)
+        .os_rollback_version(os_rollback_version)
+        .rollback_version_source(RollbackVersionSource::RunningVersion)
+        .derive(NONSENSE_DATA_32B, buf2)
+        .expect("could not derive key");
+
+    match os_rollback_version {
+        OsRollbackVersion::Version(v) if v > 0 => {
+            assert_ne!(buf, buf2);
+            assert!(keys_are_sufficiently_distinct(buf, buf2))
+        }
+        _ => assert_eq!(buf, buf2),
+    }
+}
+
+#[test]
+fn test_hwkey_derive_different() {
+    const SRC_DATA2: &'static [u8] = b"thirtytwo-byt3s-of-nons3ns3-data";
+
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+
+    // derive key once
+    let buf1 = &mut [0 as u8; KEY_SIZE as usize];
+    let DeriveResult { kdf_version, .. } = hwkey_session
+        .derive_key_req()
+        .derive(NONSENSE_DATA_32B, buf1)
+        .expect("could not derive key");
+
+    assert_ne!(kdf_version, KdfVersion::Best);
+
+    // derive key again
+    let buf2 = &mut [0 as u8; KEY_SIZE as usize];
+    let _ = hwkey_session.derive_key_req().derive(SRC_DATA2, buf2).expect("could not derive key");
+
+    assert_ne!(buf1, buf2);
+    assert_ne!(buf1, NONSENSE_DATA_32B);
+    assert_ne!(buf2, SRC_DATA2);
+    assert!(keys_are_sufficiently_distinct(buf1, buf2));
+}
+
+#[test]
+fn test_get_keyslot_storage_auth() {
+    let keyslot = CStr::from_bytes_with_nul(RPMB_STORAGE_AUTH_KEY_ID).unwrap();
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+    let buf = &mut [0 as u8; KEY_SIZE as usize];
+    let err = hwkey_session
+        .get_keyslot_data(keyslot, buf)
+        .expect_err("auth key accessible when it shouldn't be");
+    assert_eq!(err, HwkeyError::NotFound);
+}
+
+#[test]
+fn test_get_keybox() {
+    let keyslot = CStr::from_bytes_with_nul(HWCRYPTO_UNITTEST_KEYBOX_ID).unwrap();
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+    let buf = &mut [0 as u8; KEY_SIZE as usize];
+    let keyslot_res = hwkey_session.get_keyslot_data(keyslot, buf);
+    if cfg!(feature = "hwcrypto-unittest") {
+        assert_eq!(UNITTEST_KEYSLOT, keyslot_res.expect("could not get keyslot data"))
+    } else {
+        assert!(keyslot_res.is_err());
+    }
+}
+
+#[test]
+fn test_get_derived_keybox() {
+    let keyslot = CStr::from_bytes_with_nul(HWCRYPTO_UNITTEST_DERIVED_KEYBOX_ID).unwrap();
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+    let buf = &mut [0 as u8; KEY_SIZE as usize];
+    let keyslot_res = hwkey_session.get_keyslot_data(keyslot, buf);
+    if cfg!(feature = "hwcrypto-unittest") {
+        assert_eq!(UNITTEST_DERIVED_KEYSLOT, keyslot_res.expect("could not get keyslot data"))
+    } else {
+        assert!(keyslot_res.is_err());
+    }
+}
+
+#[test]
+fn test_get_opaque_handle() {
+    let keyslot = CStr::from_bytes_with_nul(HWCRYPTO_UNITTEST_OPAQUE_HANDLE_ID).unwrap();
+    const HWKEY_OPAQUE_HANDLE_MAX_SIZE: usize = 128;
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+    let buf = &mut [0 as u8; HWKEY_OPAQUE_HANDLE_MAX_SIZE as usize];
+    let keyslot_res = hwkey_session.get_keyslot_data(keyslot, buf);
+    if cfg!(feature = "hwcrypto-unittest") {
+        assert!(
+            keyslot_res.expect("could not retrieve keyslot data").len()
+                <= HWKEY_OPAQUE_HANDLE_MAX_SIZE
+        )
+    } else {
+        assert!(keyslot_res.is_err());
+    }
+}
+
+#[test]
+#[cfg(feature = "hwcrypto-unittest")]
+fn test_get_opaque_key() {
+    let keyslot = CStr::from_bytes_with_nul(HWCRYPTO_UNITTEST_OPAQUE_HANDLE_ID).unwrap();
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+    let buf = &mut [0 as u8; HWKEY_OPAQUE_HANDLE_MAX_SIZE as usize];
+    let opaque_handle =
+        hwkey_session.get_keyslot_data(keyslot, buf).expect("could not retrieve keyslot data");
+    assert!(opaque_handle.len() <= HWKEY_OPAQUE_HANDLE_MAX_SIZE as usize);
+
+    let key_buf = &mut [0 as u8; KEY_SIZE as usize];
+    let keyslot_data = hwkey_session
+        .get_keyslot_data(CStr::from_bytes_with_nul(opaque_handle).unwrap(), key_buf)
+        .expect("could not retrieve keyslot data");
+    assert_eq!(UNITTEST_KEYSLOT, keyslot_data)
+}
+
+#[test]
+#[cfg(feature = "hwcrypto-unittest")]
+fn test_get_multiple_opaque_keys() {
+    let handle_buf = &mut [0 as u8; HWKEY_OPAQUE_HANDLE_MAX_SIZE as usize];
+    let handle: &[u8];
+    let no_access_handle_buf = &mut [0 as u8; HWKEY_OPAQUE_HANDLE_MAX_SIZE as usize];
+    let no_access_handle: &[u8];
+    {
+        // close hwkey session when scope ends
+        let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+
+        // get handle of opaque key
+        let keyslot = CStr::from_bytes_with_nul(HWCRYPTO_UNITTEST_OPAQUE_HANDLE_ID).unwrap();
+        handle = hwkey_session
+            .get_keyslot_data(keyslot, handle_buf)
+            .expect("could not retrieve keyslot data");
+        assert!(handle.len() <= HWKEY_OPAQUE_HANDLE_MAX_SIZE as usize);
+
+        // get handle of opaque key that there is no access to
+        let keyslot =
+            CStr::from_bytes_with_nul(HWCRYPTO_UNITTEST_OPAQUE_HANDLE_NOACCESS_ID).unwrap();
+        no_access_handle = hwkey_session
+            .get_keyslot_data(keyslot, no_access_handle_buf)
+            .expect("could not retrieve keyslot data");
+        assert!(no_access_handle.len() <= HWKEY_OPAQUE_HANDLE_MAX_SIZE as usize);
+
+        // the handles should be different
+        assert_ne!(handle, no_access_handle);
+
+        // test the key belonging to the key slot
+        let key_buf = &mut [0 as u8; KEY_SIZE as usize];
+        let handle_keyslot_data = hwkey_session
+            .get_keyslot_data(CStr::from_bytes_with_nul(handle).unwrap(), key_buf)
+            .expect("could not retrieve keyslot data");
+        assert_eq!(UNITTEST_KEYSLOT, handle_keyslot_data);
+
+        // test no access
+        let key_buf = &mut [0 as u8; KEY_SIZE as usize];
+        let err = hwkey_session
+            .get_keyslot_data(CStr::from_bytes_with_nul(no_access_handle).unwrap(), key_buf)
+            .expect_err("key accessible when it shouldn't be");
+        assert_eq!(err, HwkeyError::NotFound);
+    }
+
+    // session has closed following end of scope above, open a new session
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+
+    // ensure that the tokens have been dropped and cleared
+    let key_buf = &mut [0 as u8; KEY_SIZE as usize];
+    let err = hwkey_session
+        .get_keyslot_data(CStr::from_bytes_with_nul(handle).unwrap(), key_buf)
+        .expect_err("key accessible when it shouldn't be");
+    assert_eq!(err, HwkeyError::NotFound);
+
+    let key_buf = &mut [0 as u8; KEY_SIZE as usize];
+    let err = hwkey_session
+        .get_keyslot_data(CStr::from_bytes_with_nul(no_access_handle).unwrap(), key_buf)
+        .expect_err("key accessible when it shouldn't be");
+    assert_eq!(err, HwkeyError::NotFound);
+}
+
+#[test]
+fn test_query_current_os_version() {
+    let hwkey_session = Hwkey::open().expect("could not open hwkey session");
+
+    let os_rollback_version =
+        hwkey_session.query_current_os_version().expect("could not query version");
+
+    assert_ne!(os_rollback_version, OsRollbackVersion::Current);
+}
