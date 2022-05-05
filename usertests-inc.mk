@@ -73,3 +73,5 @@ TRUSTY_LOADABLE_USER_TASKS += \
 	trusty/user/base/app/apploader/tests/mmio_test_apps/bad_uuid \
 	trusty/user/base/app/apploader/tests/mmio_test_apps/bad_range_low \
 	trusty/user/base/app/apploader/tests/mmio_test_apps/bad_range_high \
+	trusty/user/base/app/trusty-crasher \
+
