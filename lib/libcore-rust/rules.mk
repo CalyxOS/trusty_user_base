@@ -23,7 +23,7 @@ MODULE_SRCS := $(LIBCORE_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := core
 
-MODULE_RUST_EDITION := 2018
+MODULE_RUST_EDITION := 2021
 
 MODULE_RUSTFLAGS += \
 	-Z force-unstable-if-unmarked \

@@ -35,7 +35,6 @@
 #![feature(allow_internal_unstable)]
 #![feature(core_intrinsics)]
 #![feature(lang_items)]
-#![feature(maybe_uninit_extra)]
 // min_specialization is only used to optimize CString::try_new(), so we can
 // remove it if needed
 #![feature(min_specialization)]
@@ -45,7 +44,6 @@
 #![feature(rustc_attrs)]
 #![feature(slice_internals)]
 #![feature(slice_ptr_get)]
-#![feature(vec_spare_capacity)]
 
 // Import alloc with a different name to not clash with our local module
 extern crate alloc as alloc_crate;

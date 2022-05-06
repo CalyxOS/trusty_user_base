@@ -23,7 +23,7 @@ MODULE_SRCS := $(LIBALLOC_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := alloc
 
-MODULE_RUST_EDITION := 2018
+MODULE_RUST_EDITION := 2021
 
 # TODO(196094086): enable when https://github.com/rust-lang/rust/pull/86938 or a
 # replacement lands in the toolchain.
