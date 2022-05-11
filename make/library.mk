@@ -53,7 +53,6 @@
 # to this module's local flags. To override an exported flag, add the
 # corresponding override to e.g. MODULE_COMPILEFLAGS.
 #
-# MODULE_EXPORT_DEFINES
 # MODULE_EXPORT_COMPILEFLAGS
 # MODULE_EXPORT_CONSTANTS
 # MODULE_EXPORT_CFLAGS
@@ -137,7 +136,7 @@ ifneq ($(GLOBAL_ASMFLAGS),)
 $(error $(MODULE) has modified GLOBAL_ASMFLAGS, this variable is deprecated, please use MODULE_EXPORT_ASMFLAGS)
 endif
 ifneq ($(GLOBAL_DEFINES),)
-$(error $(MODULE) has modified GLOBAL_DEFINES, this variable is deprecated, please use MODULE_EXPORT_DEFINES)
+$(error $(MODULE) has modified GLOBAL_DEFINES, this variable is deprecated)
 endif
 ifneq ($(GLOBAL_INCLUDES),)
 $(error $(MODULE) has modified GLOBAL_INCLUDES, this variable is deprecated, please use MODULE_EXPORT_INCLUDES)
@@ -176,7 +175,6 @@ MODULE_CONSTANTS += $(CONSTANTS)
 _MODULES_$(MODULE) := T
 
 # Cache exported flags for use in modules that depend on this library.
-_MODULES_$(MODULE)_DEFINES := $(MODULE_EXPORT_DEFINES)
 _MODULES_$(MODULE)_COMPILEFLAGS := $(MODULE_EXPORT_COMPILEFLAGS)
 _MODULES_$(MODULE)_CONSTANTS := $(MODULE_EXPORT_CONSTANTS)
 _MODULES_$(MODULE)_CFLAGS := $(MODULE_EXPORT_CFLAGS)
@@ -202,7 +200,6 @@ $(foreach dep,$(sort $(MODULE_LIBRARY_EXPORTED_DEPS)),\
 	$(eval include make/userspace_recurse.mk))
 
 # Re-cache exported flags after adding any flags from exported deps
-_MODULES_$(MODULE)_DEFINES := $(MODULE_EXPORT_DEFINES)
 _MODULES_$(MODULE)_COMPILEFLAGS := $(MODULE_EXPORT_COMPILEFLAGS)
 _MODULES_$(MODULE)_CFLAGS := $(MODULE_EXPORT_CFLAGS)
 _MODULES_$(MODULE)_CPPFLAGS := $(MODULE_EXPORT_CPPFLAGS)
@@ -399,7 +396,6 @@ MODULE_RUST_TESTS :=
 MODULE_EXPORT_LIBRARIES :=
 MODULE_EXPORT_RLIBS :=
 MODULE_EXPORT_EXTRA_OBJECTS :=
-MODULE_EXPORT_DEFINES :=
 MODULE_EXPORT_COMPILEFLAGS :=
 MODULE_EXPORT_CONSTANTS :=
 MODULE_EXPORT_CFLAGS :=
