@@ -20,6 +20,20 @@ MODULE_CPPFLAGS += -DLIBCXX_BUILDING_LIBCXXABI
 # caution.
 MODULE_EXPORT_CPPFLAGS += -D_LIBCPP_BUILD_STATIC -D_LIBCPP_HAS_MUSL_LIBC
 
+# Use features supported by musl and Trusty
+MODULE_EXPORT_CPPFLAGS += \
+	-D_LIBCPP_HAS_QUICK_EXIT \
+	-D_LIBCPP_HAS_TIMESPEC_GET \
+	-D_LIBCPP_HAS_C11_FEATURES \
+
+# We need to pick a threading backend otherwise libcxx doesn't
+# export some C++ headers, e.g., <atomic>. musl supports pthreads
+# so we pick the pthreads backend, enabling those headers.
+# For now, any code that tries to use std::thread will fail to link
+# until Trusty implements the syscalls used by musl's pthreads.
+MODULE_EXPORT_CPPFLAGS += \
+	-D_LIBCPP_HAS_THREAD_API_PTHREAD \
+
 MODULE_SRCS := \
         $(LIBCXX_DIR)/src/algorithm.cpp \
         $(LIBCXX_DIR)/src/any.cpp \
