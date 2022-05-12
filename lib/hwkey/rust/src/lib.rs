@@ -99,7 +99,7 @@ impl Hwkey {
     ///
     /// ```
     /// let hwkey_session = Hwkey::open().expect("could not open hwkey session");
-    /// let buf = &mut [0 as u8; 2048 as usize];
+    /// let buf = &mut [0u8; 2048 as usize];
     /// let keyslot = CStr::from_bytes_with_nul(b"keyslot_name\0").unwrap();
     /// let keyslot_data =
     ///     hwkey_session.get_keyslot_data(keyslot, buf).expect("could not retrieve keyslot data");
@@ -263,11 +263,17 @@ impl Hwkey {
     /// ```
     /// let hwkey_session = Hwkey::open().expect("could not open hwkey session");
     /// let os_rollback_version = hwkey_session
-    ///     .query_current_os_version()
+    ///     .query_current_os_version(RollbackVersionSource::RunningVersion)
     ///     .expect("could not query version");
     /// ```
-    pub fn query_current_os_version(self) -> Result<OsRollbackVersion, HwkeyError> {
-        let derive_request = self.derive_key_req().os_rollback_version(OsRollbackVersion::Current);
+    pub fn query_current_os_version(
+        &self,
+        rollback_source: RollbackVersionSource,
+    ) -> Result<OsRollbackVersion, HwkeyError> {
+        let derive_request = self
+            .derive_key_req()
+            .rollback_version_source(rollback_source)
+            .os_rollback_version(OsRollbackVersion::Current);
         self.derive(&[], &mut [], derive_request).map(|res| res.os_rollback_version)
     }
 }
@@ -481,7 +487,7 @@ impl<'a> DerivedKeyRequest<'a> {
     ///
     /// ```
     /// let hwkey_session = Hwkey::open().expect("could not open hwkey session");
-    /// let buf = &mut [0 as u8; 32 as usize];
+    /// let buf = &mut [0u8; 32 as usize];
     /// let DeriveResult { kdf_version, os_rollback_version } = hwkey_session
     ///     .derive_key_req()
     ///     .derive(b"thirtytwo-bytes-of-nonsense-data", buf)
@@ -490,7 +496,7 @@ impl<'a> DerivedKeyRequest<'a> {
     ///
     /// ```
     /// let hwkey_session = Hwkey::open().expect("could not open hwkey session");
-    /// let buf = &mut [0 as u8; 128 as usize];
+    /// let buf = &mut [0u8; 128 as usize];
     /// let DeriveResult { kdf_version, os_rollback_version } = hwkey_session
     ///     .derive_key_req()
     ///     .unique_key()
