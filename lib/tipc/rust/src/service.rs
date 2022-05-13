@@ -127,7 +127,7 @@ impl TryClone for PortCfg {
     }
 }
 
-struct Channel<D: Dispatcher> {
+pub(crate) struct Channel<D: Dispatcher> {
     handle: Handle,
     ty: ChannelTy<D>,
 }
@@ -201,7 +201,7 @@ impl<D: Dispatcher> Channel<D> {
         }
     }
 
-    fn try_new_port(cfg: &PortCfg) -> Result<Rc<Self>> {
+    pub(crate) fn try_new_port(cfg: &PortCfg) -> Result<Rc<Self>> {
         // SAFETY: syscall, config path is borrowed and outlives the call.
         // Return value is either a negative error code or a valid handle.
         let rc = unsafe {
@@ -518,5 +518,33 @@ impl<
 
     fn handle_disconnect(&mut self, _handle: &Handle, data: &D::Connection) {
         self.dispatcher.on_disconnect(data);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{Handle, PortCfg, Result, Service, Uuid};
+
+    impl Service for () {
+        type Connection = ();
+        type Message = ();
+
+        fn on_connect(
+            &self,
+            _port: &PortCfg,
+            _handle: &Handle,
+            _peer: &Uuid,
+        ) -> Result<Option<Self::Connection>> {
+            Ok(Some(()))
+        }
+
+        fn on_message(
+            &self,
+            _connection: &Self::Connection,
+            _handle: &Handle,
+            _msg: Self::Message,
+        ) -> Result<bool> {
+            Ok(true)
+        }
     }
 }

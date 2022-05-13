@@ -302,28 +302,50 @@ impl<'a> Serializer<'a> for BorrowingSerializer<'a> {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::Handle;
     use crate::TipcError;
     use test::expect_eq;
+    use trusty_std::sync::Once;
     use trusty_sys::Error;
-
-    const INVALID_IPC_HANDLE: Handle = Handle(-1);
 
     // Expected limits: should be in sync with kernel settings
     // TODO: Derive these from tipc/test/include/app/ipc_unittest/common.h when
     // we have easier bindgen support
 
     /// First user handle ID
-    const USER_BASE_HANDLE: i32 = 1000;
+    pub const USER_BASE_HANDLE: i32 = 1000;
 
     /// Maximum number of user handles
-    const MAX_USER_HANDLES: i32 = 64;
+    pub const MAX_USER_HANDLES: i32 = 64;
 
-    // HACK: Ports 0 and 1 are standard out and error, then we have a port for
-    // the test service and another for the connection handle. Therefore the
-    // first free index is 4.
-    const FIRST_FREE_HANDLE_INDEX: i32 = 4;
+    const INVALID_IPC_HANDLE: Handle = Handle(-1);
+
+    static mut FIRST_FREE_HANDLE_INDEX: i32 = -1;
+    static FIRST_FREE_HANDLE_INDEX_INIT: Once = Once::new();
+
+    // We don't know ahead of time what the first free handle will be, so we have to
+    // check and save the result the first time we need it.
+    pub fn first_free_handle_index() -> i32 {
+        type Channel = crate::service::Channel<()>;
+
+        FIRST_FREE_HANDLE_INDEX_INIT.call_once(|| {
+            let chan = Channel::try_new_port(
+                &crate::PortCfg::new("com.android.tipc.handle_probe").unwrap(),
+            )
+            .unwrap();
+
+            // SAFETY: Write access is guarded by Once
+            unsafe {
+                FIRST_FREE_HANDLE_INDEX = chan.handle().0 - USER_BASE_HANDLE;
+            }
+        });
+
+        // SAFETY: Once call above gates write access, so we know that the
+        // static has been initialized at this point and will be read-only from
+        // now on. Read-only access to a static i32 is safe.
+        unsafe { FIRST_FREE_HANDLE_INDEX }
+    }
 
     #[test]
     fn wait_negative() {
@@ -362,7 +384,7 @@ mod test {
         );
 
         // wait on non-existent handle in valid range
-        for i in FIRST_FREE_HANDLE_INDEX..MAX_USER_HANDLES {
+        for i in first_free_handle_index()..MAX_USER_HANDLES {
             expect_eq!(
                 Handle(USER_BASE_HANDLE + i).wait(timeout).err(),
                 Some(TipcError::SystemError(Error::NotFound)),
