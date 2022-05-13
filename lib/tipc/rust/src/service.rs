@@ -523,7 +523,27 @@ impl<
 
 #[cfg(test)]
 mod test {
-    use super::{Handle, PortCfg, Result, Service, Uuid};
+    use super::{Channel, PortCfg, Service};
+    use crate::handle::test::{first_free_handle_index, MAX_USER_HANDLES};
+    use crate::{Handle, Result, TipcError, Uuid};
+    use test::{expect, expect_eq};
+    use trusty_std::alloc::FallibleVec;
+    use trusty_std::ffi::CString;
+    use trusty_std::format;
+    use trusty_std::rc::Rc;
+    use trusty_std::vec::Vec;
+    use trusty_sys::Error;
+
+    /// Maximum length of port path name
+    const MAX_PORT_PATH_LEN: usize = 64;
+
+    /// Maximum number of buffers per port
+    const MAX_PORT_BUF_NUM: u32 = 64;
+
+    /// Maximum size of port buffer
+    const MAX_PORT_BUF_SIZE: u32 = 4096;
+
+    const SRV_PATH_BASE: &str = "com.android.ipc-unittest";
 
     impl Service for () {
         type Connection = ();
@@ -545,6 +565,129 @@ mod test {
             _msg: Self::Message,
         ) -> Result<bool> {
             Ok(true)
+        }
+    }
+
+    #[test]
+    fn port_create_negative() {
+        let path = [0u8; 0];
+
+        expect_eq!(
+            Channel::<()>::try_new_port(&PortCfg::new_raw(CString::try_new(&path[..]).unwrap()))
+                .err(),
+            Some(TipcError::SystemError(Error::InvalidArgs)),
+            "empty server path",
+        );
+
+        let mut path = format!("{}.port", SRV_PATH_BASE);
+
+        let cfg = PortCfg::new(&path).unwrap().msg_queue_len(0);
+        expect_eq!(
+            Channel::<()>::try_new_port(&cfg).err(),
+            Some(TipcError::SystemError(Error::InvalidArgs)),
+            "no buffers",
+        );
+
+        let cfg = PortCfg::new(&path).unwrap().msg_max_size(0);
+        expect_eq!(
+            Channel::<()>::try_new_port(&cfg).err(),
+            Some(TipcError::SystemError(Error::InvalidArgs)),
+            "zero buffer size",
+        );
+
+        let cfg = PortCfg::new(&path).unwrap().msg_queue_len(MAX_PORT_BUF_NUM * 100);
+        expect_eq!(
+            Channel::<()>::try_new_port(&cfg).err(),
+            Some(TipcError::SystemError(Error::InvalidArgs)),
+            "large number of buffers",
+        );
+
+        let cfg = PortCfg::new(&path).unwrap().msg_max_size(MAX_PORT_BUF_SIZE * 100);
+        expect_eq!(
+            Channel::<()>::try_new_port(&cfg).err(),
+            Some(TipcError::SystemError(Error::InvalidArgs)),
+            "large buffers size",
+        );
+
+        while path.len() < MAX_PORT_PATH_LEN + 16 {
+            path.push('a');
+        }
+
+        let cfg = PortCfg::new(path).unwrap();
+        expect_eq!(
+            Channel::<()>::try_new_port(&cfg).err(),
+            Some(TipcError::SystemError(Error::InvalidArgs)),
+            "path is too long",
+        );
+    }
+
+    #[test]
+    fn port_create() {
+        let mut channels: Vec<Rc<Channel<()>>> = Vec::new();
+
+        for i in first_free_handle_index()..MAX_USER_HANDLES - 1 {
+            let path = format!("{}.port.{}{}", SRV_PATH_BASE, "test", i);
+            let cfg = PortCfg::new(path).unwrap();
+            let channel = Channel::<()>::try_new_port(&cfg);
+            expect!(channel.is_ok(), "create ports");
+            channels.try_push(channel.unwrap()).unwrap();
+
+            expect_eq!(
+                Channel::<()>::try_new_port(&cfg).err(),
+                Some(TipcError::SystemError(Error::AlreadyExists)),
+                "collide with existing port",
+            );
+        }
+
+        // Creating one more port should succeed
+        let path = format!("{}.port.{}{}", SRV_PATH_BASE, "test", MAX_USER_HANDLES - 1);
+        let cfg = PortCfg::new(path).unwrap();
+        let channel = Channel::<()>::try_new_port(&cfg);
+        expect!(channel.is_ok(), "create ports");
+        channels.try_push(channel.unwrap()).unwrap();
+
+        // but creating colliding port should fail with different error code
+        // because we actually exceeded max number of handles instead of
+        // colliding with an existing path
+        expect_eq!(
+            Channel::<()>::try_new_port(&cfg).err(),
+            Some(TipcError::SystemError(Error::NoResources)),
+            "collide with existing port",
+        );
+
+        let path = format!("{}.port.{}{}", SRV_PATH_BASE, "test", MAX_USER_HANDLES);
+        let cfg = PortCfg::new(path).unwrap();
+        expect_eq!(
+            Channel::<()>::try_new_port(&cfg).err(),
+            Some(TipcError::SystemError(Error::NoResources)),
+            "max number of ports reached",
+        );
+    }
+
+    #[test]
+    fn wait_on_port() {
+        let mut channels: Vec<Rc<Channel<()>>> = Vec::new();
+
+        for i in first_free_handle_index()..MAX_USER_HANDLES {
+            let path = format!("{}.port.{}{}", SRV_PATH_BASE, "test", i);
+            let cfg = PortCfg::new(path).unwrap();
+            let channel = Channel::<()>::try_new_port(&cfg);
+            expect!(channel.is_ok(), "create ports");
+            channels.try_push(channel.unwrap()).unwrap();
+        }
+
+        for chan in &channels {
+            expect_eq!(
+                chan.handle.wait(Some(0)).err(),
+                Some(TipcError::SystemError(Error::TimedOut)),
+                "zero timeout",
+            );
+
+            expect_eq!(
+                chan.handle.wait(Some(100)).err(),
+                Some(TipcError::SystemError(Error::TimedOut)),
+                "non-zero timeout",
+            );
         }
     }
 }
