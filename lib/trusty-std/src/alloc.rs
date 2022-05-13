@@ -91,10 +91,13 @@ impl TryAllocFrom<&[u8]> for Vec<u8> {
 /// Temporary trait to implement the future fallible API for [`Vec`].
 // This should be removed when https://github.com/rust-lang/rust/pull/91559 or a
 // similar change is available.
-pub trait FallibleVec<T> {
+pub trait FallibleVec<T>: Sized {
     /// Tries to append `value` to the end of the vector, returning Err if it
     /// cannot allocate space for the expanded vector.
     fn try_push(&mut self, value: T) -> Result<(), TryReserveError>;
+
+    /// Tries to construct a new, empty `Vec<T>` with the specified capacity.
+    fn try_with_capacity(capacity: usize) -> Result<Self, TryReserveError>;
 }
 
 impl<T> FallibleVec<T> for Vec<T> {
@@ -102,6 +105,12 @@ impl<T> FallibleVec<T> for Vec<T> {
         self.try_reserve(self.len() + 1)?;
         self.push(value);
         Ok(())
+    }
+
+    fn try_with_capacity(capacity: usize) -> Result<Self, TryReserveError> {
+        let mut v = Vec::new();
+        v.try_reserve(capacity)?;
+        Ok(v)
     }
 }
 
