@@ -9,15 +9,6 @@ MODULE_LIBRARY_DEPS += trusty/user/base/lib/libc-trusty
 endif
 endif
 
-# Default Rust edition unless otherwise specified
-ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
-ifeq ($(MODULE_RUST_EDITION),)
-MODULE_RUST_EDITION := 2021
-endif
-
-MODULE_RUSTFLAGS += --edition $(MODULE_RUST_EDITION)
-endif
-
 # Remaining flags only apply to the trusty userspace, not the test-runner, which
 # is also built with the library system.
 ifeq (true,$(call TOBOOL,$(TRUSTY_USERSPACE)))

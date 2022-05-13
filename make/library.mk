@@ -106,16 +106,33 @@ $(info Building library or app: $(MODULE))
 # userspace_recurse.mk
 TRUSTY_NEW_MODULE_SYSTEM :=
 
-ifeq ($(call TOBOOL,$(TRUSTY_APP)),false)
-BUILDDIR := $(TRUSTY_LIBRARY_BUILDDIR)
-endif
-
 ifneq ($(filter %.rs,$(MODULE_SRCS)$(MODULE_SRCS_FIRST)),)
 MODULE_IS_RUST := true
 endif
 
+ifneq ($(filter proc-macro,$(MODULE_RUST_CRATE_TYPES)),)
+
+# proc macros must be host libraries, and all their dependencies are as well.
+# This will be reset after we recursively include all dependencies.
+MODULE_RUST_HOST_LIB := true
+
+ifneq ($(strip $(filter-out proc-macro,$(MODULE_RUST_CRATE_TYPES))),)
+$(error $(MODULE) cannot be built as both a proc-macro and a target crate)
+endif
+endif
+
+ifeq ($(call TOBOOL,$(TRUSTY_APP)),false)
+ifeq ($(call TOBOOL,$(MODULE_RUST_HOST_LIB)),false)
+BUILDDIR := $(TRUSTY_LIBRARY_BUILDDIR)
+else
+BUILDDIR := $(TRUSTY_HOST_LIBRARY_BUILDDIR)
+endif
+endif
+
+ifeq ($(call TOBOOL,$(MODULE_RUST_HOST_LIB)),false)
 # Add any common flags to the module
 include make/common_flags.mk
+endif
 
 ifneq ($(INCMODULES),)
 $(error $(MODULE) should only be included from other userspace modules that use library.mk. One of the following modules needs to be updated to use the new library system: $(LIB_SAVED_MODULE) $(ALLMODULES))
@@ -250,8 +267,8 @@ ifneq ($(words $(filter %.rs,$(MODULE_SRCS))),1)
 $(error $(MODULE) includes more than one Rust file in MODULE_SRCS)
 endif
 
-ifneq ($(filter-out rlib staticlib bin,$(MODULE_RUST_CRATE_TYPES)),)
-$(error $(MODULE) contains unrecognized crate type $(filter-out rlib staticlib bin,$(MODULE_RUST_CRATE_TYPES)) in MODULE_RUST_CRATE_TYPES)
+ifneq ($(filter-out rlib staticlib bin proc-macro,$(MODULE_RUST_CRATE_TYPES)),)
+$(error $(MODULE) contains unrecognized crate type $(filter-out rlib staticlib bin proc-macro,$(MODULE_RUST_CRATE_TYPES)) in MODULE_RUST_CRATE_TYPES)
 endif
 
 ifeq ($(MODULE_CRATE_NAME),)
@@ -259,6 +276,13 @@ $(error $(MODULE) is a Rust module but does not set MODULE_CRATE_NAME)
 endif
 
 MODULE_RUSTFLAGS += --crate-name=$(MODULE_CRATE_NAME)
+
+# Default Rust edition unless otherwise specified
+ifeq ($(MODULE_RUST_EDITION),)
+MODULE_RUST_EDITION := 2021
+endif
+
+MODULE_RUSTFLAGS += --edition $(MODULE_RUST_EDITION)
 
 ifeq ($(strip $(MODULE_RUST_CRATE_TYPES)),)
 MODULE_RUST_CRATE_TYPES := rlib
@@ -269,6 +293,14 @@ MODULE_RUSTFLAGS += $(addprefix --extern ,$(MODULE_RLIBS))
 MODULE_RUSTFLAGS += --emit link
 
 MODULE_RSOBJS :=
+
+ifneq ($(filter proc-macro,$(MODULE_RUST_CRATE_TYPES)),)
+MODULE_CRATE_OUTPUT := $(call TOBUILDDIR,lib$(MODULE_CRATE_NAME).so)
+MODULE_RSOBJS += $(MODULE_CRATE_OUTPUT)
+$(MODULE_CRATE_OUTPUT): MODULE_RUSTFLAGS := $(MODULE_RUSTFLAGS) \
+	--crate-type=proc-macro --extern proc_macro -C prefer-dynamic
+MODULE_EXPORT_RLIBS += $(MODULE_CRATE_NAME)=$(MODULE_CRATE_OUTPUT)
+endif # proc-macro crate
 
 ifneq ($(filter rlib,$(MODULE_RUST_CRATE_TYPES)),)
 MODULE_CRATE_OUTPUT := $(call TOBUILDDIR,lib$(MODULE_CRATE_NAME).rlib)
@@ -323,9 +355,15 @@ LIB_SAVED_MODULE_RUSTFLAGS := $(MODULE_RUSTFLAGS)
 ALLMODULE_OBJS :=
 MODULE_LIBRARY_DEPS :=
 
+ifeq ($(call TOBOOL,$(MODULE_RUST_HOST_LIB)),true)
+# Remove the target-specific flags
+$(MODULE_RSOBJS): ARCH_RUSTFLAGS :=
+$(MODULE_RSOBJS): GLOBAL_RUSTFLAGS := $(GLOBAL_HOST_RUSTFLAGS)
+else
 $(MODULE_RSOBJS): ARCH_RUSTFLAGS := $(ARCH_$(ARCH)_RUSTFLAGS)
 $(MODULE_RSOBJS): GLOBAL_RUSTFLAGS := $(GLOBAL_SHARED_RUSTFLAGS) $(GLOBAL_USER_RUSTFLAGS)
 $(MODULE_RSOBJS): MODULE_RUST_ENV := $(MODULE_RUST_ENV)
+endif
 
 include make/module.mk
 
@@ -351,7 +389,7 @@ $(BUILDDIR)/%.o: ARCH_CPPFLAGS := $(ARCH_$(ARCH)_CPPFLAGS)
 $(BUILDDIR)/%.o: ARCH_ASMFLAGS := $(ARCH_$(ARCH)_ASMFLAGS)
 
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
-LIBRARY_ARCHIVE := $(filter %.rlib,$(ALLMODULE_OBJS))
+LIBRARY_ARCHIVE := $(filter %.rlib %.so,$(ALLMODULE_OBJS))
 else
 LIBRARY_ARCHIVE := $(filter %.mod.a,$(ALLMODULE_OBJS))
 endif
@@ -390,6 +428,11 @@ MODULE_RLIBS :=
 MODULE_RSOBJS :=
 LIB_SAVED_MODULE :=
 LIB_SAVED_ALLMODULE_OBJS :=
+
+ifneq ($(filter proc-macro,$(MODULE_RUST_CRATE_TYPES)),)
+# Reset host build state only once we finish building the proc-macro and its deps
+MODULE_RUST_HOST_LIB :=
+endif
 MODULE_RUST_CRATE_TYPES :=
 MODULE_RUST_TESTS :=
 

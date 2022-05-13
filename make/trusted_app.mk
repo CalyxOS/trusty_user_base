@@ -102,8 +102,8 @@ TRUSTY_APP_ALL_OBJS := $(ALLMODULE_OBJS) $(MODULE_EXTRA_OBJECTS)
 # Link app elf
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
 MODULE_RUSTFLAGS += \
-	-Z pre-link-args="$(filter-out %.rlib,$(MODULE_EXTRA_OBJECTS))" \
-	-C link-args="$(ALLMODULE_OBJS)" \
+	-Z pre-link-args="$(filter-out %.rlib %.so,$(MODULE_EXTRA_OBJECTS))" \
+	-C link-args="$(filter-out %.rlib %.so,$(ALLMODULE_OBJS))" \
 	-C link-args="$(TRUSTY_APP_LDFLAGS) $(MODULE_LDFLAGS)" \
 
 $(TRUSTY_APP_SYMS_ELF).d:
