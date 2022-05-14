@@ -48,5 +48,6 @@ MODULE_SRCS := \
 
 MODULE_LIBRARY_DEPS += \
         trusty/user/base/lib/libstdc++-trusty \
+        trusty/user/base/lib/libcxxabi-trusty \
 
 include make/library.mk
