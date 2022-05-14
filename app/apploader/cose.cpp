@@ -268,28 +268,29 @@ bool coseIsSigned(CoseByteView data, size_t* signatureLength) {
     return false;
 }
 
-static std::unique_ptr<uint8_t[]> ecdsaSignatureCoseToDer(
-        const uint8_t* ecdsaCoseSignature,
-        size_t* outSignatureSize) {
-    auto rBn = BIGNUM_Ptr(
-            BN_bin2bn(ecdsaCoseSignature, kEcdsaValueSize, nullptr), BN_free);
+static bool checkEcDsaSignature(const SHA256Digest& digest,
+                                const uint8_t* signature,
+                                const uint8_t* publicKey,
+                                size_t publicKeySize) {
+    auto rBn =
+            BIGNUM_Ptr(BN_bin2bn(signature, kEcdsaValueSize, nullptr), BN_free);
     if (rBn.get() == nullptr) {
         COSE_PRINT_ERROR("Error creating BIGNUM for r\n");
-        return {};
+        return false;
     }
 
-    auto sBn = BIGNUM_Ptr(BN_bin2bn(ecdsaCoseSignature + kEcdsaValueSize,
-                                    kEcdsaValueSize, nullptr),
-                          BN_free);
+    auto sBn = BIGNUM_Ptr(
+            BN_bin2bn(signature + kEcdsaValueSize, kEcdsaValueSize, nullptr),
+            BN_free);
     if (sBn.get() == nullptr) {
         COSE_PRINT_ERROR("Error creating BIGNUM for s\n");
-        return {};
+        return false;
     }
 
     auto sig = ECDSA_SIG_Ptr(ECDSA_SIG_new(), ECDSA_SIG_free);
     if (!sig) {
         COSE_PRINT_ERROR("Error allocating ECDSA_SIG\n");
-        return {};
+        return false;
     }
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -299,36 +300,6 @@ static std::unique_ptr<uint8_t[]> ecdsaSignatureCoseToDer(
 #else
     ECDSA_SIG_set0(sig.get(), rBn.release(), sBn.release());
 #endif
-
-    size_t len = i2d_ECDSA_SIG(sig.get(), nullptr);
-    std::unique_ptr<uint8_t[]> ecdsaDerSignature(new (std::nothrow)
-                                                         uint8_t[len]);
-    if (!ecdsaDerSignature) {
-        return {};
-    }
-
-    unsigned char* p = (unsigned char*)ecdsaDerSignature.get();
-    i2d_ECDSA_SIG(sig.get(), &p);
-
-    if (outSignatureSize != nullptr) {
-        *outSignatureSize = len;
-    }
-
-    return ecdsaDerSignature;
-}
-
-static bool checkEcDsaSignature(const SHA256Digest& digest,
-                                uint8_t* signature,
-                                size_t signatureSize,
-                                const uint8_t* publicKey,
-                                size_t publicKeySize) {
-    const unsigned char* p = (unsigned char*)signature;
-    auto sig = ECDSA_SIG_Ptr(d2i_ECDSA_SIG(nullptr, &p, signatureSize),
-                             ECDSA_SIG_free);
-    if (sig.get() == nullptr) {
-        COSE_PRINT_ERROR("Error decoding DER encoded signature\n");
-        return false;
-    }
 
     const unsigned char* k = publicKey;
     auto ecKey =
@@ -413,24 +384,14 @@ bool coseCheckEcDsaSignature(const std::vector<uint8_t>& signatureCoseSign1,
         return false;
     }
 
-    size_t derSignatureLen;
-    auto derSignature =
-            ecdsaSignatureCoseToDer(coseSignature.data(), &derSignatureLen);
-    if (!derSignature) {
-        COSE_PRINT_ERROR(
-                "Error converting ECDSA signature from COSE to DER format\n");
-        return false;
-    }
-
     // The last field is the payload, independently of how it's transported (RFC
     // 8152 section 4.4). Since our API specifies only one of |data| and
     // |detachedContent| can be non-empty, it's simply just the non-empty one.
     auto& signaturePayload = data.size() > 0 ? data : detachedContent;
     std::vector<uint8_t> toBeSigned =
             coseBuildToBeSigned(encodedProtectedHeaders, signaturePayload);
-    if (!checkEcDsaSignature(sha256(toBeSigned), derSignature.get(),
-                             derSignatureLen, publicKey.data(),
-                             publicKey.size())) {
+    if (!checkEcDsaSignature(sha256(toBeSigned), coseSignature.data(),
+                             publicKey.data(), publicKey.size())) {
         COSE_PRINT_ERROR("Signature check failed\n");
         return false;
     }
@@ -558,15 +519,6 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
         return false;
     }
 
-    size_t derSignatureSize;
-    auto derSignature = ecdsaSignatureCoseToDer(packageStart + kSignatureOffset,
-                                                &derSignatureSize);
-    if (!derSignature) {
-        COSE_PRINT_ERROR(
-                "Error converting ECDSA signature from COSE to DER format\n");
-        return false;
-    }
-
     // The Signature1 structure encodes the payload as a bstr wrapping the
     // actual contents (even if they already are CBOR), so we need to manually
     // prepend a CBOR bstr header to the payload
@@ -589,7 +541,7 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
     SHA256_Update(&ctx, packageStart + kPayloadOffset, payloadSize);
     SHA256_Final(digest.data(), &ctx);
 
-    if (!checkEcDsaSignature(digest, derSignature.get(), derSignatureSize,
+    if (!checkEcDsaSignature(digest, packageStart + kSignatureOffset,
                              publicKey.get(), publicKeySize)) {
         COSE_PRINT_ERROR("Signature check failed\n");
         return false;
