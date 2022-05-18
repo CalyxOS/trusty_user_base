@@ -196,7 +196,7 @@ pub fn test_main_static_abort(tests: &[&TestDescAndFn]) {
     let test_service = TestService { tests: owned_tests };
 
     let buffer = [0u8; 4096];
-    Manager::<_, _, 1, 4>::new(test_service, &[cfg], buffer)
+    Manager::<_, _, 1, 4>::new(test_service, cfg, buffer)
         .expect("Could not create service manager")
         .run_event_loop()
         .expect("Test event loop failed");

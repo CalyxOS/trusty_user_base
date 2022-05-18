@@ -327,7 +327,7 @@ pub(crate) mod test {
     // We don't know ahead of time what the first free handle will be, so we have to
     // check and save the result the first time we need it.
     pub fn first_free_handle_index() -> i32 {
-        type Channel = crate::service::Channel<()>;
+        type Channel = crate::service::Channel<crate::service::SingleDispatcher<()>>;
 
         FIRST_FREE_HANDLE_INDEX_INIT.call_once(|| {
             let chan = Channel::try_new_port(

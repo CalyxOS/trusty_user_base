@@ -68,9 +68,9 @@ mod handle_set;
 ///
 /// let service = ();
 /// let buffer = [0u8; 4096];
-/// let manager = Manager::new(service, &[cfg], None, buffer);
+/// let manager = Manager::new(service, cfg, buffer);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct PortCfg {
     path: CString,
     msg_queue_len: u32,
@@ -307,6 +307,9 @@ pub trait Dispatcher {
     /// Called when the client closes a connection.
     fn on_disconnect(&self, _connection: &Self::Connection) {}
 
+    /// Get the list of ports this dispatcher handles.
+    fn port_configurations(&self) -> &[PortCfg];
+
     /// Get the maximum possible length of any message handled by this
     /// dispatcher.
     fn max_message_length(&self) -> usize;
@@ -314,8 +317,19 @@ pub trait Dispatcher {
 
 // Implementation of a static dispatcher for services with only a single message
 // type.
-impl<T: Service> Dispatcher for T {
-    type Connection = T::Connection;
+pub struct SingleDispatcher<S: Service> {
+    service: S,
+    ports: [PortCfg; 1],
+}
+
+impl<S: Service> SingleDispatcher<S> {
+    fn new(service: S, port: PortCfg) -> Self {
+        Self { service, ports: [port] }
+    }
+}
+
+impl<S: Service> Dispatcher for SingleDispatcher<S> {
+    type Connection = S::Connection;
 
     fn on_connect(
         &self,
@@ -323,7 +337,7 @@ impl<T: Service> Dispatcher for T {
         handle: &Handle,
         peer: &Uuid,
     ) -> Result<Option<Self::Connection>> {
-        T::on_connect(self, port, handle, peer)
+        self.service.on_connect(port, handle, peer)
     }
 
     fn on_message(
@@ -333,16 +347,181 @@ impl<T: Service> Dispatcher for T {
         msg: &[u8],
         msg_handles: &[Handle],
     ) -> Result<bool> {
-        let msg = T::Message::deserialize(msg, msg_handles).map_err(|e| {
+        let msg = S::Message::deserialize(msg, msg_handles).map_err(|e| {
             error!("Could not parse message: {:?}", e);
             TipcError::InvalidData
         })?;
-        T::on_message(self, connection, handle, msg)
+        self.service.on_message(connection, handle, msg)
+    }
+
+    fn on_disconnect(&self, connection: &Self::Connection) {
+        self.service.on_disconnect(connection)
     }
 
     fn max_message_length(&self) -> usize {
-        T::Message::MAX_SERIALIZED_SIZE
+        S::Message::MAX_SERIALIZED_SIZE
     }
+
+    fn port_configurations(&self) -> &[PortCfg] {
+        &self.ports
+    }
+}
+
+/// Create a new service dispatcher that can handle a specified set of service
+/// types.
+///
+/// This macro creates a multi-service dispatcher that holds different types of
+/// services that should share the same event loop and dispatches to the
+/// relevant service based on the connection port. Services must implement the
+/// [`Service`] trait. An instance of this dispatcher must have a single const
+/// usize parameter specifying how many ports the dispatcher will handle.
+///
+/// # Examples
+/// ```
+/// service_dispatcher! {
+///     enum ServiceDispatcher {
+///         Service1,
+///         Service2,
+///     }
+/// }
+///
+/// // Create a new dispatcher that handles two ports
+/// let dispatcher = ServiceDispatcher::<2>::new()
+///     .expect("Could not allocate service dispatcher");
+///
+/// let cfg = PortCfg::new(&"com.android.trusty.test_port1).unwrap();
+/// dispatcher.add_service(Rc::new(Service1), cfg).expect("Could not add service 1");
+///
+/// let cfg = PortCfg::new(&"com.android.trusty.test_port2).unwrap();
+/// dispatcher.add_service(Rc::new(Service2), cfg).expect("Could not add service 2");
+/// ```
+#[macro_export]
+macro_rules! service_dispatcher {
+    (enum $name:ident {$($service:ident),+ $(,)*}) => {
+        /// Dispatcher that routes incoming messages to the correct server based on what
+        /// port the message was sent to.
+        ///
+        /// This dispatcher adapts multiple different server types that expect different
+        /// message formats for the same [`Manager`]. By using this dispatcher,
+        /// different servers can be bound to different ports using the same event loop
+        /// in the manager.
+        struct $name<const PORT_COUNT: usize> {
+            // ports and services should always be kept in sync, i.e. the
+            // service at index `i` services port `i`.
+            ports: Vec<PortCfg>,
+            services: Vec<ServiceKind>,
+        }
+
+        impl<const PORT_COUNT: usize> $name<PORT_COUNT> {
+            fn new() -> core::result::Result<Self, alloc::collections::TryReserveError> {
+                use trusty_std::alloc::FallibleVec;
+                Ok(Self {
+                    ports: Vec::try_with_capacity(PORT_COUNT)?,
+                    services: Vec::try_with_capacity(PORT_COUNT)?,
+                })
+            }
+
+            fn add_service<T>(&mut self, service: Rc<T>, port: PortCfg) -> Result<()>
+            where ServiceKind: From<Rc<T>> {
+                if self.ports.len() >= PORT_COUNT || self.services.len() >= PORT_COUNT {
+                    return Err(TipcError::OutOfBounds);
+                }
+                // We unwrap here because we already checked capacity and we
+                // don't want to allow ports and services to get out of sync,
+                // e.g. the port was pushed but the service was not.
+                self.ports.try_push(port).unwrap();
+                self.services.try_push(service.into()).unwrap();
+                Ok(())
+            }
+        }
+
+        enum ServiceKind {
+            $($service(Rc<$service>)),+
+        }
+
+        $(
+            impl From<Rc<$service>> for ServiceKind {
+                fn from(service: Rc<$service>) -> Self {
+                    ServiceKind::$service(service)
+                }
+            }
+        )+
+
+        enum ConnectionKind {
+            $($service(<$service as $crate::Service>::Connection)),+
+        }
+
+        impl<const PORT_COUNT: usize> $crate::service::Dispatcher for $name<PORT_COUNT> {
+            type Connection = (usize, ConnectionKind);
+
+            fn on_connect(
+                &self,
+                port: &PortCfg,
+                handle: &Handle,
+                peer: &Uuid,
+            ) -> Result<Option<Self::Connection>> {
+                let port_idx = self.ports.iter().position(|cfg| cfg == port)
+                                                .ok_or(TipcError::InvalidPort)?;
+
+                match &self.services[port_idx] {
+                    $(ServiceKind::$service(s) => {
+                        $crate::Service::on_connect(&**s, port, handle, peer)
+                            .map(|c| c.map(|c| (port_idx, ConnectionKind::$service(c))))
+                    })+
+                }
+            }
+
+            fn on_message(
+                &self,
+                connection: &Self::Connection,
+                handle: &Handle,
+                msg: &[u8],
+                msg_handles: &[Handle],
+            ) -> Result<bool> {
+                match &self.services[connection.0] {
+                    $(ServiceKind::$service(s) => {
+                        let msg = <$service as $crate::Service>::Message::deserialize(msg, msg_handles).map_err(|e| {
+                            trusty_std::eprintln!("Could not parse message: {:?}", e);
+                            TipcError::InvalidData
+                        })?;
+                        if let ConnectionKind::$service(conn) = &connection.1 {
+                            $crate::Service::on_message(&**s, conn, handle, msg)
+                        } else {
+                            Err(TipcError::InvalidData)
+                        }
+                    })*
+                }
+            }
+
+            fn on_disconnect(&self, connection: &Self::Connection) {
+                match &self.services[connection.0] {
+                    $(ServiceKind::$service(s) => {
+                        if let ConnectionKind::$service(conn) = &connection.1 {
+                            $crate::Service::on_disconnect(&**s, conn)
+                        } else {
+                            trusty_std::eprintln!("Expected a connection with kind {}", stringify!($service));
+                        }
+                    })*
+                }
+            }
+
+            fn port_configurations(&self) -> &[PortCfg] {
+                &self.ports
+            }
+
+            fn max_message_length(&self) -> usize {
+                self.services.iter().map(|s| {
+                    match s {
+                        $(ServiceKind::$service(_) => {
+                            <$service as $crate::Service>::Message::MAX_SERIALIZED_SIZE
+                        })+
+                    }
+                }).max().unwrap_or(0usize)
+            }
+        }
+    };
+
+    (@make_none $service:ident) => { None };
 }
 
 /// A manager that handles the IPC event loop and dispatches connections and
@@ -363,9 +542,9 @@ impl<
         B: AsMut<[u8]> + AsRef<[u8]>,
         const PORT_COUNT: usize,
         const MAX_CONNECTION_COUNT: usize,
-    > Manager<S, B, PORT_COUNT, MAX_CONNECTION_COUNT>
+    > Manager<SingleDispatcher<S>, B, PORT_COUNT, MAX_CONNECTION_COUNT>
 {
-    /// Create a new service manager for the given service and ports.
+    /// Create a new service manager for the given service and port.
     ///
     /// The manager will receive data into the buffer `B`, so this buffer needs
     /// to be at least as large as the largest message this service can handle.
@@ -406,18 +585,9 @@ impl<
     /// manager.run_event_loop()
     ///     .expect("Service manager encountered an error");
     /// ```
-    pub fn new(service: S, port_cfgs: &[PortCfg; PORT_COUNT], buffer: B) -> Result<Self> {
-        if buffer.as_ref().len() < service.max_message_length() {
-            return Err(TipcError::NotEnoughBuffer);
-        }
-        let ports: Vec<Rc<Channel<S>>> =
-            port_cfgs.iter().map(Channel::try_new_port).collect::<Result<_>>()?;
-        let ports: [Rc<Channel<S>>; PORT_COUNT] = ports
-            .try_into()
-            .expect("This is impossible. Array size must match expected PORT_COUNT");
-        let handle_set = HandleSet::try_new(ports)?;
-
-        Ok(Self { dispatcher: service, handle_set, buffer })
+    pub fn new(service: S, port_cfg: PortCfg, buffer: B) -> Result<Self> {
+        let dispatcher = SingleDispatcher::new(service, port_cfg);
+        Self::new_with_dispatcher(dispatcher, buffer)
     }
 }
 
@@ -428,6 +598,58 @@ impl<
         const MAX_CONNECTION_COUNT: usize,
     > Manager<D, B, PORT_COUNT, MAX_CONNECTION_COUNT>
 {
+    /// Create a manager that can handle multiple services and ports
+    ///
+    /// A dispatcher handles mapping connections to services and parsing
+    /// messages for the relevant service depending on which port the connection
+    /// was made to. This allows multiple distinct services, each with their own
+    /// message format and port to share the same event loop in the manager.
+    ///
+    /// See [`service_dispatcher!`] for details on how to create a dispatcher
+    /// for use with this API.
+    ///
+    /// # Examples
+    /// ```
+    /// service_dispatcher! {
+    ///     enum ServiceDispatcher {
+    ///         Service1,
+    ///         Service2,
+    ///     }
+    /// }
+    ///
+    /// // Create a new dispatcher that handles two ports
+    /// let dispatcher = ServiceDispatcher::<2>::new()
+    ///     .expect("Could not allocate service dispatcher");
+    ///
+    /// let cfg = PortCfg::new(&"com.android.trusty.test_port1).unwrap();
+    /// dispatcher.add_service(Rc::new(Service1), cfg).expect("Could not add service 1");
+    ///
+    /// let cfg = PortCfg::new(&"com.android.trusty.test_port2).unwrap();
+    /// dispatcher.add_service(Rc::new(Service2), cfg).expect("Could not add service 2");
+    ///
+    /// Manager::<_, _, 2, 4>::new_with_dispatcher(dispatcher, [0u8; 4096])
+    ///     .expect("Could not create service manager")
+    ///     .run_event_loop()
+    ///     .expect("Service manager exited unexpectedly");
+    /// ```
+    pub fn new_with_dispatcher(dispatcher: D, buffer: B) -> Result<Self> {
+        if buffer.as_ref().len() < dispatcher.max_message_length() {
+            return Err(TipcError::NotEnoughBuffer);
+        }
+
+        let ports: Vec<Rc<Channel<D>>> = dispatcher
+            .port_configurations()
+            .iter()
+            .map(Channel::try_new_port)
+            .collect::<Result<_>>()?;
+        let ports: [Rc<Channel<D>>; PORT_COUNT] = ports
+            .try_into()
+            .expect("This is impossible. Array size must match expected PORT_COUNT");
+        let handle_set = HandleSet::try_new(ports)?;
+
+        Ok(Self { dispatcher, handle_set, buffer })
+    }
+
     /// Run the service event loop.
     ///
     /// Only returns if an error occurs.
@@ -523,9 +745,9 @@ impl<
 
 #[cfg(test)]
 mod test {
-    use super::{Channel, PortCfg, Service};
+    use super::{PortCfg, Service};
     use crate::handle::test::{first_free_handle_index, MAX_USER_HANDLES};
-    use crate::{Handle, Result, TipcError, Uuid};
+    use crate::{Deserialize, Handle, Manager, Result, Serialize, Serializer, TipcError, Uuid};
     use test::{expect, expect_eq};
     use trusty_std::alloc::FallibleVec;
     use trusty_std::ffi::CString;
@@ -568,13 +790,14 @@ mod test {
         }
     }
 
+    type Channel = super::Channel<super::SingleDispatcher<()>>;
+
     #[test]
     fn port_create_negative() {
         let path = [0u8; 0];
 
         expect_eq!(
-            Channel::<()>::try_new_port(&PortCfg::new_raw(CString::try_new(&path[..]).unwrap()))
-                .err(),
+            Channel::try_new_port(&PortCfg::new_raw(CString::try_new(&path[..]).unwrap())).err(),
             Some(TipcError::SystemError(Error::InvalidArgs)),
             "empty server path",
         );
@@ -583,28 +806,28 @@ mod test {
 
         let cfg = PortCfg::new(&path).unwrap().msg_queue_len(0);
         expect_eq!(
-            Channel::<()>::try_new_port(&cfg).err(),
+            Channel::try_new_port(&cfg).err(),
             Some(TipcError::SystemError(Error::InvalidArgs)),
             "no buffers",
         );
 
         let cfg = PortCfg::new(&path).unwrap().msg_max_size(0);
         expect_eq!(
-            Channel::<()>::try_new_port(&cfg).err(),
+            Channel::try_new_port(&cfg).err(),
             Some(TipcError::SystemError(Error::InvalidArgs)),
             "zero buffer size",
         );
 
         let cfg = PortCfg::new(&path).unwrap().msg_queue_len(MAX_PORT_BUF_NUM * 100);
         expect_eq!(
-            Channel::<()>::try_new_port(&cfg).err(),
+            Channel::try_new_port(&cfg).err(),
             Some(TipcError::SystemError(Error::InvalidArgs)),
             "large number of buffers",
         );
 
         let cfg = PortCfg::new(&path).unwrap().msg_max_size(MAX_PORT_BUF_SIZE * 100);
         expect_eq!(
-            Channel::<()>::try_new_port(&cfg).err(),
+            Channel::try_new_port(&cfg).err(),
             Some(TipcError::SystemError(Error::InvalidArgs)),
             "large buffers size",
         );
@@ -613,9 +836,9 @@ mod test {
             path.push('a');
         }
 
-        let cfg = PortCfg::new(path).unwrap();
+        let cfg = PortCfg::new(&path).unwrap();
         expect_eq!(
-            Channel::<()>::try_new_port(&cfg).err(),
+            Channel::try_new_port(&cfg).err(),
             Some(TipcError::SystemError(Error::InvalidArgs)),
             "path is too long",
         );
@@ -623,17 +846,17 @@ mod test {
 
     #[test]
     fn port_create() {
-        let mut channels: Vec<Rc<Channel<()>>> = Vec::new();
+        let mut channels: Vec<Rc<Channel>> = Vec::new();
 
         for i in first_free_handle_index()..MAX_USER_HANDLES - 1 {
             let path = format!("{}.port.{}{}", SRV_PATH_BASE, "test", i);
             let cfg = PortCfg::new(path).unwrap();
-            let channel = Channel::<()>::try_new_port(&cfg);
+            let channel = Channel::try_new_port(&cfg);
             expect!(channel.is_ok(), "create ports");
             channels.try_push(channel.unwrap()).unwrap();
 
             expect_eq!(
-                Channel::<()>::try_new_port(&cfg).err(),
+                Channel::try_new_port(&cfg).err(),
                 Some(TipcError::SystemError(Error::AlreadyExists)),
                 "collide with existing port",
             );
@@ -642,7 +865,7 @@ mod test {
         // Creating one more port should succeed
         let path = format!("{}.port.{}{}", SRV_PATH_BASE, "test", MAX_USER_HANDLES - 1);
         let cfg = PortCfg::new(path).unwrap();
-        let channel = Channel::<()>::try_new_port(&cfg);
+        let channel = Channel::try_new_port(&cfg);
         expect!(channel.is_ok(), "create ports");
         channels.try_push(channel.unwrap()).unwrap();
 
@@ -650,7 +873,7 @@ mod test {
         // because we actually exceeded max number of handles instead of
         // colliding with an existing path
         expect_eq!(
-            Channel::<()>::try_new_port(&cfg).err(),
+            Channel::try_new_port(&cfg).err(),
             Some(TipcError::SystemError(Error::NoResources)),
             "collide with existing port",
         );
@@ -658,7 +881,7 @@ mod test {
         let path = format!("{}.port.{}{}", SRV_PATH_BASE, "test", MAX_USER_HANDLES);
         let cfg = PortCfg::new(path).unwrap();
         expect_eq!(
-            Channel::<()>::try_new_port(&cfg).err(),
+            Channel::try_new_port(&cfg).err(),
             Some(TipcError::SystemError(Error::NoResources)),
             "max number of ports reached",
         );
@@ -666,12 +889,12 @@ mod test {
 
     #[test]
     fn wait_on_port() {
-        let mut channels: Vec<Rc<Channel<()>>> = Vec::new();
+        let mut channels: Vec<Rc<Channel>> = Vec::new();
 
         for i in first_free_handle_index()..MAX_USER_HANDLES {
             let path = format!("{}.port.{}{}", SRV_PATH_BASE, "test", i);
             let cfg = PortCfg::new(path).unwrap();
-            let channel = Channel::<()>::try_new_port(&cfg);
+            let channel = Channel::try_new_port(&cfg);
             expect!(channel.is_ok(), "create ports");
             channels.try_push(channel.unwrap()).unwrap();
         }
@@ -689,5 +912,103 @@ mod test {
                 "non-zero timeout",
             );
         }
+    }
+
+    impl<'s> Serialize<'s> for i32 {
+        fn serialize<'a: 's, S: Serializer<'s>>(
+            &'a self,
+            serializer: &mut S,
+        ) -> core::result::Result<S::Ok, S::Error> {
+            unsafe { serializer.serialize_as_bytes(self) }
+        }
+    }
+
+    impl Deserialize for i32 {
+        type Error = TipcError;
+
+        const MAX_SERIALIZED_SIZE: usize = 4;
+
+        fn deserialize(
+            bytes: &[u8],
+            _handles: &[Handle],
+        ) -> core::result::Result<Self, Self::Error> {
+            Ok(i32::from_ne_bytes(bytes[0..4].try_into().map_err(|_| TipcError::OutOfBounds)?))
+        }
+    }
+
+    struct Service1;
+
+    impl Service for Service1 {
+        type Connection = ();
+        type Message = ();
+
+        fn on_connect(
+            &self,
+            _port: &PortCfg,
+            _handle: &Handle,
+            _peer: &Uuid,
+        ) -> Result<Option<Self::Connection>> {
+            Ok(Some(()))
+        }
+
+        fn on_message(
+            &self,
+            _connection: &Self::Connection,
+            handle: &Handle,
+            _msg: Self::Message,
+        ) -> Result<bool> {
+            handle.send(&1i32)?;
+            Ok(true)
+        }
+    }
+
+    struct Service2;
+
+    impl Service for Service2 {
+        type Connection = ();
+        type Message = ();
+
+        fn on_connect(
+            &self,
+            _port: &PortCfg,
+            _handle: &Handle,
+            _peer: &Uuid,
+        ) -> Result<Option<Self::Connection>> {
+            Ok(Some(()))
+        }
+
+        fn on_message(
+            &self,
+            _connection: &Self::Connection,
+            handle: &Handle,
+            _msg: Self::Message,
+        ) -> Result<bool> {
+            handle.send(&2i32)?;
+            Ok(true)
+        }
+    }
+
+    service_dispatcher! {
+        enum TestServiceDispatcher {
+            Service1,
+            Service2,
+        }
+    }
+
+    #[test]
+    fn multiple_services() {
+        let mut dispatcher = TestServiceDispatcher::<2>::new().unwrap();
+
+        let path1 = format!("{}.port.{}", SRV_PATH_BASE, "testService1");
+        let cfg = PortCfg::new(&path1).unwrap();
+        dispatcher.add_service(Rc::new(Service1), cfg).expect("Could not add service 1");
+
+        let path2 = format!("{}.port.{}", SRV_PATH_BASE, "testService2");
+        let cfg = PortCfg::new(&path2).unwrap();
+        dispatcher.add_service(Rc::new(Service2), cfg).expect("Could not add service 2");
+
+        let buffer = [0u8; 4096];
+        Manager::<_, _, 2, 4>::new_with_dispatcher(dispatcher, buffer)
+            .expect("Could not create service manager");
     }
 }

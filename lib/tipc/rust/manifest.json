@@ -2,5 +2,5 @@
     "app_name": "tipc-rust-test",
     "uuid": "3c322c86-b9f9-4f4b-92c5-1565db7e3a29",
     "min_heap": 16384,
-    "min_stack": 16384
+    "min_stack": 32768
 }
