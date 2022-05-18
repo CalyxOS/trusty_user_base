@@ -37,14 +37,3 @@ struct keymaster_message {
     uint32_t cmd;
     uint8_t payload[0];
 };
-
-/**
- * km_raw_buffer_resp - response format for a raw buffer
- * @error: error code
- * @data_size: size of data buffer following this struct if no error
- */
-struct km_raw_buffer_resp {
-    int32_t error;
-    uint32_t data_size;
-    int8_t data[0];
-} __PACKED;
