@@ -31,6 +31,8 @@
 
 #define HMAC_LEN (sizeof(((hw_auth_token_t*)0)->hmac))
 
+#define AUTH_TOKEN_KEY_LEN (32)
+
 static long send_req(keymaster_session_t session, uint32_t cmd) {
     struct keymaster_message msg = {
             .cmd = cmd,
@@ -158,6 +160,20 @@ int keymaster_get_auth_token_key(keymaster_session_t session,
         TLOGE("%s: invalid read length: (%zu != %zu)\n", __func__, read_len,
               inf.len);
         rc = ERR_IO;
+        goto err_bad_read;
+    }
+
+    /*
+     * TODO: Return message of this API contains an error if one happened and a
+     * key on success. It may be impossible to distinguish the two if they are
+     * the same size. A proper fix would require changing the layout of the
+     * return message. However, that changes the ABI. So, just assume that the
+     * key is 32 bytes. We know that from KM code.
+     */
+    if (size != AUTH_TOKEN_KEY_LEN) {
+        TLOGE("%s: auth token key wrong length: %zu, expected %d", __func__,
+              size, AUTH_TOKEN_KEY_LEN);
+        rc = ERR_BAD_LEN;
         goto err_bad_read;
     }
 
