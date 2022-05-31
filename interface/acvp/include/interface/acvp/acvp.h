@@ -26,7 +26,7 @@ __BEGIN_CDECLS
 /*
  * Maximum number of arguments
  */
-#define ACVP_MAX_NUM_ARGUMENTS 8
+#define ACVP_MAX_NUM_ARGUMENTS 9
 
 /*
  * Maximum length of an algorithm name
