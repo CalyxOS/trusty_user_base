@@ -342,6 +342,7 @@ bool apploader_parse_package_metadata(
         if (elf == nullptr) {
             TLOGE("Invalid ELF CBOR type, got: 0x%x\n",
                   static_cast<int>(pkg_array->get(2)->type()));
+            return false;
         }
 
         elf_start = reinterpret_cast<const uint8_t*>(elf->view().data());
