@@ -44,6 +44,8 @@ GENERATED += $(SYSCALL_SRCS)
 # Add generated trusty_syscall.S to build
 MODULE_SRCS += $(SYSCALL_S)
 
+MODULE_SDK_HEADERS += $(SYSCALL_H)
+
 # And path to  generated .h to module includes
 MODULE_EXPORT_INCLUDES += \
 	$(SYSCALL_SRCS_DIR) \

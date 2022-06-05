@@ -7,6 +7,8 @@ LIBCXX_DIR = external/libcxx
 MODULE_EXPORT_INCLUDES += $(LIBCXX_DIR)/include
 MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include
 
+MODULE_SDK_HEADER_INSTALL_DIR := c++/v1
+
 # The header files change if they're being used to build the library.
 # For example, adding "public" methods that are only used internally.
 MODULE_CPPFLAGS += -D_LIBCPP_BUILDING_LIBRARY

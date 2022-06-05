@@ -52,5 +52,6 @@ MODULE_SRCS += \
 # Scudo relies on libc-trusty's syscall stubs.
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libc-trusty \
+	trusty/user/base/lib/libstdc++-trusty \
 
 include make/library.mk

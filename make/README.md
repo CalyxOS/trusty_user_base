@@ -54,6 +54,42 @@ user-tasks.mk is included by lk make/build.mk as an extra build rule.
        |
        |--> arch/$(ARCH)/toolchain.mk
        |
+       |--> For each SDK library $(LIB) in $(TRUSTY_SDK_MODULES):
+       |      | MODULE := $(LIB)
+       |      |
+       |      |     /-------------------------------------------------\
+       |      |     |                                                 |
+       |      |     v                                                 |
+       |     make/userspace_recurse.mk                                |
+       |        |                                                     |
+       |        | Reset all GLOBAL_ and MODULE_ variables to get      |
+       |        | a clean state.                                      |
+       |        |                                                     |
+       |        |--> $(LIB)/rules.mk                                  |
+       |        |      |                                              |
+       |        |      |--> make/library.mk                           |
+       |        |      |      |                                       |
+       |        |      |      | Cache flags for this module in        |
+       |        |      |      | _MODULES_$(MODULE)_$(FLAG) variables. |
+       |        |      |      |                                       |
+       |        |      |      | For each DEPENDENCY_MODULE in         |
+       |        |      |      | $(MODULE_LIBRARY_DEPS)                |
+       |        |      |      |---------------------------------------/
+       |        |      |      |
+       |        |      |      | Cache library and ldflags for this module in
+       |        |      |      | _MODULES_$(MODULE)_$(FLAG) variables.
+       |        |      |      |
+       |        |      |      \--> make/module.mk --> make/compile.mk
+       |        |      |
+       |        |      | Restore GLOBAL_ and MODULE_ variables to saved values
+       |        |      |
+       |        |      | Add dependency's flags to current module's
+       |        |      | private flags.
+       |        |
+       |        |
+       |        | Restore GLOBAL_ and MODULE_ variables to saved values.
+       |
+       |
        \--> For each user task $TASK in $(ALL_USER_TASKS):
               | MODULE := $(TASK)
               |

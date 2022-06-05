@@ -45,6 +45,13 @@
 # MODULE_RUST_EDITION : Rust edition to compile this crate for (optional)
 # MODULE_RUST_TESTS : If true, this module will be built as both a crate library
 #       and a Rust test service (optional, default is false)
+# MODULE_SDK_LIB_NAME : Name of library in SDK (if applicable). Default is
+# 		libMODULE_NAME where MODULE_NAME is the final path component of MODULE.
+# MODULE_SDK_HEADERS : Headers to copy into the SDK. Any headers in
+#       MODULE_EXPORT_INCLUDES will be included as well, but generated headers
+#       must be listed explicitly.
+# MODULE_SDK_HEADER_INSTALL_DIR : Path under include prefix to install SDK
+# 		headers into.
 # MANIFEST : App manifest JSON file, only applicable if this module is an app
 #
 # Exported flags:
@@ -58,6 +65,7 @@
 # MODULE_EXPORT_CFLAGS
 # MODULE_EXPORT_CPPFLAGS
 # MODULE_EXPORT_ASMFLAGS
+# MODULE_EXPORT_LDFLAGS
 # MODULE_EXPORT_INCLUDES
 
 # the minimum library rules.mk file is as follows:
@@ -186,6 +194,50 @@ ifneq ($(CONSTANTS),)
 $(warning $(MODULE) has set CONSTANTS, this variable is deprecated, please use MODULE_CONSTANTS or MODULE_EXPORT_CONSTANTS)
 endif
 MODULE_CONSTANTS += $(CONSTANTS)
+
+ifneq ($(MODULE_SRCS)$(MODULE_SRCS_FIRST),)
+# Add this module to the SDK LDFLAGS and objects lists. This needs to be done
+# before including our dependencies in case of recursive deps.
+ifneq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
+ifeq ($(strip $(MODULE_SDK_LIB_NAME)),)
+MODULE_SDK_LIB_NAME := $(call TOSDKLIBNAME,$(MODULE))
+endif
+
+endif # SDK module
+endif # not header only
+
+# Add this library's headers to the SDK.
+ifneq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
+MODULE_SDK_OUTPUT_HEADERS :=
+
+define copy-headers-rule
+HEADERS := $$(shell cd "$(1)" && find . -type f)
+OUTPUT_HEADERS := $$(addprefix $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/,$$(HEADERS))
+MODULE_SDK_OUTPUT_HEADERS += $$(OUTPUT_HEADERS)
+$$(OUTPUT_HEADERS): $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/% : $(1)/% $(MODULE_SRCDEPS)
+	@$$(MKDIR)
+	$$(NOECHO)cp $$< $$@
+endef
+
+$(foreach include_dir,$(MODULE_EXPORT_INCLUDES),$(eval $(call copy-headers-rule,$(include_dir))))
+
+# Copy any generated headers explicitly listed in MODULE_SDK_HEADERS
+ifneq ($(strip $(MODULE_SDK_HEADERS)),)
+OUTPUT_HEADERS := $(foreach header,$(MODULE_SDK_HEADERS),$(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/$(notdir $(header)))
+MODULE_SDK_OUTPUT_HEADERS += $(OUTPUT_HEADERS)
+$(OUTPUT_HEADERS): MODULE_SDK_HEADERS := $(MODULE_SDK_HEADERS)
+$(OUTPUT_HEADERS): MODULE_SDK_HEADER_INSTALL_DIR := $(MODULE_SDK_HEADER_INSTALL_DIR)
+$(OUTPUT_HEADERS): $(MODULE_SDK_HEADERS) $(MODULE_SRCDEPS)
+	@$(MKDIR)
+	$(NOECHO)cp $(MODULE_SDK_HEADERS) $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/
+OUTPUT_HEADERS :=
+endif
+
+ALL_SDK_INCLUDES += $(MODULE_SDK_OUTPUT_HEADERS)
+
+MODULE_SDK_OUTPUT_HEADERS :=
+
+endif # SDK MODULE
 
 # Register the module in a global registry. This is used to avoid repeatedly
 # generating rules for this module from modules that depend on it.
@@ -394,10 +446,31 @@ else
 LIBRARY_ARCHIVE := $(filter %.mod.a,$(ALLMODULE_OBJS))
 endif
 
+ifneq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
+# Install the library into the SDK
+
+SDK_LIB := $(TRUSTY_SDK_LIB_DIR)/lib$(MODULE_SDK_LIB_NAME).a
+OTHER_OBJS := $(filter-out $(LIBRARY_ARCHIVE),$(ALLMODULE_OBJS))
+OTHER_SDK_OBJS := $(addprefix $(TRUSTY_SDK_LIB_DIR)/,$(notdir $(OTHER_OBJS)))
+$(SDK_LIB): OTHER_OBJS := $(OTHER_OBJS)
+$(SDK_LIB): $(LIBRARY_ARCHIVE) $(OTHER_OBJS)
+	@$(MKDIR)
+	cp $< $@
+	-cp $(OTHER_OBJS) $(TRUSTY_SDK_LIB_DIR)/
+
+# Ensure that any extra SDK objects are copied if they are missing
+$(OTHER_SDK_OBJS): $(SDK_LIB)
+
+ALL_SDK_LIBS += $(SDK_LIB) $(OTHER_SDK_OBJS)
+
+endif # SDK module
+
 MODULE_EXPORT_LIBRARIES += $(LIBRARY_ARCHIVE)
 MODULE_EXPORT_EXTRA_OBJECTS += $(filter-out $(LIBRARY_ARCHIVE),$(ALLMODULE_OBJS))
 
-# Append dependency libraries into ALLMODULE_OBJS.
+# Append dependency libraries into ALLMODULE_OBJS. This needs to happen after we
+# set up the SDK library copies, if necessary, because we need ALLMODULE_OBJS
+# without dependencies there.
 ALLMODULE_OBJS := $(ALLMODULE_OBJS) $(filter-out $(ALLMODULE_OBJS),$(MODULE_LIBRARIES))
 
 endif # MODULE is not a header-only library
@@ -426,6 +499,9 @@ MODULE_LIBRARY_EXPORTED_DEPS :=
 MODULE_LIBRARIES :=
 MODULE_RLIBS :=
 MODULE_RSOBJS :=
+MODULE_SDK_LIB_NAME :=
+MODULE_SDK_HEADER_INSTALL_DIR :=
+MODULE_SDK_HEADERS :=
 LIB_SAVED_MODULE :=
 LIB_SAVED_ALLMODULE_OBJS :=
 
@@ -435,6 +511,9 @@ MODULE_RUST_HOST_LIB :=
 endif
 MODULE_RUST_CRATE_TYPES :=
 MODULE_RUST_TESTS :=
+OTHER_OBJS :=
+OTHER_SDK_OBJS :=
+SDK_LIB :=
 
 MODULE_EXPORT_LIBRARIES :=
 MODULE_EXPORT_RLIBS :=

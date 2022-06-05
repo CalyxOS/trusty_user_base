@@ -6,6 +6,8 @@ LIBCXXABI_DIR = external/libcxxabi
 
 MODULE_EXPORT_INCLUDES += $(LIBCXXABI_DIR)/include
 
+MODULE_SDK_HEADER_INSTALL_DIR := c++/v1
+
 # Internal libcxxabi build requires std::unexpected_handler to be defined, even
 # though it is removed as of C++17. Building with LIBCPP_BUILDING_LIBRARY
 # includes this required non-spec definition in the build.

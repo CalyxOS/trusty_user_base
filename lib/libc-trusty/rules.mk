@@ -29,6 +29,14 @@ MODULE_EXPORT_COMPILEFLAGS += \
 	-isystem $(MUSL_DIR)/arch/generic \
 	-isystem $(MUSL_DIR)/include \
 
+# These include dirs are redundant with the -isystem compileflags above, but are
+# needed to export these headers for the SDK. The -isystem flags take
+# precedence, so adding these directory with -I has no effect.
+MODULE_EXPORT_INCLUDES += \
+	$(MUSL_DIR)/arch/$(STANDARD_ARCH_NAME) \
+	$(MUSL_DIR)/arch/generic \
+	$(MUSL_DIR)/include  \
+
 # Internal includes. Should mask public includes - but -isystem guarentees this.
 MODULE_INCLUDES += \
 	$(MUSL_DIR)/src/internal \
