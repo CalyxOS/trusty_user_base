@@ -228,7 +228,7 @@ impl<D: Dispatcher> Channel<D> {
 }
 
 /// Trusty APP UUID
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Uuid(trusty_sys::uuid);
 
 /// A service which handles IPC messages for a collection of [`Port`]s.
