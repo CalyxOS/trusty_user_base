@@ -103,7 +103,7 @@ TRUSTY_APP_ALL_OBJS := $(ALLMODULE_OBJS) $(MODULE_EXTRA_OBJECTS)
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
 MODULE_RUSTFLAGS += \
 	-Z pre-link-args="$(filter-out %.rlib %.so,$(MODULE_EXTRA_OBJECTS))" \
-	-C link-args="$(filter-out %.rlib %.so,$(ALLMODULE_OBJS))" \
+	-C link-args="$(filter-out %.rlib %.so,$(ALLMODULE_OBJS)) $(TRUSTY_APP_LIBGCC)" \
 	-C link-args="$(TRUSTY_APP_LDFLAGS) $(MODULE_LDFLAGS)" \
 
 $(TRUSTY_APP_SYMS_ELF).d:
