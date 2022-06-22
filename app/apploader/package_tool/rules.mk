@@ -42,16 +42,10 @@ HOST_FLAGS += -D__COSE_HOST__
 HOST_LIBS := \
 	c++ \
 
-# Statically link this host tool against openssl, but dynamically against its
-# other dependencies (i.e. libc and libc++). We don't want to redistribute the
-# openssl shared library along with this tool since we don't build it in our
-# build system. Static linking against glibc is generally highly discouraged,
-# and we don't need to do so just to avoid the openssl dependency.
-HOST_LDFLAGS := \
-	-Wl,--push-state \
-	-Wl,-Bstatic \
-	-lcrypto \
-	-lssl \
-	-Wl,--pop-state \
+# Build and statically link in boringssl so we don't have to worry about what
+# version the host environment provides. OpenSSL 3.0 deprecates several of the
+# low-level APIs used for trusty app signing and encryption.
+HOST_DEPS := \
+	trusty/user/base/host/boringssl
 
 include make/host_tool.mk
