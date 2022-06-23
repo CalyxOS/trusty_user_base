@@ -19,7 +19,11 @@ MODULE := $(LOCAL_DIR)
 MANIFEST := $(LOCAL_DIR)/manifest.json
 
 MODULE_SRCS := \
-	$(LOCAL_DIR)/main.cpp
+	$(LOCAL_DIR)/common.cpp \
+	$(LOCAL_DIR)/main.cpp \
+
+MODULE_EXPORT_INCLUDES := \
+	$(LOCAL_DIR)/include \
 
 MODULE_LIBRARY_DEPS := \
 	external/boringssl \

@@ -58,6 +58,14 @@ static const struct uuid hwbcc_test_uuid = {
         {0xbb, 0x47, 0xe1, 0xdd, 0x08, 0x91, 0x0e, 0x16},
 };
 
+/* UUID: {67925337-2c03-49ed-9240-d51b6fea3e30} */
+static const struct uuid hwbcc_rust_test_uuid = {
+        0x67925337,
+        0x2c03,
+        0x49ed,
+        {0x92, 0x40, 0xd5, 0x1b, 0x6f, 0xea, 0x3e, 0x30},
+};
+
 /* UUID: {08d3ed40-bde2-448c-a91d75f1989c57ef} */
 static const struct uuid widevine_uuid = {
         0x08d3ed40,
@@ -70,10 +78,8 @@ static const struct uuid widevine_uuid = {
 static const struct uuid zero_uuid = UUID_INITIAL_VALUE(zero_uuid);
 
 static const struct uuid* allowed_uuids[] = {
-        &km_uuid,
-        &hwbcc_test_uuid,
-        &widevine_uuid,
-        &zero_uuid,
+        &km_uuid,       &hwbcc_test_uuid, &hwbcc_rust_test_uuid,
+        &widevine_uuid, &zero_uuid,
 };
 
 static struct tipc_port_acl acl = {

@@ -150,7 +150,7 @@ impl Handle {
             if rc < 0 {
                 Err(TipcError::from_uapi(rc))
             } else {
-                Ok((rc.try_into()?, msg.num_handles.try_into()?))
+                Ok((rc.try_into()?, msg_info.num_handles.try_into()?))
             }
         })
     }
