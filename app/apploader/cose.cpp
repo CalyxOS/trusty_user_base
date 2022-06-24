@@ -155,17 +155,7 @@ static bool ecdsaSignatureDerToCose(
 
     const BIGNUM* rBn;
     const BIGNUM* sBn;
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    /*
-     * OpenSSL 1.1.0 changes ECDSA_SIG to an opaque structure
-     * and introduces a getter and setter for the R and S values.
-     * Previous versions just exposed the structure to users.
-     */
-    rBn = sig->r;
-    sBn = sig->s;
-#else
     ECDSA_SIG_get0(sig.get(), &rBn, &sBn);
-#endif
 
     /*
      * Older versions of OpenSSL also do not have BN_bn2binpad,
@@ -293,13 +283,7 @@ static bool checkEcDsaSignature(const SHA256Digest& digest,
         return false;
     }
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    /* See comment on OpenSSL 1.1.0 in ecdsaSignatureDerToCose */
-    sig->r = rBn.release();
-    sig->s = sBn.release();
-#else
     ECDSA_SIG_set0(sig.get(), rBn.release(), sBn.release());
-#endif
 
     const unsigned char* k = publicKey;
     auto ecKey =
