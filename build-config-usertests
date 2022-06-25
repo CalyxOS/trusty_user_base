@@ -15,6 +15,7 @@
 # This file lists userspace tests
 
 [
+    include("trusty/user/app/cast-auth/build-config-usertests"),
     include("trusty/user/app/keymaster/build-config-usertests"),
     include("trusty/user/app/sample/build-config-usertests"),
     include("trusty/user/app/storage/build-config-usertests"),
