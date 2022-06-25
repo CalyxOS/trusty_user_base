@@ -18,8 +18,7 @@
 #include <trusty_ipc.h>
 #include <uapi/err.h>
 
-namespace trusty {
-namespace aidl {
+namespace tidl {
 namespace ipc {
 
 int connect(const char* path,
@@ -234,6 +233,22 @@ int recv(handle_t chan,
     return rc;
 }
 
+int wait_for_msg(handle_t chan) {
+    uevent_t event = UEVENT_INITIAL_VALUE(event);
+    int rc = wait(chan, &event, INFINITE_TIME);
+    if (rc != NO_ERROR) {
+        return rc;
+    }
+
+    if (event.event & IPC_HANDLE_POLL_HUP) {
+        return ERR_CHANNEL_CLOSED;
+    }
+    if (!(event.event & IPC_HANDLE_POLL_MSG)) {
+        return ERR_IO;
+    }
+
+    return NO_ERROR;
+}
+
 }  // namespace ipc
-}  // namespace aidl
-}  // namespace trusty
+}  // namespace tidl

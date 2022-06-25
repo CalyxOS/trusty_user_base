@@ -24,6 +24,7 @@ MODULE_EXPORT_INCLUDES += \
 	$(LOCAL_DIR)/include \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
+	trusty/user/base/lib/libstdc++-trusty \
 	trusty/user/base/lib/tipc \
 
 include make/library.mk

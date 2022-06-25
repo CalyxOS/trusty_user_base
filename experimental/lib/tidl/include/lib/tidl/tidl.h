@@ -16,35 +16,49 @@
 
 #pragma once
 
-#include <lib/binder/Errors.h>
-#include <lib/binder/android-base/unique_fd.h>
+#include <assert.h>
+#include <lib/tidl/android-base/unique_fd.h>
 #include <lib/tipc/tipc.h>
 #include <lib/tipc/tipc_srv.h>
 #include <lk/compiler.h>
 #include <lk/err_ptr.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <sys/types.h>
 #include <trusty_ipc.h>
-#include <type_traits>
+#include <uapi/trusty_uuid.h>
 
-namespace trusty {
-namespace aidl {
+#include <array>
+#include <type_traits>
+#include <utility>
+
+#define TIDL_PACKED_ATTR __PACKED
+
+namespace tidl {
+
+template <typename T, size_t N>
+using Array = std::array<T, N>;
+
+template <typename T>
+auto&& move(T&& x) {
+    return std::move(x);
+}
 
 using Handle = handle_t;
 
-struct __PACKED RequestHeader {
+struct TIDL_PACKED_ATTR RequestHeader {
     uint32_t cmd;
     uint32_t resp_payload_size;
 };
 
-struct __PACKED ResponseHeader {
+struct TIDL_PACKED_ATTR ResponseHeader {
     uint32_t cmd;
     uint32_t resp_payload_size;
-    int rc;
+    int32_t rc;
 };
 
-class __PACKED ParcelFileDescriptor {
+class TIDL_PACKED_ATTR ParcelFileDescriptor {
 public:
     android::base::unique_fd handle;
 
@@ -127,8 +141,6 @@ private:
     }
 };
 
-namespace ipc {
-
 class Service {
 public:
     using Port = struct tipc_port;
@@ -150,8 +162,12 @@ public:
         mPort.priv = this;
     }
 
+    void set_max_channels(uint32_t max_chan_cnt) {
+        mMaxChannels = max_chan_cnt;
+    }
+
     int add_service(HandleSet hset) {
-        return tipc_add_service(hset, &mPort, 1, 1, mOpsPtr);
+        return tipc_add_service(hset, &mPort, 1, mMaxChannels, mOpsPtr);
     }
 
     int run_service(void) {
@@ -166,24 +182,24 @@ public:
         return tipc_run_event_loop(hset);
     }
 
-    // TODO: setters for some of the port fields
-
 protected:
     virtual int get_payload_buffer(Payload&, uint32_t size, bool) {
         if (!size) {
-            return ::android::OK;
+            return NO_ERROR;
         }
-        return ::android::INVALID_OPERATION;
+        return ERR_NOT_IMPLEMENTED;
     }
 
     virtual void free_payload_buffer(Payload) {}
 
     Port mPort;
+    uint32_t mMaxChannels = 1;
 
 private:
     const Ops* mOpsPtr;
 };
 
+namespace ipc {
 int connect(const char* path, uint32_t flags, android::base::unique_fd& out_fd);
 
 int send(handle_t chan,
@@ -231,7 +247,7 @@ int recv(handle_t chan,
          size_t buf3_sz,
          handle_t* handles,
          uint32_t num_handles);
+int wait_for_msg(handle_t chan);
 }  // namespace ipc
 
-}  // namespace aidl
-}  // namespace trusty
+}  // namespace tidl
