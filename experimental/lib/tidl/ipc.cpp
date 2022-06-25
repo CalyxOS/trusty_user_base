@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <lib/binder/android-base/unique_fd.h>
+#include <lib/tidl/android-base/unique_fd.h>
 #include <trusty_ipc.h>
 #include <uapi/err.h>
 
