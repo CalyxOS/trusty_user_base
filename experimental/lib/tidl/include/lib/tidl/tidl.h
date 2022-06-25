@@ -16,6 +16,7 @@
 
 #pragma once
 
+#if defined(__TRUSTY__) and !defined(__QL_TIPC__)
 #include <assert.h>
 #include <lib/tidl/android-base/unique_fd.h>
 #include <lib/tipc/tipc.h>
@@ -32,11 +33,19 @@
 #include <array>
 #include <type_traits>
 #include <utility>
+#endif
+
+#if defined(__QL_TIPC__)
+#include <lib/tidl/tidl_ql_tipc.h>
+#include <trusty/sysdeps.h>
+#include <trusty/trusty_ipc.h>
+#endif
 
 #define TIDL_PACKED_ATTR __PACKED
 
 namespace tidl {
 
+#if !defined(__QL_TIPC__)
 template <typename T, size_t N>
 using Array = std::array<T, N>;
 
@@ -44,8 +53,25 @@ template <typename T>
 auto&& move(T&& x) {
     return std::move(x);
 }
+#endif
 
 using Handle = handle_t;
+
+#if defined(__QL_TIPC__)
+class handle {
+public:
+    handle() : mFd(INVALID_IPC_HANDLE) {}
+    handle(Handle fd) : mFd(fd) {}
+    ~handle() { (void)reset(); }
+    bool ok() const { return mFd != INVALID_IPC_HANDLE; }
+    int reset();
+    int reset(Handle fd);
+    Handle get();
+
+private:
+    Handle mFd;
+};
+#endif  // #if defined(__QL_TIPC__)
 
 struct TIDL_PACKED_ATTR RequestHeader {
     uint32_t cmd;
@@ -58,6 +84,7 @@ struct TIDL_PACKED_ATTR ResponseHeader {
     int32_t rc;
 };
 
+#if !defined(__QL_TIPC__)
 class TIDL_PACKED_ATTR ParcelFileDescriptor {
 public:
     android::base::unique_fd handle;
@@ -73,6 +100,7 @@ private:
     __UNUSED uint32_t reserved;
 };
 STATIC_ASSERT(sizeof(ParcelFileDescriptor) == 2 * sizeof(uint32_t));
+#endif
 
 // Default implementation for all types without handles
 template <typename T, typename = void>
@@ -86,6 +114,7 @@ public:
 // HasHandleMembers<T> is equal to void for all types T
 // that have the 3 members we need for HandleOps, and
 // doesn't exist for any other types (triggering SFINAE below)
+#if !defined(__QL_TIPC__)
 template <typename T>
 using HasHandleMembers = std::void_t<
         decltype(T::num_handles),
@@ -104,6 +133,7 @@ public:
         reinterpret_cast<T*>(x)->recv_handles(hptr);
     }
 };
+#endif
 
 class Payload {
 public:
@@ -141,6 +171,39 @@ private:
     }
 };
 
+template <uint32_t S>
+class FixedPayload {
+    static const uint32_t mSize = S;
+
+public:
+    FixedPayload() {}
+    FixedPayload(uint8_t* data) { memcpy(mData, data, S); }
+
+    FixedPayload(const FixedPayload<S>& payload) {
+        memcpy(mData, payload.data(), S);
+    }
+
+    FixedPayload& operator=(const FixedPayload<S>& payload) {
+        memcpy(mData, payload.data(), S);
+        return *this;
+    }
+
+    FixedPayload<S>& operator=(FixedPayload<S>&& other) {
+        memcpy(mData, other.mData, S);
+        return *this;
+    }
+
+    const uint8_t* data() const { return mData; }
+
+    uint8_t* data() { return mData; }
+
+    uint32_t size() const { return mSize; }
+
+private:
+    uint8_t mData[S];
+};
+
+#if !defined(__QL_TIPC__)
 class Service {
 public:
     using Port = struct tipc_port;
@@ -198,9 +261,15 @@ protected:
 private:
     const Ops* mOpsPtr;
 };
+#endif  // #if !defined(__QL_TIPC__)
 
 namespace ipc {
+
+#if !defined(__QL_TIPC__)
 int connect(const char* path, uint32_t flags, android::base::unique_fd& out_fd);
+#else
+int connect(const char* path, uint32_t flags, ::tidl::handle& out_fd);
+#endif
 
 int send(handle_t chan,
          const void* buf,
