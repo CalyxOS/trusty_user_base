@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-RUST_LIBC_DIR = $(RUST_BINDIR)/../src/stdlibs/vendor/libc
+RUST_LIBC_DIR = external/rust/crates/libc
 
 MODULE_SRCS := $(RUST_LIBC_DIR)/src/lib.rs
 
@@ -26,6 +26,7 @@ MODULE_CRATE_NAME := libc
 MODULE_RUST_EDITION := 2015
 
 MODULE_RUSTFLAGS += \
+	--cfg 'feature="align"' \
 	--cfg 'feature="freebsd11"' \
 	--cfg 'freebsd11' \
 	--cfg 'libc_priv_mod_use' \
@@ -35,6 +36,7 @@ MODULE_RUSTFLAGS += \
 	--cfg 'libc_core_cvoid' \
 	--cfg 'libc_packedN' \
 	--cfg 'libc_thread_local' \
+	-A unknown-lints \
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libcompiler_builtins-rust \
