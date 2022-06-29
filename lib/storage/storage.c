@@ -45,6 +45,9 @@
 /* At what delay threshold should wait_infinite_logged() start logging? */
 #define WAIT_INFINITE_LOG_THRESHOLD_MSEC 1000
 
+/* Maximum timeout value to use for wait_infinite_logged */
+#define WAIT_INFINITE_LOG_MAX_TIMEOUT_MSEC 60000
+
 /* Initialized by __init_libc in ./trusty/musl/src/env/__libc_start_main.c */
 extern char* __progname;
 
@@ -131,6 +134,9 @@ int wait_infinite_logged(storage_session_t session,
                     "called by %s\n",
                     wait_time, caller);
             wait_time = wait_time * 2;
+            if (wait_time > WAIT_INFINITE_LOG_MAX_TIMEOUT_MSEC) {
+                wait_time = WAIT_INFINITE_LOG_MAX_TIMEOUT_MSEC;
+            }
         }
     } while (rc == ERR_TIMED_OUT);
 
