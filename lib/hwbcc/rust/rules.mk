@@ -30,7 +30,7 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/log-rust \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/system_state/rust \
-	trusty/user/base/lib/hwbcc/test \
+	trusty/user/base/lib/hwbcc/common \
 
 MODULE_BINDGEN_ALLOW_TYPES := \
 	hwbcc.* \

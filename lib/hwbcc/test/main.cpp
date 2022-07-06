@@ -21,8 +21,8 @@
 #include <dice/config.h>
 #include <dice/dice.h>
 #include <lib/hwbcc/client/hwbcc.h>
+#include <lib/hwbcc/common/common.h>
 #include <lib/hwbcc/common/swbcc.h>
-#include <lib/hwbcc/test/common.h>
 #include <lib/system_state/system_state.h>
 #include <openssl/curve25519.h>
 #include <trusty_unittest.h>

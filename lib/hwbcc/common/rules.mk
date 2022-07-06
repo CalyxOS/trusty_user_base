@@ -18,12 +18,17 @@ MODULE := $(LOCAL_DIR)
 
 MODULE_SRCS := \
 	$(LOCAL_DIR)/swbcc.c \
+	$(LOCAL_DIR)/common.cpp \
 
 MODULE_EXPORT_INCLUDES := \
 	$(LOCAL_DIR)/include \
 
 MODULE_LIBRARY_DEPS := \
 	external/open-dice \
+	external/libcppbor \
+	external/boringssl \
+	trusty/user/base/lib/unittest \
+	trusty/user/base/lib/libstdc++-trusty \
 	trusty/user/base/interface/hwbcc \
 	trusty/user/base/lib/hwkey \
 	trusty/user/base/lib/rng \

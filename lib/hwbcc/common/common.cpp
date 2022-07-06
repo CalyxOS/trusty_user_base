@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#define TLOG_TAG "hwbcc-test"
+#define TLOG_TAG "hwbcc-common"
 
 #include <cppbor.h>
 #include <cppbor_parse.h>
-#include <lib/hwbcc/test/common.h>
+#include <lib/hwbcc/common/common.h>
 #include <trusty_unittest.h>
 #include <array>
 

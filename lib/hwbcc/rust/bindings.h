@@ -16,4 +16,4 @@
 #include <dice/android/bcc.h>
 #include <dice/ops.h>
 #include <interface/hwbcc/hwbcc.h>
-#include <lib/hwbcc/test/common.h>
+#include <lib/hwbcc/common/common.h>
