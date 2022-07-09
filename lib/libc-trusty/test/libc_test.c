@@ -252,59 +252,6 @@ TEST_F(libc, print_bad_test) {
 test_abort:;
 }
 
-TEST_F(libc, malloc_loop) {
-    for (int i = 0; i < 1024; i++) {
-        void* ptr = malloc(4096 * 3);
-        ASSERT_NE(0, ptr, "iteration %d", i);
-        free(ptr);
-    }
-
-test_abort:;
-}
-
-TEST_F(libc, malloc_oom) {
-    void* ptr = malloc(8192 * 1024);
-    ASSERT_EQ(0, ptr);
-    /* TODO: ENOMEM */
-    CLEAR_ERRNO();
-
-test_abort:;
-}
-
-static uintptr_t expected_malloc_alignment(size) {
-    /* TODO use ffs? */
-    if (size >= 16) {
-        return sizeof(void*) * 2;
-    } else if (size >= 8) {
-        return 8;
-    } else if (size >= 4) {
-        return 4;
-    } else if (size >= 2) {
-        return 2;
-    } else {
-        return 1;
-    }
-}
-
-TEST_F(libc, malloc_alignment) {
-    for (int size = 2; size < 256; size++) {
-        const uintptr_t alignment_mask = expected_malloc_alignment(size) - 1;
-        void* ptr1 = malloc(size);
-        void* ptr2 = malloc(size / 2); /* Try to shake up the alignment. */
-        void* ptr3 = malloc(size);
-
-        ASSERT_EQ(0, (uintptr_t)ptr1 & alignment_mask, "size %d / align %zu",
-                  size, alignment_mask + 1);
-        ASSERT_EQ(0, (uintptr_t)ptr3 & alignment_mask, "size %d / align %zu",
-                  size, alignment_mask + 1);
-
-        free(ptr3);
-        free(ptr2);
-        free(ptr1);
-    }
-test_abort:;
-}
-
 /*
  * Grab the frame pointer in a simple, non-inlined function.
  * Note this isn't a static function. We're trying to game the optimizer and

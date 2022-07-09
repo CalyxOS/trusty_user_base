@@ -95,15 +95,12 @@ MODULE_COMPILEFLAGS += \
 	-Wno-tautological-constant-compare
 
 # NOTE eabi_unwind_stubs.c because libgcc pulls in unwinding stuff.
-# NOTE using dlmalloc because it's difficult to guarentee Musl's malloc will
-# work without mmap.
 MODULE_SRCS := \
 	external/lk/lib/libc/eabi_unwind_stubs.c \
 	$(LOCAL_DIR)/__dso_handle.c \
 	$(LOCAL_DIR)/__set_thread_area.c \
 	$(LOCAL_DIR)/file_stubs.c \
 	$(LOCAL_DIR)/locale_stubs.c \
-	$(LOCAL_DIR)/malloc.c \
 	$(LOCAL_DIR)/time_stubs.c \
 
 

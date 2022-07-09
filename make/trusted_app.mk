@@ -41,6 +41,11 @@
 # All library.mk input variables are also valid for app, see library.mk for
 # additional args and usage.
 
+ifeq (true,$(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)))
+MODULE_LIBRARY_DEPS += \
+	trusty/user/base/lib/dlmalloc
+endif
+
 ifeq ($(strip $(TRUSTY_APP_NAME)),)
 TRUSTY_APP_NAME := $(notdir $(MODULE))
 endif

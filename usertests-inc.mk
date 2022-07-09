@@ -23,6 +23,8 @@ TRUSTY_USER_TESTS += \
 	trusty/user/base/app/apploader/tests \
 	trusty/user/base/app/crash-test \
 	trusty/user/base/app/crash-test/crasher \
+	trusty/user/base/lib/dlmalloc/test \
+	trusty/user/base/lib/dlmalloc/test/srv \
 	trusty/user/base/app/metrics/test/crasher \
 	trusty/user/base/app/hwaes-unittest \
 	trusty/user/base/lib/hwbcc/test \
