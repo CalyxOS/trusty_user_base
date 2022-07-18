@@ -116,6 +116,9 @@ TRUSTY_NEW_MODULE_SYSTEM :=
 
 ifneq ($(filter %.rs,$(MODULE_SRCS)$(MODULE_SRCS_FIRST)),)
 MODULE_IS_RUST := true
+ifeq ($(strip $(MODULE_RUST_CRATE_TYPES)),)
+MODULE_RUST_CRATE_TYPES := rlib
+endif
 endif
 
 ifneq ($(filter proc-macro,$(MODULE_RUST_CRATE_TYPES)),)
@@ -252,8 +255,15 @@ _MODULES_$(MODULE)_ASMFLAGS := $(MODULE_EXPORT_ASMFLAGS)
 _MODULES_$(MODULE)_INCLUDES := $(MODULE_EXPORT_INCLUDES)
 _MODULES_$(MODULE)_LDFLAGS := $(MODULE_EXPORT_LDFLAGS)
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
-_MODULES_$(MODULE)_LIBRARIES := $(call TOBUILDDIR,lib$(MODULE_CRATE_NAME)).rlib
 _MODULES_$(MODULE)_CRATE_NAME := $(MODULE_CRATE_NAME)
+
+# We need to populate rlibs here, before recursing, in case we have a circular
+# dependency. This is analogous to _INCLUDES above.
+ifneq ($(filter rlib,$(MODULE_RUST_CRATE_TYPES)),)
+_MODULES_$(MODULE)_LIBRARIES := $(call TOBUILDDIR,lib$(MODULE_CRATE_NAME)).rlib
+_MODULES_$(MODULE)_RLIBS := $(MODULE_CRATE_NAME)=$(call TOBUILDDIR,lib$(MODULE_CRATE_NAME).rlib)
+endif
+
 else
 _MODULES_$(MODULE)_LIBRARIES := $(call TOBUILDDIR,$(MODULE)).mod.a
 endif
@@ -335,10 +345,6 @@ MODULE_RUST_EDITION := 2021
 endif
 
 MODULE_RUSTFLAGS += --edition $(MODULE_RUST_EDITION)
-
-ifeq ($(strip $(MODULE_RUST_CRATE_TYPES)),)
-MODULE_RUST_CRATE_TYPES := rlib
-endif
 
 MODULE_RUSTFLAGS += $(addprefix --extern ,$(MODULE_RLIBS))
 
