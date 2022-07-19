@@ -26,10 +26,8 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
-#include <openssl/sha.h>
 #include <openssl/x509.h>
 #include <stddef.h>
-#include <string.h>
 #include <trusty_log.h>
 #include <array>
 #include <optional>
