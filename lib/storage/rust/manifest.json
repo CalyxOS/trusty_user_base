@@ -1,0 +1,6 @@
+{
+    "app_name": "storage-rust-test",
+    "uuid": "5c7b858c-4254-4b03-b256-f05cf3ca3157",
+    "min_heap": 8192,
+    "min_stack": 16384
+}

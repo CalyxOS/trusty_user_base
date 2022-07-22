@@ -41,6 +41,7 @@ TRUSTY_RUST_USER_TESTS += \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/hwkey/rust \
 	trusty/user/base/lib/hwbcc/rust \
+	trusty/user/base/lib/storage/rust \
 
 ifeq (true,$(call TOBOOL,$(USER_COVERAGE_ENABLED)))
 TRUSTY_USER_TESTS += \
@@ -80,4 +81,3 @@ TRUSTY_LOADABLE_USER_TASKS += \
 
 TRUSTY_LOADABLE_USER_TESTS += \
 	trusty/user/base/app/trusty-crasher \
-
