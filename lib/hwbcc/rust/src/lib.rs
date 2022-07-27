@@ -40,8 +40,9 @@ mod sys {
     include!(env!("BINDGEN_INC_FILE"));
 }
 
+pub use err::HwBccError;
+
 use core::mem;
-use err::HwBccError;
 use sys::*;
 use tipc::Serializer;
 use tipc::{Deserialize, Handle, Serialize};
