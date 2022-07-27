@@ -13,6 +13,14 @@ endif
 # is also built with the library system.
 ifeq (true,$(call TOBOOL,$(TRUSTY_USERSPACE)))
 
+# Control function inlining
+USERSPACE_INLINE_FUNCTIONS ?= true
+ifeq ($(call TOBOOL,$(USERSPACE_INLINE_FUNCTIONS)),true)
+MODULE_COMPILEFLAGS += -finline
+else
+MODULE_COMPILEFLAGS += -fno-inline-functions
+endif
+
 # If ASLR is disabled, don't make PIEs, it burns space
 ifneq ($(ASLR), false)
     # Generate PIE code to allow ASLR to be applied
