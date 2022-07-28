@@ -231,10 +231,10 @@ impl<D: Dispatcher> Channel<D> {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Uuid(trusty_sys::uuid);
 
-/// A service which handles IPC messages for a collection of [`Port`]s.
+/// A service which handles IPC messages for a collection of ports.
 ///
 /// A service which implements this interface can register itself, along with a
-/// set of [`Port`]s it handles, with a [`Manager`] which then dispatches
+/// set of ports it handles, with a [`Manager`] which then dispatches
 /// connection and message events to this service.
 pub trait Service {
     /// Generic type to association with a connection. `on_connect()` should

@@ -44,7 +44,6 @@ use core::ascii;
 use core::fmt::{self, Write};
 use core::ops;
 use core::slice::memchr;
-use core::str::Utf8Error;
 use trusty_sys::c_char;
 
 /// A type representing an owned, fallibly-allocated, C-compatible,
@@ -55,7 +54,7 @@ use trusty_sys::c_char;
 /// type is a static guarantee that the underlying bytes contain no interior 0
 /// bytes ("nul characters") and that the final byte is 0 ("nul terminator").
 ///
-/// `CString` is to [`&CStr`] as [`String`] is to [`&str`]: the former
+/// `CString` is to [`&CStr`] as [`String`][alloc::string::String] is to [`&str`]: the former
 /// in each pair are owned strings; the latter are borrowed
 /// references.
 ///
@@ -63,7 +62,7 @@ use trusty_sys::c_char;
 ///
 /// A `CString` is created from either a byte slice or a byte vector,
 /// or anything that implements [`TryInto`]`<`[`Vec`]`<`[`u8`]`>>` (for
-/// example, you can build a `CString` straight out of a [`String`] or
+/// example, you can build a `CString` straight out of a [`String`][alloc::string::String] or
 /// a [`&str`], since both implement that trait).
 ///
 /// The [`CString::try_new`] method will actually check that the provided
@@ -152,13 +151,13 @@ pub struct CString {
 /// converted to a Rust [`&str`] by performing UTF-8 validation, or
 /// into an owned [`CString`].
 ///
-/// `&CStr` is to [`CString`] as [`&str`] is to [`String`]: the former
+/// `&CStr` is to [`CString`] as [`&str`] is to [`String`][alloc::string::String]: the former
 /// in each pair are borrowed references; the latter are owned
 /// strings.
 ///
 /// Note that this structure is **not** `repr(C)` and is not recommended to be
 /// placed in the signatures of FFI functions. Instead, safe wrappers of FFI
-/// functions may leverage the unsafe [`CStr::from_ptr`] constructor to provide
+/// functions may leverage the [`CStr::from_bytes_with_nul`] constructor to provide
 /// a safe interface to other consumers.
 ///
 /// # Examples
@@ -193,7 +192,7 @@ pub struct CString {
 /// work(&s);
 /// ```
 ///
-/// Converting a foreign C string into a Rust [`String`]:
+/// Converting a foreign C string into a Rust [`String`][alloc::string::String]:
 ///
 /// ```ignore (extern-declaration)
 /// use std::ffi::CStr;
@@ -233,8 +232,8 @@ pub enum TryNewError {
     /// While Rust strings may contain nul bytes in the middle, C strings
     /// can't, as that byte would effectively truncate the string.
     ///
-    /// This error is created by the [`new`][`CString::new`] method on
-    /// [`CString`]. See its documentation for more.
+    /// This error is created by the [`CString::try_new`] method.
+    /// See its documentation for more.
     ///
     /// # Examples
     ///
@@ -274,28 +273,6 @@ pub struct FromBytesWithNulError {
     kind: FromBytesWithNulErrorKind,
 }
 
-/// An error indicating that a nul byte was not in the expected position.
-///
-/// The vector used to create a [`CString`] must have one and only one nul byte,
-/// positioned at the end.
-///
-/// This error is created by the [`CString::from_vec_with_nul`] method.
-/// See its documentation for more.
-///
-/// # Examples
-///
-/// ```
-/// #![feature(cstring_from_vec_with_nul)]
-/// use std::ffi::{CString, FromVecWithNulError};
-///
-/// let _: FromVecWithNulError = CString::from_vec_with_nul(b"f\0oo".to_vec()).unwrap_err();
-/// ```
-#[derive(PartialEq, Eq, Debug)]
-pub struct FromVecWithNulError {
-    error_kind: FromBytesWithNulErrorKind,
-    bytes: Vec<u8>,
-}
-
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum FromBytesWithNulErrorKind {
     InteriorNul(usize),
@@ -309,68 +286,6 @@ impl FromBytesWithNulError {
     fn not_nul_terminated() -> FromBytesWithNulError {
         FromBytesWithNulError { kind: FromBytesWithNulErrorKind::NotNulTerminated }
     }
-}
-
-impl FromVecWithNulError {
-    /// Returns a slice of [`u8`]s bytes that were attempted to convert to a [`CString`].
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```
-    /// #![feature(cstring_from_vec_with_nul)]
-    /// use std::ffi::CString;
-    ///
-    /// // Some invalid bytes in a vector
-    /// let bytes = b"f\0oo".to_vec();
-    ///
-    /// let value = CString::from_vec_with_nul(bytes.clone());
-    ///
-    /// assert_eq!(&bytes[..], value.unwrap_err().as_bytes());
-    /// ```
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes[..]
-    }
-
-    /// Returns the bytes that were attempted to convert to a [`CString`].
-    ///
-    /// This method is carefully constructed to avoid allocation. It will
-    /// consume the error, moving out the bytes, so that a copy of the bytes
-    /// does not need to be made.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```
-    /// #![feature(cstring_from_vec_with_nul)]
-    /// use std::ffi::CString;
-    ///
-    /// // Some invalid bytes in a vector
-    /// let bytes = b"f\0oo".to_vec();
-    ///
-    /// let value = CString::from_vec_with_nul(bytes.clone());
-    ///
-    /// assert_eq!(bytes, value.unwrap_err().into_bytes());
-    /// ```
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.bytes
-    }
-}
-
-/// An error indicating invalid UTF-8 when converting a [`CString`] into a [`String`].
-///
-/// `CString` is just a wrapper over a buffer of bytes with a nul terminator;
-/// [`CString::into_string`] performs UTF-8 validation on those bytes and may
-/// return this error.
-///
-/// This `struct` is created by [`CString::into_string()`]. See
-/// its documentation for more.
-#[derive(PartialEq, Eq, Debug)]
-pub struct IntoStringError {
-    inner: CString,
-    error: Utf8Error,
 }
 
 impl CString {
@@ -399,7 +314,7 @@ impl CString {
     /// # Errors
     ///
     /// This function will return an error if the supplied bytes contain an
-    /// internal 0 byte. The [`NulError`] returned will contain the bytes as well as
+    /// internal 0 byte. The [`TryNewError::NulError`] returned will contain the bytes as well as
     /// the position of the nul byte.
     pub fn try_new<T: TryAllocInto<Vec<u8>>>(t: T) -> Result<CString, TryNewError> {
         trait SpecIntoVec {
@@ -441,7 +356,7 @@ impl CString {
     /// Creates a C-compatible string by consuming a byte vector,
     /// without checking for interior 0 bytes.
     ///
-    /// This method is equivalent to [`CString::new`] except that no runtime
+    /// This method is equivalent to [`CString::try_new`] except that no runtime
     /// assertion is made that `v` contains no 0 bytes, and it requires an
     /// actual byte vector, not anything that can be converted to one with Into.
     ///

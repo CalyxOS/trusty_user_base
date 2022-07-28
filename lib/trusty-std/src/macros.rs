@@ -41,13 +41,12 @@
 /// the end of the message.
 ///
 /// Note that stdout is frequently line-buffered by default so it may be
-/// necessary to use [`io::stdout().flush()`][flush] to ensure the output is emitted
+/// necessary to use [`io::stdout().flush()`] to ensure the output is emitted
 /// immediately.
 ///
 /// Use `print!` only for the primary output of your program. Use
 /// [`eprint!`] instead to print error and progress messages.
 ///
-/// [flush]: crate::io::Write::flush
 ///
 /// # Panics
 ///
@@ -82,7 +81,7 @@ macro_rules! print {
 /// On all platforms, the newline is the LINE FEED character (`\n`/`U+000A`) alone
 /// (no additional CARRIAGE RETURN (`\r`/`U+000D`)).
 ///
-/// Use the [`format!`] syntax to write data to the standard output.
+/// Use the `format!` syntax to write data to the standard output.
 /// See [`std::fmt`] for more information.
 ///
 /// Use `println!` only for the primary output of your program. Use

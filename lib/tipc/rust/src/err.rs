@@ -22,7 +22,7 @@ use trusty_sys::{c_long, Error};
 
 /// A specialized [`Result`] type for IPC operations.
 ///
-/// This type is used throughout the [`tipc`] crate as a shorthand for result
+/// This type is used throughout the [`tipc`](crate) crate as a shorthand for result
 /// return values. Users outside the current crate should generally use this
 /// type as `tipc::Result` rather than shadowing the standard `Result` type.
 pub type Result<T> = core::result::Result<T, TipcError>;
