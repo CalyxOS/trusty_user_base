@@ -32,6 +32,7 @@
     porttest("com.android.trusty.rust.tipc.test"),
     porttest("com.android.trusty.rust.hwkey.test"),
     porttest("com.android.trusty.rust.hwbcc.test"),
+    porttest("com.android.trusty.rust.hwwsk.test"),
     porttest("com.android.trusty.rust.storage.test"),
     porttest("com.android.trusty.secure_fb.test").needs(android=True),
     porttest("com.android.trusty.smc.test"),
