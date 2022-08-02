@@ -20,6 +20,11 @@
 
 /*
  * Storage port names
+ *
+ * @STORAGE_CLIENT_NSP_PORT:    Port used by clients that require persistence
+ *                              but DO NOT require rollback detection. Tamper
+ *                              detection is provided by authenticated
+ *                              encryption. Use TDP instead if possible.
  * @STORAGE_CLIENT_TD_PORT:     Port used by clients that require tamper and
  *                              rollback detection.
  * @STORAGE_CLIENT_TDP_PORT:    Port used by clients that require tamper and
@@ -33,6 +38,7 @@
                                 it cannot modify on-disk data.
  * @STORAGE_DISK_PROXY_PORT:    Port used by non-secure proxy server
  */
+#define STORAGE_CLIENT_NSP_PORT "com.android.trusty.storage.client.nsp"
 #define STORAGE_CLIENT_TD_PORT "com.android.trusty.storage.client.td"
 #define STORAGE_CLIENT_TDP_PORT "com.android.trusty.storage.client.tdp"
 #define STORAGE_CLIENT_TDEA_PORT "com.android.trusty.storage.client.tdea"
