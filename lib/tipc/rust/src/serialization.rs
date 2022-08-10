@@ -52,6 +52,18 @@ pub trait Serialize<'s> {
     ) -> Result<S::Ok, S::Error>;
 }
 
+impl<'s> Serialize<'s> for u32 {
+    fn serialize<'a: 's, S: Serializer<'s>>(
+        &'a self,
+        serializer: &mut S,
+    ) -> Result<S::Ok, S::Error> {
+        // SAFETY:
+        //  u32 is a trivial type with a
+        //  corresponding C representation
+        unsafe { serializer.serialize_as_bytes(self) }
+    }
+}
+
 /// A type that can deserialize itself from a sequence of bytes and handles.
 pub trait Deserialize: Sized {
     type Error: From<TipcError> + Debug;

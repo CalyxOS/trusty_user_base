@@ -69,13 +69,8 @@ impl<'s> Serialize<'s> for HwWskReq {
         &'a self,
         serializer: &mut S,
     ) -> Result<S::Ok, S::Error> {
-        // SAFETY:
-        //  All serialized attributes are trivial types with
-        //  corresponding C representations
-        unsafe {
-            serializer.serialize_as_bytes(&self.hdr.cmd)?;
-            serializer.serialize_as_bytes(&self.hdr.flags)?;
-        }
+        self.hdr.cmd.serialize(serializer)?;
+        self.hdr.flags.serialize(serializer)?;
 
         match &self.req {
             HwWskCmd::Generate(g) => g.serialize(serializer),
