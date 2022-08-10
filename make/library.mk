@@ -206,17 +206,23 @@ ifeq ($(strip $(MODULE_SDK_LIB_NAME)),)
 MODULE_SDK_LIB_NAME := $(call TOSDKLIBNAME,$(MODULE))
 endif
 
+ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),false)
+# If this module isn't rust, we can link against it from the sdk using -lmodule
+MODULE_SDK_LIBS += $(TRUSTY_SDK_LIB_DIR)/lib$(MODULE_SDK_LIB_NAME).a
+MODULE_EXPORT_LDFLAGS += $(filter-out $(MODULE_EXPORT_LDFLAGS),-l$(MODULE_SDK_LIB_NAME))
+endif
+
 endif # SDK module
 endif # not header only
 
 # Add this library's headers to the SDK.
 ifneq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
-MODULE_SDK_OUTPUT_HEADERS :=
+MODULE_EXPORT_SDK_HEADERS :=
 
 define copy-headers-rule
 HEADERS := $$(shell cd "$(1)" && find . -type f)
 OUTPUT_HEADERS := $$(addprefix $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/,$$(HEADERS))
-MODULE_SDK_OUTPUT_HEADERS += $$(OUTPUT_HEADERS)
+MODULE_EXPORT_SDK_HEADERS += $$(OUTPUT_HEADERS)
 $$(OUTPUT_HEADERS): $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/% : $(1)/% $(MODULE_SRCDEPS)
 	@$$(MKDIR)
 	$$(NOECHO)cp $$< $$@
@@ -227,7 +233,7 @@ $(foreach include_dir,$(MODULE_EXPORT_INCLUDES),$(eval $(call copy-headers-rule,
 # Copy any generated headers explicitly listed in MODULE_SDK_HEADERS
 ifneq ($(strip $(MODULE_SDK_HEADERS)),)
 OUTPUT_HEADERS := $(foreach header,$(MODULE_SDK_HEADERS),$(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/$(notdir $(header)))
-MODULE_SDK_OUTPUT_HEADERS += $(OUTPUT_HEADERS)
+MODULE_EXPORT_SDK_HEADERS += $(OUTPUT_HEADERS)
 $(OUTPUT_HEADERS): MODULE_SDK_HEADERS := $(MODULE_SDK_HEADERS)
 $(OUTPUT_HEADERS): MODULE_SDK_HEADER_INSTALL_DIR := $(MODULE_SDK_HEADER_INSTALL_DIR)
 $(OUTPUT_HEADERS): $(MODULE_SDK_HEADERS) $(MODULE_SRCDEPS)
@@ -236,9 +242,8 @@ $(OUTPUT_HEADERS): $(MODULE_SDK_HEADERS) $(MODULE_SRCDEPS)
 OUTPUT_HEADERS :=
 endif
 
-ALL_SDK_INCLUDES += $(MODULE_SDK_OUTPUT_HEADERS)
-
-MODULE_SDK_OUTPUT_HEADERS :=
+# Make sure we copy all SDK headers even if they are not needed by the build
+ALL_SDK_INCLUDES += $(MODULE_EXPORT_SDK_HEADERS)
 
 endif # SDK MODULE
 
@@ -254,8 +259,13 @@ _MODULES_$(MODULE)_CPPFLAGS := $(MODULE_EXPORT_CPPFLAGS)
 _MODULES_$(MODULE)_ASMFLAGS := $(MODULE_EXPORT_ASMFLAGS)
 _MODULES_$(MODULE)_INCLUDES := $(MODULE_EXPORT_INCLUDES)
 _MODULES_$(MODULE)_LDFLAGS := $(MODULE_EXPORT_LDFLAGS)
+ifeq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
 _MODULES_$(MODULE)_CRATE_NAME := $(MODULE_CRATE_NAME)
+
+# Memorize the output headers for this module so that we can add them as srcdeps
+# to dependencies
+_MODULES_$(MODULE)_SDK_HEADERS := $(MODULE_EXPORT_SDK_HEADERS)
 
 # We need to populate rlibs here, before recursing, in case we have a circular
 # dependency. This is analogous to _INCLUDES above.
@@ -267,6 +277,11 @@ endif
 else
 _MODULES_$(MODULE)_LIBRARIES := $(call TOBUILDDIR,$(MODULE)).mod.a
 endif
+endif # not SDK module
+
+# Will contain a list of SDK libraries that this library depends on. Used for
+# dependency resolution, not for including the libraries directly in the link.
+_MODULES_$(MODULE)_SDK_LIBS := $(MODULE_SDK_LIBS)
 
 DEPENDENCY_MODULE :=
 DEPENDENCY_MODULE_PATH :=
@@ -285,6 +300,7 @@ _MODULES_$(MODULE)_CPPFLAGS := $(MODULE_EXPORT_CPPFLAGS)
 _MODULES_$(MODULE)_ASMFLAGS := $(MODULE_EXPORT_ASMFLAGS)
 _MODULES_$(MODULE)_INCLUDES := $(MODULE_EXPORT_INCLUDES)
 _MODULES_$(MODULE)_LDFLAGS := $(MODULE_EXPORT_LDFLAGS)
+_MODULES_$(MODULE)_SDK_HEADERS := $(MODULE_EXPORT_SDK_HEADERS)
 
 # We need to avoid duplicate dependencies here, so we use the sort function
 # which also de-duplicates.
@@ -302,7 +318,18 @@ MODULE_CFLAGS := $(MODULE_EXPORT_CFLAGS) $(MODULE_CFLAGS)
 MODULE_CPPFLAGS := $(MODULE_EXPORT_CPPFLAGS) $(MODULE_CPPFLAGS)
 MODULE_ASMFLAGS := $(MODULE_EXPORT_ASMFLAGS) $(MODULE_ASMFLAGS)
 MODULE_LDFLAGS := $(filter-out $(MODULE_LDFLAGS),$(MODULE_EXPORT_LDFLAGS)) $(MODULE_LDFLAGS)
+MODULE_SDK_LIBS := $(filter-out $(MODULE_SDK_LIBS),$(MODULE_EXPORT_SDK_LIBS)) $(MODULE_SDK_LIBS)
+MODULE_SDK_HEADERS := $(filter-out $(MODULE_SDK_HEADERS),$(MODULE_EXPORT_SDK_HEADERS)) $(MODULE_SDK_HEADERS)
+
+ifeq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
+# Only add in tree header paths to this module's include path if this module
+# isn't part of the SDK
 MODULE_INCLUDES := $(MODULE_EXPORT_INCLUDES) $(MODULE_INCLUDES)
+endif
+
+# Make sure the headers this module requires are copied before the module is
+# compiled
+MODULE_SRCDEPS += $(MODULE_SDK_HEADERS)
 
 # Generate constant headers and manifest, if needed.
 include make/gen_manifest.mk
@@ -406,6 +433,7 @@ endif
 # Save our current module because module.mk clears it.
 LIB_SAVED_MODULE := $(MODULE)
 LIB_SAVED_MODULE_LIBRARY_DEPS := $(MODULE_LIBRARY_DEPS)
+LIB_SAVED_MODULE_SRCDEPS := $(MODULE_SRCDEPS)
 
 # Save the rust flags for use in trusted_app.mk. userspace_recurse.mk will clean
 # up after us.
@@ -433,6 +461,7 @@ include make/module.mk
 include make/recurse.mk
 
 MODULE_LIBRARY_DEPS := $(LIB_SAVED_MODULE_LIBRARY_DEPS)
+MODULE_SRCDEPS := $(LIB_SAVED_MODULE_SRCDEPS)
 MODULE := $(LIB_SAVED_MODULE)
 MODULE_RUSTFLAGS := $(LIB_SAVED_MODULE_RUSTFLAGS)
 
@@ -460,11 +489,19 @@ endif
 ifneq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
 # Install the library into the SDK
 
+ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
+# Rust modules aren't added to the SDK sysroot yet. We need to keep track of the
+# library archive here so that we can ensure it is built before its dependencies.
+#
+# TODO: Add proper support for SDK rlibs
+MODULE_EXPORT_LIBRARIES += $(LIBRARY_ARCHIVE)
+endif
+
 SDK_LIB := $(TRUSTY_SDK_LIB_DIR)/lib$(MODULE_SDK_LIB_NAME).a
-OTHER_OBJS := $(filter-out $(LIBRARY_ARCHIVE),$(ALLMODULE_OBJS))
-OTHER_SDK_OBJS := $(addprefix $(TRUSTY_SDK_LIB_DIR)/,$(notdir $(OTHER_OBJS)))
-$(SDK_LIB): OTHER_OBJS := $(OTHER_OBJS)
-$(SDK_LIB): $(LIBRARY_ARCHIVE) $(OTHER_OBJS)
+ALLMODULE_OBJS := $(filter-out $(LIBRARY_ARCHIVE),$(ALLMODULE_OBJS))
+OTHER_SDK_OBJS := $(addprefix $(TRUSTY_SDK_LIB_DIR)/,$(notdir $(ALLMODULE_OBJS)))
+$(SDK_LIB): OTHER_OBJS := $(ALLMODULE_OBJS)
+$(SDK_LIB): $(LIBRARY_ARCHIVE) $(ALLMODULE_OBJS)
 	@$(MKDIR)
 	cp $< $@
 	-cp $(OTHER_OBJS) $(TRUSTY_SDK_LIB_DIR)/
@@ -472,11 +509,17 @@ $(SDK_LIB): $(LIBRARY_ARCHIVE) $(OTHER_OBJS)
 # Ensure that any extra SDK objects are copied if they are missing
 $(OTHER_SDK_OBJS): $(SDK_LIB)
 
+MODULE_SDK_LIBS += $(OTHER_SDK_OBJS)
 ALL_SDK_LIBS += $(SDK_LIB) $(OTHER_SDK_OBJS)
+
+else # not an SDK module
+
+# Libraries not in the SDK are included directly in the link as archives, rather
+# than via `-l`.
+MODULE_EXPORT_LIBRARIES += $(LIBRARY_ARCHIVE)
 
 endif # SDK module
 
-MODULE_EXPORT_LIBRARIES += $(LIBRARY_ARCHIVE)
 MODULE_EXPORT_EXTRA_OBJECTS += $(filter-out $(LIBRARY_ARCHIVE),$(ALLMODULE_OBJS))
 
 # Append dependency libraries into ALLMODULE_OBJS. This needs to happen after we
@@ -489,7 +532,9 @@ endif # MODULE is not a header-only library
 _MODULES_$(MODULE)_LIBRARIES := $(MODULE_EXPORT_LIBRARIES)
 _MODULES_$(MODULE)_EXTRA_OBJECTS := $(MODULE_EXPORT_EXTRA_OBJECTS)
 _MODULES_$(MODULE)_RLIBS := $(MODULE_EXPORT_RLIBS)
+_MODULES_$(MODULE)_SDK_LIBS := $(MODULE_SDK_LIBS)
 _MODULES_$(MODULE)_LDFLAGS := $(MODULE_EXPORT_LDFLAGS)
+_MODULES_$(MODULE)_SDK_HEADERS := $(MODULE_EXPORT_SDK_HEADERS)
 
 ifeq ($(call TOBOOL,$(MODULE_RUST_TESTS)),true)
 # Rebuild this module as a test service as well
@@ -505,6 +550,7 @@ endif # building userspace module
 # Reset all variables for the next module
 MODULE :=
 MODULE_CRATE_NAME :=
+MODULE_SRCDEPS :=
 MODULE_LIBRARY_DEPS :=
 MODULE_LIBRARY_EXPORTED_DEPS :=
 MODULE_LIBRARIES :=
@@ -522,9 +568,10 @@ MODULE_RUST_HOST_LIB :=
 endif
 MODULE_RUST_CRATE_TYPES :=
 MODULE_RUST_TESTS :=
-OTHER_OBJS :=
 OTHER_SDK_OBJS :=
 SDK_LIB :=
+OTHER_OBJS :=
+OTHER_SDK_OBJS :=
 
 MODULE_EXPORT_LIBRARIES :=
 MODULE_EXPORT_RLIBS :=
@@ -536,3 +583,4 @@ MODULE_EXPORT_CPPFLAGS :=
 MODULE_EXPORT_ASMFLAGS :=
 MODULE_EXPORT_INCLUDES :=
 MODULE_EXPORT_LDFLAGS :=
+MODULE_EXPORT_SDK_HEADERS :=

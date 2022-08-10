@@ -25,7 +25,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/scudo_app.cpp \
 
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/libc-trusty \
+	trusty/user/base/lib/libstdc++-trusty \
 	trusty/user/base/lib/scudo \
 	trusty/user/base/lib/tipc \
 	trusty/user/base/lib/unittest \

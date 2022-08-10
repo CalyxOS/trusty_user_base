@@ -92,6 +92,7 @@ SAVED_$(MODULE)_BINDGEN_CTYPES_PREFIX := $(MODULE_BINDGEN_CTYPES_PREFIX)
 SAVED_$(MODULE)_BINDGEN_FLAGS := $(MODULE_BINDGEN_FLAGS)
 SAVED_$(MODULE)_BINDGEN_SRC_HEADER := $(MODULE_BINDGEN_SRC_HEADER)
 SAVED_$(MODULE)_SDK_LIB_NAME := $(MODULE_SDK_LIB_NAME)
+SAVED_$(MODULE)_SDK_LIBS := $(MODULE_SDK_LIBS)
 SAVED_$(MODULE)_SDK_HEADER_INSTALL_DIR := $(MODULE_SDK_HEADER_INSTALL_DIR)
 SAVED_$(MODULE)_SDK_HEADERS := $(MODULE_SDK_HEADERS)
 SAVED_$(MODULE)_TRUSTY_APP := $(TRUSTY_APP)
@@ -121,6 +122,7 @@ SAVED_$(MODULE)_EXPORT_CPPFLAGS := $(MODULE_EXPORT_CPPFLAGS)
 SAVED_$(MODULE)_EXPORT_ASMFLAGS := $(MODULE_EXPORT_ASMFLAGS)
 SAVED_$(MODULE)_EXPORT_LIBRARIES := $(MODULE_EXPORT_LIBRARIES)
 SAVED_$(MODULE)_EXPORT_RLIBS := $(MODULE_EXPORT_RLIBS)
+SAVED_$(MODULE)_EXPORT_SDK_HEADERS := $(MODULE_EXPORT_SDK_HEADERS)
 SAVED_$(MODULE)_EXPORT_LDFLAGS := $(MODULE_EXPORT_LDFLAGS)
 SAVED_$(MODULE)_EXPORT_INCLUDES := $(MODULE_EXPORT_INCLUDES)
 SAVED_$(MODULE)_EXPORT_EXTRA_OBJECTS := $(MODULE_EXPORT_EXTRA_OBJECTS)
@@ -166,6 +168,7 @@ MODULE_BINDGEN_CTYPES_PREFIX :=
 MODULE_BINDGEN_FLAGS :=
 MODULE_BINDGEN_SRC_HEADER :=
 MODULE_SDK_LIB_NAME :=
+MODULE_SDK_LIBS :=
 MODULE_SDK_HEADER_INSTALL_DIR :=
 MODULE_SDK_HEADERS :=
 TRUSTY_APP :=
@@ -191,6 +194,7 @@ MODULE_EXPORT_INCLUDES :=
 MODULE_EXPORT_LDFLAGS :=
 MODULE_EXPORT_LIBRARIES :=
 MODULE_EXPORT_RLIBS :=
+MODULE_EXPORT_SDK_HEADERS :=
 MODULE_EXPORT_EXTRA_OBJECTS :=
 
 ALLMODULES :=
@@ -239,6 +243,7 @@ MODULE_BINDGEN_CTYPES_PREFIX := $(SAVED_$(MODULE)_BINDGEN_CTYPES_PREFIX)
 MODULE_BINDGEN_FLAGS := $(SAVED_$(MODULE)_BINDGEN_FLAGS)
 MODULE_BINDGEN_SRC_HEADER := $(SAVED_$(MODULE)_BINDGEN_SRC_HEADER)
 MODULE_SDK_LIB_NAME := $(SAVED_$(MODULE)_SDK_LIB_NAME)
+MODULE_SDK_LIBS := $(SAVED_$(MODULE)_SDK_LIBS)
 MODULE_SDK_HEADER_INSTALL_DIR := $(SAVED_$(MODULE)_SDK_HEADER_INSTALL_DIR)
 MODULE_SDK_HEADERS := $(SAVED_$(MODULE)_SDK_HEADERS)
 TRUSTY_APP := $(SAVED_$(MODULE)_TRUSTY_APP)
@@ -269,6 +274,7 @@ MODULE_EXPORT_ASMFLAGS := $(SAVED_$(MODULE)_EXPORT_ASMFLAGS)
 MODULE_EXPORT_LDFLAGS := $(SAVED_$(MODULE)_EXPORT_LDFLAGS)
 MODULE_EXPORT_LIBRARIES := $(SAVED_$(MODULE)_EXPORT_LIBRARIES)
 MODULE_EXPORT_RLIBS := $(SAVED_$(MODULE)_EXPORT_RLIBS)
+MODULE_EXPORT_SDK_HEADERS := $(SAVED_$(MODULE)_EXPORT_SDK_HEADERS)
 MODULE_EXPORT_INCLUDES := $(SAVED_$(MODULE)_EXPORT_INCLUDES)
 MODULE_EXPORT_EXTRA_OBJECTS := $(SAVED_$(MODULE)_EXPORT_EXTRA_OBJECTS)
 
@@ -292,14 +298,30 @@ $(eval MODULE_$(EXPORT)$(1) += $(filter-out $(MODULE_$(EXPORT)$(1)),$(_MODULES_$
 $(eval EXPORT :=)
 endef
 
-# Add our dependencies flags to our exported flags
+ifeq ($(filter $(DEPENDENCY_MODULE),$(TRUSTY_SDK_MODULES)),)
+# Dependency is NOT part of the SDK
+
+# Only append in-tree headers if this library isn't part of the SDK
+$(call append-export-flags,INCLUDES,$(REEXPORT))
+
+ifneq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
+# Module is part of the SDK but our dependency isn't. We need to pick up our
+# dependency's headers here because we don't append MODULE_EXPORT_INCLUDES to
+# our local includes.
+MODULE_INCLUDES += $(filter-out $(MODULE_INCLUDES),$(_MODULES_$(DEPENDENCY_MODULE)_INCLUDES))
+endif
+
+endif # MODULE in TRUSTY_SDK_MODULES
+
+# Add our dependencies flags to our exported flags.
+# Note that we don't add INCLUDES here. We take care of that above if the
+# dependency is not part of the SDK. If it is, we use the SDK sysroot's headers.
 $(call append-export-flags,DEFINES,$(REEXPORT))
 $(call append-export-flags,COMPILEFLAGS,$(REEXPORT))
 $(call append-export-flags,CONSTANTS,$(REEXPORT))
 $(call append-export-flags,CFLAGS,$(REEXPORT))
 $(call append-export-flags,CPPFLAGS,$(REEXPORT))
 $(call append-export-flags,ASMFLAGS,$(REEXPORT))
-$(call append-export-flags,INCLUDES,$(REEXPORT))
 
 # We always re-export LDFLAGS and LIBRARIES. This is safe to do in the prescence
 # of recursive deps because libraries and link flags are additive and do not
@@ -310,6 +332,12 @@ $(call append-export-flags,EXTRA_OBJECTS,true)
 $(call append-export-flags,LDFLAGS,true)
 $(call append-export-flags,LIBRARIES,true)
 $(call append-export-flags,RLIBS,true)
+$(call append-export-flags,SDK_LIBS,true)
+
+# We always want to make sure that all necessary headers have been copied into
+# the SDK before we try to use them. There's no harm in things being copied
+# earlier than they are needed.
+$(call append-export-flags,SDK_HEADERS,true)
 
 DEPENDENCY_MODULE :=
 DEPENDENCY_MODULE_PATH :=

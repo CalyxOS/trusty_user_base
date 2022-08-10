@@ -10,28 +10,6 @@ MODULE_DISABLE_LTO := true
 
 MUSL_DIR := external/trusty/musl
 
-# This eliminate /usr/local/include and /usr/include from includepaths.
-# Note that this does NOT eliminate the compiler's builtin include directory,
-# which includes header files for vector intrinsics and similar.
-# -nostdinc would eliminate all these directories, but we want to keep access
-# to the intrinsics for now.
-# Also note that the builtin directory will shadow the contents of sysroot.
-# To be 100% correct, the libc headers should be in a real sysroot.
-MODULE_EXPORT_COMPILEFLAGS += --sysroot=fake_sysroot
-
-# Using -isystem instead of -I has two effects. First, these paths will be
-# searched after -I.  Second, warnings for these header files will be
-# suppressed. Musl's header files are not designed to be warning clean,
-# particularly when -Wall is enabled enabled.  Because we're using -Werror,
-# we must either patch the header files or use -isystem.
-MODULE_EXPORT_COMPILEFLAGS += \
-	-isystem $(MUSL_DIR)/arch/$(STANDARD_ARCH_NAME) \
-	-isystem $(MUSL_DIR)/arch/generic \
-	-isystem $(MUSL_DIR)/include \
-
-# These include dirs are redundant with the -isystem compileflags above, but are
-# needed to export these headers for the SDK. The -isystem flags take
-# precedence, so adding these directory with -I has no effect.
 MODULE_EXPORT_INCLUDES += \
 	$(MUSL_DIR)/arch/$(STANDARD_ARCH_NAME) \
 	$(MUSL_DIR)/arch/generic \
