@@ -315,6 +315,10 @@ static bool RewriteConfig(TrustyAcvpTool& tool,
 
     std::unique_ptr<uint8_t[]> buf(
             new (std::nothrow) uint8_t[pos + sizeof(kAdditionalConfig) - 1]);
+    if (!buf) {
+        TLOGE("Could not allocate buffer for config\n");
+        return false;
+    }
 
     memcpy(buf.get(), config.cbegin(), pos);
     memcpy(&buf[pos], kAdditionalConfig, sizeof(kAdditionalConfig) - 1);
