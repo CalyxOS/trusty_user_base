@@ -618,4 +618,6 @@ MODULE_LIBRARY_DEPS += trusty/user/base/lib/syscall-stubs
 include trusty/user/base/lib/syscall-stubs/common-inc.mk
 MODULE_SRCDEPS += $(SYSCALL_H)
 
+MODULE_LICENSES += $(MUSL_DIR)/LICENSE
+
 include make/library.mk

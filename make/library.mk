@@ -52,6 +52,8 @@
 #       must be listed explicitly.
 # MODULE_SDK_HEADER_INSTALL_DIR : Path under include prefix to install SDK
 # 		headers into.
+# MODULE_LICENSES : Any additional license files for the library other than
+# 		$(MODULE)/LICENSE and $(MODULE)/NOTICE
 # MANIFEST : App manifest JSON file, only applicable if this module is an app
 #
 # Exported flags:
@@ -512,6 +514,9 @@ $(OTHER_SDK_OBJS): $(SDK_LIB)
 MODULE_SDK_LIBS += $(OTHER_SDK_OBJS)
 ALL_SDK_LIBS += $(SDK_LIB) $(OTHER_SDK_OBJS)
 
+# Add any module licenses, if found
+MODULE_LICENSES += $(wildcard $(MODULE)/LICENSE*) $(wildcard $(MODULE)/NOTICE)
+
 else # not an SDK module
 
 # Libraries not in the SDK are included directly in the link as archives, rather
@@ -530,6 +535,7 @@ ALLMODULE_OBJS := $(ALLMODULE_OBJS) $(filter-out $(ALLMODULE_OBJS),$(MODULE_LIBR
 endif # MODULE is not a header-only library
 
 _MODULES_$(MODULE)_LIBRARIES := $(MODULE_EXPORT_LIBRARIES)
+_MODULES_$(MODULE)_LICENSES := $(MODULE_LICENSES)
 _MODULES_$(MODULE)_EXTRA_OBJECTS := $(MODULE_EXPORT_EXTRA_OBJECTS)
 _MODULES_$(MODULE)_RLIBS := $(MODULE_EXPORT_RLIBS)
 _MODULES_$(MODULE)_SDK_LIBS := $(MODULE_SDK_LIBS)
@@ -554,6 +560,7 @@ MODULE_SRCDEPS :=
 MODULE_LIBRARY_DEPS :=
 MODULE_LIBRARY_EXPORTED_DEPS :=
 MODULE_LIBRARIES :=
+MODULE_LICENSES :=
 MODULE_RLIBS :=
 MODULE_RSOBJS :=
 MODULE_SDK_LIB_NAME :=

@@ -4,6 +4,8 @@ MODULE := $(LOCAL_DIR)
 
 GTEST_DIR := external/googletest/googletest
 
+MODULE_LICENSES += $(GTEST_DIR)/LICENSE
+
 # Export gtest headers.
 MODULE_EXPORT_INCLUDES += $(GTEST_DIR)/include
 
