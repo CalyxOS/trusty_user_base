@@ -24,6 +24,7 @@
 # 		directory)
 # TRUSTY_APP_BUILDDIR : Build directory for trusty apps (app will be built in
 # 		$(TRUSTY_APP_BUILDDIR)/$(MODULE))
+# TRUSTY_APP_IN_TREE : Boolean indicating if the app is being built in-tree
 # MANIFEST : App manifest JSON file
 # MODULE_CONSTANTS : JSON files with constants used for both the manifest and C
 # 		headers (optional) (CONSTANTS is a deprecated equivalent to
@@ -38,8 +39,8 @@
 # 		resulting app binary
 #
 #
-# All library.mk input variables are also valid for app, see library.mk for
-# additional args and usage.
+# All library.mk input variables are also valid for apps when building in tree,
+# see library.mk for additional args and usage.
 
 ifeq (true,$(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)))
 MODULE_LIBRARY_DEPS += \
@@ -64,7 +65,14 @@ endif
 
 MODULE_RUST_CRATE_TYPES := bin
 
+# Only include the rest of the build system if we're building in-tree
+ifeq ($(call TOBOOL,$(TRUSTY_APP_IN_TREE)),true)
 include make/library.mk
+else
+# Generate manifest binary if building with the SDK
+-include $(SDK_DIR)/make/gen_manifest.mk
+all:: $(MODULE_SRCDEPS)
+endif
 
 TRUSTY_APP_LDFLAGS := $(TRUSTY_APP_BASE_LDFLAGS)
 
