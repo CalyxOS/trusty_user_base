@@ -117,4 +117,84 @@ fn cannot_rename_open_file() {
     session.rename(file_name, "different_file.txt").unwrap();
 }
 
+/// Tests that multiple files can be modified in a single transaction, and that
+/// file handles opened as part of a transaction can still be used after the
+/// transaction is committed.
+#[test]
+fn multiple_files_in_transaction() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+
+    let file_a = "file_a.txt";
+    let file_b = "file_b.txt";
+    let file_contents = "multiple_files_in_transaction";
+    let mut buf = [0; 32];
+
+    // Make sure there aren't existing files from previous runs.
+    let _ = session.remove(file_a);
+    let _ = session.remove(file_b);
+
+    // Start a transaction, create two files, and then write the contents of those
+    // files before committing the transaction.
+
+    let mut transaction = session.begin_transaction();
+
+    let mut file_a = transaction.open_file(file_a, OpenMode::CreateExclusive).unwrap();
+    let mut file_b = transaction.open_file(file_b, OpenMode::CreateExclusive).unwrap();
+
+    transaction.write_all(&mut file_a, file_contents.as_bytes()).unwrap();
+    transaction.write_all(&mut file_b, file_contents.as_bytes()).unwrap();
+
+    transaction.commit().unwrap();
+
+    // Verify that we can observe the updated file contents. Note that we reuse the
+    // existing file handles to verify that file handles opened in a transaction
+    // remain valid after the transaction is committed.
+
+    let actual_contents = session.read_all(&file_a, &mut buf).unwrap();
+    assert_eq!(
+        file_contents.as_bytes(),
+        actual_contents,
+        "Changes from transaction were not written",
+    );
+
+    let actual_contents = session.read_all(&file_b, &mut buf).unwrap();
+    assert_eq!(
+        file_contents.as_bytes(),
+        actual_contents,
+        "Changes from transaction were not written",
+    );
+}
+
+/// Tests that pending changes in a transaction are not committed if the
+/// transaction is discarded.
+#[test]
+fn discard_transaction() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+
+    let file_name = "commit_transaction_on_drop.txt";
+    let file_contents = "commit_transaction_on_drop";
+    let mut buf = [0; 32];
+
+    // Make sure there aren't existing files from previous runs.
+    let _ = session.remove(file_name);
+
+    // Begin to make changes in a transaction, then discard the transaction without
+    // committing the pending changes.
+    {
+        let mut transaction = session.begin_transaction();
+
+        let mut file = transaction.open_file(file_name, OpenMode::CreateExclusive).unwrap();
+        transaction.write_all(&mut file, file_contents.as_bytes()).unwrap();
+
+        transaction.discard().unwrap();
+    }
+
+    // Verify that the file was never created or written to.
+    assert_eq!(
+        Err(Error::Code(ErrorCode::NotFound)),
+        session.read(file_name, &mut buf),
+        "Unexpected result when renaming open file",
+    );
+}
+
 test::init!();

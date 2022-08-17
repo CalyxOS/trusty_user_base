@@ -29,17 +29,17 @@
 //!```
 //! use storage::{Session, Port, OpenMode};
 //!
-//! let session = Session::new(Port::TamperDetect).unwrap();
+//! let session = Session::new(Port::TamperDetect)?;
 //!
 //! // Write file contents to disk, creating a new
 //! // file or overwriting an existing one.
 //! session.write(
 //!     "foo.txt",
 //!     "Hello, world!".as_bytes()
-//! ).unwrap();
+//! )?;
 //!
 //! // Read contents of a file.
-//! let contents = session.read("foo.txt").unwrap();
+//! let contents = session.read("foo.txt")?;
 //! println!("Contents of `bar.txt`: {}", contents);
 //!
 //! // Open a file handle in order to perform more
@@ -47,9 +47,9 @@
 //! let file = session.open_file(
 //!     "foo.txt",
 //!     OpenMode::Open,
-//! ).unwrap();
+//! )?;
 //!
-//! session.set_size(&file, 1024).unwrap();
+//! session.set_size(&file, 1024)?;
 //! ```
 //!
 //! # Getting Started
@@ -64,7 +64,7 @@
 //! ```
 //! use storage::{Session, Port};
 //!
-//! let session = Session::new(Port::TamperDetect).unwrap();
+//! let session = Session::new(Port::TamperDetect)?;
 //! ```
 //!
 //! All filesystem operations are performed through the [`Session`] object, see
@@ -72,9 +72,52 @@
 //! operations return a `Result`. If no specific error conditions are documented
 //! for an operation, general errors may still still occur e.g. if there is an
 //! issue communicating with the service.
+//!
+//! # Using Transactions
+//!
+//! It's possible to group multiple file operations into a transaction in order
+//! to commit or discard all changes as a group. To do so, use
+//! [`Session::begin_transaction`] to get a [`Transaction`] object.
+//! [`Transaction`] exposes the same file manipulation methods as [`Session`],
+//! but any changes done through [`Transaction`] will not be applied
+//! immediately. Instead, [`Transaction::commit`] and [`Transaction::discard`]
+//! are used to either commit the pending changes to disk or discard the pending
+//! changes, respectively.
+//!
+//! If a [`Transaction`] object is dropped without being explicitly committed or
+//! discarded, it will panic with a message reminding you to manually finalize
+//! the transaction.
+//!
+//! ```
+//! let transaction = session.begin_transaction();
+//!
+//! let file = transaction.open_file("foo.txt", OpenMode::Create)?;
+//! transaction.write_all(&file, "Hello, world!".as_bytes())?;
+//!
+//! transaction.commit()?;
+//! ```
+//!
+//! The main reason to use transactions instead of the simpler API provided by
+//! [`Session`] is that it allows multiple file operations to be committed
+//! atomically in a single transaction. This can be important for apps that need
+//! to ensure that files in secure storage do not end up in an invalid state. In
+//! the future it may also allow for more efficient disk operations by allowing
+//! the storage service to write changes in bulk, but that is not currently
+//! implemented.
+//!
+//! For simple use cases that only need to read or write an entire file the
+//! simpler [`Session`] file access APIs can be good enough, but for more
+//! complex use cases use the transaction API instead.
+//!
+//! The storage API is also designed such that while a transaction is open all
+//! file operations must go through that transaction until it is either
+//! committed or discarded. This ensures that there's no way to accidentally
+//! perform a file operation through `Session` that circumvents the atomicity
+//! guarantees provided by the transaction.
 
 #![no_std]
 
+pub use crate::transaction::*;
 pub use trusty_sys::Error as ErrorCode;
 
 use core::ffi::c_void;
@@ -84,6 +127,7 @@ use trusty_sys::{c_int, c_long};
 
 #[cfg(test)]
 mod test;
+mod transaction;
 
 #[allow(bad_style)]
 #[allow(unused)]
@@ -169,13 +213,12 @@ impl Session {
     // order to hide the `complete` argument.
     //
     // When client code opens a file directly with `open_file` and a file is
-    // created, we need to immediately commit the transaction. But if client code
-    // calls `write` for a file that doesn't yet exist, we want file creation and
-    // writing to the file to be committed in a single transaction for efficiency.
-    //
-    // We internally provide the `complete` argument to support both of these cases,
-    // but want to avoid exposing that arg publicly so that client code can't
-    // manually trigger a transaction outside of the full transaction API.
+    // created, we need to immediately commit the transaction. But when going
+    // through the transaction API the individual write operations shouldn't be
+    // committed until the entire transaction is done. We internally provide the
+    // `complete` argument to support both of these cases, but want to avoid
+    // exposing that arg publicly so that client code can't manually trigger a
+    // transaction outside of the full transaction API.
     fn open_file_impl(
         &mut self,
         name: &str,
@@ -258,7 +301,8 @@ impl Session {
     /// Reads the contents of `file` into `buf`.
     ///
     /// Reads contents starting from the beginning of the file, regardless of the
-    /// current cursor position in `file`. Returns the number of bytes read.
+    /// current cursor position in `file`. Returns a slice that is the part of `buf`
+    /// containing the read data.
     ///
     /// # Errors
     ///
@@ -393,9 +437,19 @@ impl Session {
     /// * `to` exists and cannot be overwritten.
     /// * A handle to `from` is already open.
     pub fn rename(&mut self, from: &str, to: &str) -> Result<(), Error> {
+        self.rename_impl(from, to, true)
+    }
+
+    // NOTE: We split the implementation of `rename` to a separate method in
+    // order to hide the `complete` argument. See the comment on `open_file_impl`
+    // for additional context.
+    fn rename_impl(&mut self, from: &str, to: &str, complete: bool) -> Result<(), Error> {
         // Convert `name` to a `CString` in order to add a null byte to the end.
         let from = CString::try_new(from)?;
         let to = CString::try_new(to)?;
+
+        // Convert `complete` into the corresponding flag value.
+        let ops_flags = if complete { sys::STORAGE_OP_COMPLETE } else { 0 };
 
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
@@ -407,7 +461,7 @@ impl Session {
                 from.as_ptr(),
                 to.as_ptr(),
                 sys::STORAGE_FILE_MOVE_CREATE,
-                sys::STORAGE_OP_COMPLETE,
+                ops_flags,
             )
         })
     }
@@ -425,15 +479,33 @@ impl Session {
     /// * `name` doesn't exist.
     /// * `name` cannot be deleted because it is open as a file handle.
     pub fn remove(&mut self, name: &str) -> Result<(), Error> {
+        self.remove_impl(name, true)
+    }
+
+    // NOTE: We split the implementation of `remove` to a separate method in
+    // order to hide the `complete` argument. See the comment on `open_file_impl`
+    // for additional context.
+    fn remove_impl(&mut self, name: &str, complete: bool) -> Result<(), Error> {
         // Convert `name` to a `CString` in order to add a null byte to the end.
         let name = CString::try_new(name)?;
+
+        // Convert `complete` into the corresponding flag value.
+        let ops_flags = if complete { sys::STORAGE_OP_COMPLETE } else { 0 };
 
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
         // point.
         Error::try_from_code(unsafe {
-            sys::storage_delete_file(self.raw, name.as_ptr(), sys::STORAGE_OP_COMPLETE)
+            sys::storage_delete_file(self.raw, name.as_ptr(), ops_flags)
         })
+    }
+
+    /// Creates a new [`Transaction`] object.
+    ///
+    /// See the [crate-level documentation][crate] for information on how any
+    /// why to use transactions.
+    pub fn begin_transaction(&mut self) -> Transaction<'_> {
+        Transaction { session: self }
     }
 }
 
