@@ -19,7 +19,7 @@ MODULE := $(LOCAL_DIR)
 
 MODULE_SRCS := $(LOCAL_DIR)/keymaster.c
 
-MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include/ \
+MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include \
 		   $(TRUSTY_TOP)/hardware/libhardware/include
 
 MODULE_LIBRARY_DEPS := \
