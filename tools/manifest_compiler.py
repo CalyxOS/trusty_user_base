@@ -72,7 +72,10 @@ USAGE:
             }
         ],
         "pinned_cpu": 3,
-        "version": 1
+        "version": 1,
+        "apploader_flags": {
+            "requires_encryption": false
+        }
    }
 
    JSON manifest constant config -
@@ -126,6 +129,8 @@ START_PORT_ALLOW_NS_CONNECT = "allow_ns_connect"
 APP_NAME = "app_name"
 PINNED_CPU = "pinned_cpu"
 VERSION = "version"
+APPLOADER_FLAGS = "apploader_flags"
+APPLOADER_FLAGS_REQUIRES_ENCRYPTION = "requires_encryption"
 
 # constants configs
 CONSTANTS = "constants"
@@ -149,6 +154,7 @@ TRUSTY_APP_CONFIG_KEY_START_PORT = 5
 TRUSTY_APP_CONFIG_KEY_PINNED_CPU = 6
 TRUSTY_APP_CONFIG_KEY_VERSION = 7
 TRUSTY_APP_CONFIG_KEY_MIN_SHADOW_STACK_SIZE = 8
+TRUSTY_APP_CONFIG_KEY_APPLOADER_FLAGS = 9
 
 # MEM_MAP ARCH_MMU_FLAGS
 # These values need to be kept in sync with external/lk/include/arch/mmu.h
@@ -164,6 +170,11 @@ TRUSTY_APP_MGMT_FLAGS_NONE = 0
 TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT = 1 << 0
 TRUSTY_APP_MGMT_FLAGS_DEFERRED_START = 1 << 1
 TRUSTY_APP_MGMT_FLAGS_NON_CRITICAL_APP = 1 << 2
+
+# APPLOADER FLAGS
+# These values need to be kept in sync with lib/app_manifest/app_manifest.h
+TRUSTY_APP_APPLOADER_FLAGS_NONE = 0
+TRUSTY_APP_APPLOADER_FLAGS_REQUIRES_ENCRYPTION = 1 << 0
 
 # START_PORT flags
 # These values need to be kept in sync with user/base/include/user/trusty_ipc.h
@@ -217,6 +228,11 @@ class MgmtFlags(object):
         self.non_critical_app = non_critical_app
 
 
+class ApploaderFlags(object):
+    def __init__(self, requires_encryption):
+        self.requires_encryption = requires_encryption
+
+
 class Manifest(object):
     """
     Holds Manifest data to be used for packing
@@ -234,6 +250,7 @@ class Manifest(object):
             start_ports,
             pinned_cpu,
             version,
+            apploader_flags,
     ):
         self.uuid = uuid
         self.app_name = app_name
@@ -245,6 +262,7 @@ class Manifest(object):
         self.start_ports = start_ports
         self.pinned_cpu = pinned_cpu
         self.version = version
+        self.apploader_flags = apploader_flags
 
 
 class Log(object):
@@ -605,6 +623,23 @@ def parse_mgmt_flags(flags, constants, log):
     return mgmt_flags
 
 
+def parse_apploader_flags(flags, constants, log):
+    if flags is None:
+        return None
+
+    apploader_flags = ApploaderFlags(
+        get_boolean(flags, APPLOADER_FLAGS_REQUIRES_ENCRYPTION, constants, log,
+                    optional=True)
+    )
+
+    if flags:
+        log.error(
+            "Unknown attributes in apploader_flags entries in manifest: {} "
+                .format(flags))
+
+    return apploader_flags
+
+
 def parse_app_start_ports(start_port_list, key, constants, log):
     start_ports = []
 
@@ -704,6 +739,12 @@ def parse_manifest_config(manifest_dict, constants, default_app_name, log):
     # VERSION
     version = get_int(manifest_dict, VERSION, constants, log, optional=True)
 
+    # APPLOADER_FLAGS
+    apploader_flags = parse_apploader_flags(
+        get_dict(manifest_dict, APPLOADER_FLAGS, log, optional=True,
+                 default={APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False}),
+        constants, log)
+
     # look for any extra attributes
     if manifest_dict:
         log.error("Unknown attributes in manifest: {} ".format(manifest_dict))
@@ -712,7 +753,8 @@ def parse_manifest_config(manifest_dict, constants, default_app_name, log):
         return None
 
     return Manifest(uuid, app_name, min_heap, min_stack, min_shadow_stack,
-                    mem_io_maps, mgmt_flags, start_ports, pinned_cpu, version)
+                    mem_io_maps, mgmt_flags, start_ports, pinned_cpu, version,
+                    apploader_flags)
 
 
 def swap_uuid_bytes(uuid):
@@ -749,6 +791,14 @@ def pack_mgmt_flags(mgmt_flags):
         flags |= TRUSTY_APP_MGMT_FLAGS_DEFERRED_START
     if mgmt_flags.non_critical_app:
         flags |= TRUSTY_APP_MGMT_FLAGS_NON_CRITICAL_APP
+
+    return flags
+
+
+def pack_apploader_flags(apploader_flags):
+    flags = TRUSTY_APP_APPLOADER_FLAGS_NONE
+    if apploader_flags.requires_encryption:
+        flags |= TRUSTY_APP_APPLOADER_FLAGS_REQUIRES_ENCRYPTION
 
     return flags
 
@@ -791,6 +841,7 @@ def pack_manifest_data(manifest, log):
     #        TRUSTY_APP_CONFIG_KEY_PINNED_CPU, pinned_cpu
     #        TRUSTY_APP_CONFIG_KEY_VERSION, version
     #        TRUSTY_APP_CONFIG_KEY_MIN_SHADOW_STACK_SIZE, min_shadow_stack,
+    #        TRUSTY_APP_CONFIG_KEY_APPLOADER_FLAGS, apploader_flags,
     #      }
     out = io.BytesIO()
 
@@ -836,10 +887,16 @@ def pack_manifest_data(manifest, log):
         out.write(struct.pack("II",
                               TRUSTY_APP_CONFIG_KEY_VERSION,
                               manifest.version))
+
     if manifest.min_shadow_stack is not None:
         out.write(struct.pack("II",
                               TRUSTY_APP_CONFIG_KEY_MIN_SHADOW_STACK_SIZE,
                               manifest.min_shadow_stack))
+
+    if manifest.apploader_flags is not None:
+        out.write(struct.pack("II",
+                              TRUSTY_APP_CONFIG_KEY_APPLOADER_FLAGS,
+                              pack_apploader_flags(manifest.apploader_flags)))
 
     return out.getvalue()
 
@@ -979,6 +1036,16 @@ def unpack_binary_manifest_to_data(packed_data):
             (version,), packed_data = struct.unpack(
                 "I", packed_data[:4]), packed_data[4:]
             manifest[VERSION] = version
+        elif tag == TRUSTY_APP_CONFIG_KEY_APPLOADER_FLAGS:
+            assert APPLOADER_FLAGS not in manifest
+            (flag,), packed_data = struct.unpack(
+                "I", packed_data[:4]), packed_data[4:]
+            apploader_flag = {
+                APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
+            }
+            if flag & TRUSTY_APP_APPLOADER_FLAGS_REQUIRES_ENCRYPTION:
+                apploader_flag[APPLOADER_FLAGS_REQUIRES_ENCRYPTION] = True
+            manifest[APPLOADER_FLAGS] = apploader_flag
         else:
             raise Exception("Unknown tag: {}".format(tag))
 

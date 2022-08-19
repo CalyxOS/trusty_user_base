@@ -1152,6 +1152,9 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: False,
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
             }
         }
 
@@ -1201,6 +1204,9 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: False,
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
             }
         }
 
@@ -1248,6 +1254,9 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: True,
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
             }
         }
 
@@ -1292,6 +1301,9 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: False,
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
             }
         }
 
@@ -1370,6 +1382,9 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: False,
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
             }
         }
 
@@ -1427,6 +1442,9 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
             },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
+            },
             manifest_compiler.PINNED_CPU: 3
         }
 
@@ -1481,6 +1499,9 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: False,
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
             },
             manifest_compiler.PINNED_CPU: 3
         }
@@ -1546,6 +1567,9 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: False,
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
             }
         }
 
@@ -1557,6 +1581,67 @@ class TestManifest(unittest.TestCase):
             manifest_compiler.MIN_STACK: 4096,
             manifest_compiler.VERSION: "VERSION",
             manifest_compiler.MIN_SHADOW_STACK: "PAGE_SIZE",
+        }
+
+        conf_constants = manifest_compiler.extract_config_constants(
+            constants_data, log)
+        constants = manifest_compiler.index_constants(conf_constants, log)
+
+        # Pack manifest config_data
+        # Unpack the binary packed data to JSON text
+        # Validate unpacked JSON text
+        self.assertEqual(
+            manifest_compiler.manifest_data_to_json(config_ref_data),
+            manifest_compiler.unpack_binary_manifest_to_json(
+                pack_manifest_config_data(
+                    self, config_data, log, constants)))
+
+    def test_manifest_valid_pack_9(self):
+        """
+        Test with valid manifest config with a constants config containing
+        - UUID
+        - min_heap, min_stack
+        - apploader_flags
+        Pack the manifest config data and unpack it and
+        verify it with the expected values
+        """
+        constants_data = [{
+            "header": "constants.h",
+            "constants": [{
+                "name": "REQUIRES_ENCRYPTION",
+                "value": True,
+                "type": "bool",
+            }]
+        }]
+
+        log = manifest_compiler.Log()
+
+        # Reference JSON manifest data structure
+        config_ref_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 8192,
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.MGMT_FLAGS: {
+                manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: False,
+                manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
+                manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: True,
+            }
+        }
+
+        # JSON manifest data structure
+        config_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 8192,
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION:
+                    "REQUIRES_ENCRYPTION",
+            }
         }
 
         conf_constants = manifest_compiler.extract_config_constants(
