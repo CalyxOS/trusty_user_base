@@ -390,6 +390,7 @@ static bool parse_manifest_for_policy(
         case APP_MANIFEST_CONFIG_KEY_START_PORT:
         case APP_MANIFEST_CONFIG_KEY_PINNED_CPU:
         case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
+        case APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS:
             break;
         }
     }

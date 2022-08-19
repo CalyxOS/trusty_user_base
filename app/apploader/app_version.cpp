@@ -175,6 +175,7 @@ extern "C" bool apploader_check_app_version(
         case APP_MANIFEST_CONFIG_KEY_START_PORT:
         case APP_MANIFEST_CONFIG_KEY_PINNED_CPU:
         case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
+        case APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS:
             /* We don't care about these here */
             break;
         }
