@@ -278,7 +278,7 @@ bool apploader_parse_package_metadata(
     }
 
     /* Read headers and reject packages with invalid header labels */
-    bool content_is_cose_encrypt = false;
+    metadata->elf_is_cose_encrypt = false;
     for (auto& [label_item, value_item] : *headers) {
         auto* label_uint = label_item->asUint();
         if (label_uint == nullptr) {
@@ -296,7 +296,7 @@ bool apploader_parse_package_metadata(
                 return false;
             }
 
-            content_is_cose_encrypt = value_opt_bool.value();
+            metadata->elf_is_cose_encrypt = value_opt_bool.value();
             break;
         }
 
@@ -309,7 +309,7 @@ bool apploader_parse_package_metadata(
 
     const uint8_t* elf_start;
     size_t elf_size;
-    if (content_is_cose_encrypt) {
+    if (metadata->elf_is_cose_encrypt) {
         long rc = hwkey_open();
         if (rc < 0) {
             TLOGE("Failed to connect to hwkey (%ld)\n", rc);

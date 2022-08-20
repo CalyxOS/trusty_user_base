@@ -17,18 +17,20 @@
 #pragma once
 
 #include <inttypes.h>
+#include <lk/compiler.h>
 #include <stddef.h>
 
 __BEGIN_CDECLS
 
 /**
  * struct apploader_package_metadata - Package metadata, parsed from the package
- * @elf_start:          Pointer to the start of the ELF image
- * @elf_size:           Size of the embedded ELF image
- * @manifest_start:     Pointer to the start of the manifest
- * @manifest_size:      Size of the manifest
- * @public_key:         Pointer to public key in DER encoding
- * @public_key_size:    Size of the public key
+ * @elf_start:              Pointer to the start of the ELF image
+ * @elf_size:               Size of the embedded ELF image
+ * @elf_is_cose_encrypt:    True iff package contained encrypted ELF image
+ * @manifest_start:         Pointer to the start of the manifest
+ * @manifest_size:          Size of the manifest
+ * @public_key:             Pointer to public key in DER encoding
+ * @public_key_size:        Size of the public key
  *
  * This structure contains metadata about the package, parsed from the package
  * data by the apploader_parse_package_metadata() function.
@@ -36,6 +38,7 @@ __BEGIN_CDECLS
 struct apploader_package_metadata {
     const uint8_t* elf_start;
     uint64_t elf_size;
+    bool elf_is_cose_encrypt;
 
     const uint8_t* manifest_start;
     uint64_t manifest_size;

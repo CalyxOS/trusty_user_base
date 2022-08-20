@@ -25,13 +25,18 @@ __BEGIN_CDECLS
 /**
  * struct manifest_extracts - a subset of the manifest, that may
  *                            influence if app loading is allowed
- * @uuid: The UUID of the app.
- * @non_critical_app: Whether the app manifest opted-in to
- *                    NON_CRITICAL_APP.
+ * @uuid:                The UUID of the app.
+ * @non_critical_app:    Whether the app manifest opted-in to
+ *                       NON_CRITICAL_APP.
+ * @version:             Application version
+ * @requires_encryption: Whether the app manifest indicated that the ELF image
+ *                       must be protected by encryption.
  */
 struct manifest_extracts {
     uuid_t uuid;
     bool non_critical_app;
+    uint32_t version;
+    bool requires_encryption;
 };
 
 /**

@@ -36,6 +36,7 @@
 #include <sys/mman.h>
 #include <trusty_log.h>
 
+#include "app_manifest_parser.h"
 #include "app_version.h"
 #include "apploader_package.h"
 
@@ -357,47 +358,6 @@ static bool apploader_relocate_package(
     return true;
 }
 
-static bool parse_manifest_for_policy(
-        struct apploader_package_metadata* pkg_meta,
-        struct manifest_extracts* manifest_extracts) {
-    struct app_manifest_iterator iter;
-    app_manifest_iterator_reset(&iter, (const char*)pkg_meta->manifest_start,
-                                pkg_meta->manifest_size);
-
-    manifest_extracts->non_critical_app = false;
-
-    struct app_manifest_config_entry entry;
-    int out_error;
-
-    bool uuid_found = false;
-    while (app_manifest_iterator_next(&iter, &entry, &out_error)) {
-        switch (entry.key) {
-        case APP_MANIFEST_CONFIG_KEY_UUID:
-            manifest_extracts->uuid = entry.value.uuid;
-            uuid_found = true;
-            break;
-        case APP_MANIFEST_CONFIG_KEY_MGMT_FLAGS:
-            if (entry.value.mgmt_flags &
-                APP_MANIFEST_MGMT_FLAGS_NON_CRITICAL_APP) {
-                manifest_extracts->non_critical_app = true;
-            }
-            break;
-        case APP_MANIFEST_CONFIG_KEY_VERSION:
-        case APP_MANIFEST_CONFIG_KEY_APP_NAME:
-        case APP_MANIFEST_CONFIG_KEY_MIN_STACK_SIZE:
-        case APP_MANIFEST_CONFIG_KEY_MIN_HEAP_SIZE:
-        case APP_MANIFEST_CONFIG_KEY_MAP_MEM:
-        case APP_MANIFEST_CONFIG_KEY_START_PORT:
-        case APP_MANIFEST_CONFIG_KEY_PINNED_CPU:
-        case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
-        case APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS:
-            break;
-        }
-    }
-
-    return (uuid_found);
-}
-
 static int apploader_handle_cmd_load_app(handle_t chan,
                                          struct apploader_load_app_req* req,
                                          handle_t req_handle) {
@@ -452,18 +412,26 @@ static int apploader_handle_cmd_load_app(handle_t chan,
         goto err_elf_not_found;
     }
 
+    struct manifest_extracts manifest_extracts = {0};
+    if (!apploader_parse_manifest(&pkg_meta, &manifest_extracts)) {
+        TLOGE("Unable to extract manifest fields\n");
+        resp_error = APPLOADER_ERR_VERIFICATION_FAILED;
+        goto err_policy_disallowed_loading;
+    }
+
     if (!system_state_app_loading_skip_version_check() &&
-        !apploader_check_app_version(&pkg_meta)) {
+        !apploader_check_app_version(&manifest_extracts)) {
         TLOGE("Failed application version check\n");
         resp_error = APPLOADER_ERR_INVALID_VERSION;
         goto err_version_check;
     }
 
-    struct manifest_extracts manifest_extracts = {0};
-    if (!parse_manifest_for_policy(&pkg_meta, &manifest_extracts)) {
-        TLOGE("Unable to extract manifest fields\n");
-        resp_error = APPLOADER_ERR_POLICY_VIOLATION;
-        goto err_policy_disallowed_loading;
+    if (!system_state_app_loading_unlocked() &&
+        (manifest_extracts.requires_encryption &&
+         !pkg_meta.elf_is_cose_encrypt)) {
+        TLOGE("Failed to meet application encryption requirement\n");
+        resp_error = APPLOADER_ERR_NOT_ENCRYPTED;
+        goto err_encryption_check;
     }
 
     if (!apploader_policy_engine_validate(pkg_meta.public_key,
@@ -500,6 +468,7 @@ static int apploader_handle_cmd_load_app(handle_t chan,
 
 err_relocate_package:
 err_policy_disallowed_loading:
+err_encryption_check:
 err_version_check:
 err_elf_not_found:
 err_manifest_not_found:

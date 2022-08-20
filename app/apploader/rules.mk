@@ -23,6 +23,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/apploader.c \
 	$(LOCAL_DIR)/apploader_package.cpp \
 	$(LOCAL_DIR)/app_version.cpp \
+	$(LOCAL_DIR)/app_manifest_parser.cpp \
 	$(LOCAL_DIR)/cose.cpp \
 
 # Override this to provide a different policy engine

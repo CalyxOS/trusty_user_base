@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <array>
 
+#include "app_manifest_parser.h"
 #include "apploader_package.h"
 
 constexpr const char kStorageFilePrefix[] = "app_version.";
@@ -143,65 +144,27 @@ err_open_session:
 }
 
 extern "C" bool apploader_check_app_version(
-        struct apploader_package_metadata* pkg_meta) {
+        struct manifest_extracts* manifest_extracts) {
     int rc;
-    struct app_manifest_iterator iter;
-    rc = app_manifest_iterator_reset(
-            &iter, reinterpret_cast<const char*>(pkg_meta->manifest_start),
-            pkg_meta->manifest_size);
-    if (rc != NO_ERROR) {
-        TLOGE("Error parsing manifest (%d)\n", rc);
-        return false;
-    }
-
-    /* Apps without a version in the manifest get a default of 0 */
-    uuid_t app_uuid;
-    uint32_t manifest_version = 0;
-
-    struct app_manifest_config_entry entry;
-    while (app_manifest_iterator_next(&iter, &entry, &rc)) {
-        switch (entry.key) {
-        case APP_MANIFEST_CONFIG_KEY_UUID:
-            memcpy(&app_uuid, &entry.value.uuid, sizeof(uuid));
-            break;
-        case APP_MANIFEST_CONFIG_KEY_VERSION:
-            manifest_version = entry.value.version;
-            break;
-        case APP_MANIFEST_CONFIG_KEY_APP_NAME:
-        case APP_MANIFEST_CONFIG_KEY_MIN_STACK_SIZE:
-        case APP_MANIFEST_CONFIG_KEY_MIN_HEAP_SIZE:
-        case APP_MANIFEST_CONFIG_KEY_MAP_MEM:
-        case APP_MANIFEST_CONFIG_KEY_MGMT_FLAGS:
-        case APP_MANIFEST_CONFIG_KEY_START_PORT:
-        case APP_MANIFEST_CONFIG_KEY_PINNED_CPU:
-        case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
-        case APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS:
-            /* We don't care about these here */
-            break;
-        }
-    }
-    if (rc != NO_ERROR) {
-        TLOGE("Error iterating over manifest entries (%d)\n", rc);
-        return false;
-    }
+    uint32_t storage_version;
 
     /* Check application version */
-    uint32_t storage_version;
-    rc = get_app_storage_version(&app_uuid, &storage_version);
+    rc = get_app_storage_version(&manifest_extracts->uuid, &storage_version);
     if (rc < 0) {
         TLOGE("Error retrieving application version from storage (%d)\n", rc);
         return false;
     }
-    if (manifest_version < storage_version) {
+    if (manifest_extracts->version < storage_version) {
         TLOGE("Application package version (%" PRIu32
               ") is lower than storage version (%" PRIu32 ")\n",
-              manifest_version, storage_version);
+              manifest_extracts->version, storage_version);
         return false;
     }
 
     if (!system_state_app_loading_skip_version_update() &&
-        manifest_version > storage_version) {
-        rc = update_app_version(&app_uuid, manifest_version);
+        manifest_extracts->version > storage_version) {
+        rc = update_app_version(&manifest_extracts->uuid,
+                                manifest_extracts->version);
         if (rc < 0) {
             TLOGE("Error updating application version in storage (%d)\n", rc);
             return false;

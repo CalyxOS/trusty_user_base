@@ -18,10 +18,11 @@
 
 #include <inttypes.h>
 
+#include "app_manifest_parser.h"
 #include "apploader_package.h"
 
 __BEGIN_CDECLS
 
-bool apploader_check_app_version(struct apploader_package_metadata* pkg_meta);
+bool apploader_check_app_version(struct manifest_extracts* manifest_extracts);
 
 __END_CDECLS
