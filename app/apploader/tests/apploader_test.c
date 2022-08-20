@@ -423,6 +423,66 @@ TEST_F(apploader_user, MmioTest) {
 test_abort:;
 }
 
+extern char encryption_test_app_encrypted_app_encryption_optional_start[],
+        encryption_test_app_encrypted_app_encryption_optional_end[];
+extern char encryption_test_app_encrypted_app_encryption_required_start[],
+        encryption_test_app_encrypted_app_encryption_required_end[];
+extern char encryption_test_app_unencrypted_app_encryption_optional_start[],
+        encryption_test_app_unencrypted_app_encryption_optional_end[];
+extern char encryption_test_app_unencrypted_app_encryption_required_start[],
+        encryption_test_app_unencrypted_app_encryption_required_end[];
+
+TEST_F(apploader_user, AppEncryptionTest) {
+    uint32_t error;
+
+    /* The encrypted app not requiring encryption should load successfully */
+    error = load_test_app(
+            _state->channel,
+            encryption_test_app_encrypted_app_encryption_optional_start,
+            encryption_test_app_encrypted_app_encryption_optional_end);
+    ASSERT_EQ(false, HasFailure());
+    ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
+                            error == APPLOADER_ERR_ALREADY_EXISTS);
+
+    /* The encrypted app requiring encryption should also load successfully */
+    error = load_test_app(
+            _state->channel,
+            encryption_test_app_encrypted_app_encryption_required_start,
+            encryption_test_app_encrypted_app_encryption_required_end);
+    ASSERT_EQ(false, HasFailure());
+    ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
+                            error == APPLOADER_ERR_ALREADY_EXISTS);
+
+    /* The unencrypted app not requiring encryption should load successfully */
+    error = load_test_app(
+            _state->channel,
+            encryption_test_app_unencrypted_app_encryption_optional_start,
+            encryption_test_app_unencrypted_app_encryption_optional_end);
+    ASSERT_EQ(false, HasFailure());
+    ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
+                            error == APPLOADER_ERR_ALREADY_EXISTS);
+
+    /*
+     * The unencrypted app requiring encryption should fail to load if app
+     * loading is locked.
+     */
+    error = load_test_app(
+            _state->channel,
+            encryption_test_app_unencrypted_app_encryption_required_start,
+            encryption_test_app_unencrypted_app_encryption_required_end);
+    ASSERT_EQ(false, HasFailure());
+    if (system_state_app_loading_unlocked()) {
+        trusty_unittest_printf(
+                "[  SKIPPED ] AppEncryptionTest - app loading is unlocked\n");
+        ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
+                                error == APPLOADER_ERR_ALREADY_EXISTS);
+    } else {
+        ASSERT_EQ(error, APPLOADER_ERR_NOT_ENCRYPTED);
+    }
+
+test_abort:;
+}
+
 typedef struct apploader_service {
     handle_t channel;
 } apploader_service_t;
