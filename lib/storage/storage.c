@@ -465,7 +465,7 @@ int storage_read_dir(storage_session_t session,
     state->buf_last_read = state->buf_read;
     state->buf_read += sizeof(*item) + name_size;
 
-    return 0;
+    return name_size;
 }
 
 static ssize_t _read_chunk(file_handle_t fh,

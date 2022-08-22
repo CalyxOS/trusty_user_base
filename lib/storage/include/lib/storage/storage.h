@@ -163,8 +163,10 @@ void storage_close_dir(storage_session_t session,
  * @name:       buffer to write file name info.
  * @name_size:  size of @name buffer.
  *
- * Return: the number of bytes read on success, negative error code on failure
- *
+ * Return: The number of bytes written to @name if another directory entry was
+ * read. Note that this is the length of the string written to @name plus one to
+ * account for the terminating nul byte. Returns 0 If @flags is
+ * STORAGE_FILE_LIST_END, i.e. there are no more directory entries to list.
  */
 int storage_read_dir(storage_session_t session,
                      struct storage_open_dir_state* state,
