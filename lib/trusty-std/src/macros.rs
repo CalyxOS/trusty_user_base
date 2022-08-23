@@ -71,6 +71,9 @@
 ///
 /// io::stdout().flush().unwrap();
 /// ```
+///
+/// [`println!`]: crate::println
+/// [`eprint!`]: crate::eprint
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::io::_print($crate::format_args!($($arg)*)));
@@ -102,6 +105,8 @@ macro_rules! print {
 /// println!("hello there!");
 /// println!("format {} arguments", "some");
 /// ```
+///
+/// [`eprintln!`]: crate::eprintln
 #[macro_export]
 #[allow_internal_unstable(format_args_nl)]
 macro_rules! println {

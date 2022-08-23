@@ -27,8 +27,6 @@
 
 #![no_std]
 #![feature(allocator_api)]
-// To construct arrays with const generic bounds
-#![feature(array_from_fn)]
 
 #[allow(non_camel_case_types)]
 #[allow(unused)]
