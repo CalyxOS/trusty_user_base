@@ -413,7 +413,8 @@ static int apploader_handle_cmd_load_app(handle_t chan,
     }
 
     struct manifest_extracts manifest_extracts = {0};
-    if (!apploader_parse_manifest(&pkg_meta, &manifest_extracts)) {
+    if (!apploader_parse_manifest_from_metadata(&pkg_meta,
+                                                &manifest_extracts)) {
         TLOGE("Unable to extract manifest fields\n");
         resp_error = APPLOADER_ERR_VERIFICATION_FAILED;
         goto err_policy_disallowed_loading;

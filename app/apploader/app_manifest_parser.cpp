@@ -21,12 +21,19 @@
 #include <trusty_log.h>
 #include <uapi/err.h>
 
-extern "C" bool apploader_parse_manifest(
+extern "C" bool apploader_parse_manifest_from_metadata(
         struct apploader_package_metadata* pkg_meta,
         struct manifest_extracts* manifest_extracts) {
+    return apploader_parse_manifest((const char*)pkg_meta->manifest_start,
+                                    pkg_meta->manifest_size, manifest_extracts);
+}
+
+extern "C" bool apploader_parse_manifest(
+        const char* manifest_start,
+        const size_t manifest_size,
+        struct manifest_extracts* manifest_extracts) {
     struct app_manifest_iterator iter;
-    app_manifest_iterator_reset(&iter, (const char*)pkg_meta->manifest_start,
-                                pkg_meta->manifest_size);
+    app_manifest_iterator_reset(&iter, manifest_start, manifest_size);
 
     struct manifest_extracts out_ext = {
             /* Applications are critical by default */

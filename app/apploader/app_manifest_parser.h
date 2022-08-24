@@ -22,7 +22,12 @@
 
 __BEGIN_CDECLS
 
-bool apploader_parse_manifest(struct apploader_package_metadata* pkg_meta,
+bool apploader_parse_manifest_from_metadata(
+        struct apploader_package_metadata* pkg_meta,
+        struct manifest_extracts* manifest_extracts);
+
+bool apploader_parse_manifest(const char* manifest_start,
+                              const size_t manifest_size,
                               struct manifest_extracts* manifest_extracts);
 
 __END_CDECLS

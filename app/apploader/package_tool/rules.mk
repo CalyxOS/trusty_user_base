@@ -21,12 +21,14 @@ HOST_TOOL_NAME := apploader_package_tool
 
 HOST_SRCS := \
 	$(LOCAL_DIR)/apploader_package_tool.cpp \
+	$(LOCAL_DIR)/../app_manifest_parser.cpp \
 	$(LOCAL_DIR)/../cose.cpp \
 	$(LIBCPPBOR_DIR)/src/cppbor.cpp \
 	$(LIBCPPBOR_DIR)/src/cppbor_parse.cpp \
 
 HOST_INCLUDE_DIRS := \
 	trusty/user/base/interface/apploader/include \
+	trusty/user/base/lib/apploader_policy_engine/include \
 	external/libcppbor/include/cppbor \
 
 # libcppbor checks if __TRUSTY__ is defined to determine whether it's linked
@@ -46,6 +48,7 @@ HOST_LIBS := \
 # version the host environment provides. OpenSSL 3.0 deprecates several of the
 # low-level APIs used for trusty app signing and encryption.
 HOST_DEPS := \
-	trusty/user/base/host/boringssl
+	trusty/user/base/host/boringssl \
+	trusty/kernel/lib/app_manifest/host \
 
 include make/host_tool.mk

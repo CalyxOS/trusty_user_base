@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 
+#include "../app_manifest_parser.h"
 #include "../cose.h"
 
 enum class Mode {
@@ -361,6 +362,9 @@ struct PackageInfo {
     // Reference to the CBOR item containing the ELF file
     // (encrypted or not)
     std::reference_wrapper<std::unique_ptr<cppbor::Item>> elf_item_ref;
+
+    // Reference to the CBOR item containing the manifest
+    std::reference_wrapper<std::unique_ptr<cppbor::Item>> manifest_item_ref;
 };
 
 static PackageInfo parse_package(std::string_view input, bool check_sign_tag) {
@@ -420,8 +424,10 @@ static PackageInfo parse_package(std::string_view input, bool check_sign_tag) {
                 static_cast<int>(root_array->get(1)->type()));
         exit(EXIT_FAILURE);
     }
+
     return PackageInfo{std::move(item), *root_array, *headers,
-                       std::ref(root_array->get(2))};
+                       std::ref(root_array->get(2)),
+                       std::ref(root_array->get(3))};
 }
 
 static void encrypt_package(const char* output_path,
@@ -578,8 +584,30 @@ static void print_package_info(const char* input_path) {
         coseDecryptAes128GcmKeyWrapInPlace(pkg_info.elf_item_ref.get(),
                                            print_key_id, {}, false,
                                            &package_start, &package_size);
+
     } else {
         printf("Encrypted: NO\n");
+
+        // Get manifest to check encryption requirement
+        if (pkg_info.manifest_item_ref.get()->asViewBstr() == nullptr) {
+            fprintf(stderr, "Invalid manifest CBOR type, got: 0x%x\n",
+                    static_cast<int>(pkg_info.manifest_item_ref.get()->type()));
+            exit(EXIT_FAILURE);
+        }
+
+        const auto* manifest = pkg_info.manifest_item_ref.get()->asViewBstr();
+        struct manifest_extracts manifest_extracts;
+        if (!apploader_parse_manifest(
+                    reinterpret_cast<const char*>(manifest->view().data()),
+                    manifest->view().size(), &manifest_extracts)) {
+            fprintf(stderr, "Unable to extract manifest fields\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (manifest_extracts.requires_encryption) {
+            fprintf(stderr, "Error: application requires encryption\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     // Restore the old silence flag
