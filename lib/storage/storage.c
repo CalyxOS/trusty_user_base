@@ -18,27 +18,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <trusty_ipc.h>
+
+#define TLOG_TAG "storage_client"
+#include <trusty_log.h>
+
 #include <uapi/err.h>
 
 #include <lib/storage/storage.h>
 
-#define LOCAL_TRACE 0
-
-#define LOG_TAG "storage_client"
-
-#define TLOGE(fmt, ...) \
-    fprintf(stderr, "%s: %d: " fmt, LOG_TAG, __LINE__, ##__VA_ARGS__)
-
-#define TLOGE_APP_NAME(fmt, ...)                                       \
-    fprintf(stderr, "%s: %d: %s: " fmt, LOG_TAG, __LINE__, __progname, \
-            ##__VA_ARGS__)
-
-#if LOCAL_TRACE
-#define TLOGI(fmt, ...) \
-    fprintf(stderr, "%s: %d: " fmt, LOG_TAG, __LINE__, ##__VA_ARGS__)
-#else
-#define TLOGI(fmt, ...)
-#endif
+#define TLOGE_APP_NAME(fmt, ...) TLOGE("%s: " fmt, __progname, ##__VA_ARGS__)
 
 #define MAX_CHUNK_SIZE 4040
 
