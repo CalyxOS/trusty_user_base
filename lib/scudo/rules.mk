@@ -36,6 +36,15 @@ MODULE_CPPFLAGS += \
 	-fno-exceptions \
 	-nostdinc++ \
 
+# scudo should be freestanding, but the rest of the app should not be.
+MODULE_COMPILEFLAGS += -ffreestanding
+
+# WARNING: while libstdc++-trusty continues to define `new` and `delete`,
+# it's possible that the symbols for those will be chosen over the ones
+# Scudo defines (also weak). None of the C++ sources below require any
+# STL headers but, if that changes, care will need to be taken to avoid
+# non-Scudo-defined `new` and `delete` from getting linked when STL headers
+# are desired.
 MODULE_SRCS += \
 	$(SCUDO_DIR)/standalone/checksum.cpp \
 	$(SCUDO_DIR)/standalone/common.cpp \
@@ -48,10 +57,5 @@ MODULE_SRCS += \
 	$(SCUDO_DIR)/standalone/trusty.cpp \
 	$(SCUDO_DIR)/standalone/wrappers_c.cpp \
 	$(SCUDO_DIR)/standalone/wrappers_cpp.cpp \
-
-# Scudo relies on libc-trusty's syscall stubs.
-MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/libc-trusty \
-	trusty/user/base/lib/libstdc++-trusty \
 
 include make/library.mk

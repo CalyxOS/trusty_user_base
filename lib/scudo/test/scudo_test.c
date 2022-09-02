@@ -129,4 +129,8 @@ TEST_F(scudo_info, dealloc_type_mismatch) {
               ERR_CHANNEL_CLOSED);
 }
 
+TEST_F(scudo_info, alloc_large) {
+    EXPECT_EQ(scudo_srv_rpc(_state->chan, SCUDO_ALLOC_LARGE), NO_ERROR);
+}
+
 PORT_TEST(scudo_info, "com.android.trusty.scudotest")

@@ -29,6 +29,9 @@
 # MODULE_CONSTANTS : JSON files with constants used for both the manifest and C
 # 		headers (optional) (CONSTANTS is a deprecated equivalent to
 # 		MODULE_CONSTANTS)
+# TRUSTY_APP_ALLOCATOR : the userspace memory allocator to utilize in the app.
+#		Currently dlmalloc and scudo are supported. If unset, dlmalloc will be
+#		used.
 #
 # The following input arguments control app linking behavior and are not cleared
 # after building the app:
@@ -43,8 +46,25 @@
 # see library.mk for additional args and usage.
 
 ifeq (true,$(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)))
+# Accept explicitly-set scudo or dlmalloc allocators,
+# default to dlmalloc if TRUSTY_APP_ALLOCATOR is empty,
+# error if non-supported allocator is explicitly specified
+ifeq ($(TRUSTY_APP_ALLOCATOR),$(filter $(TRUSTY_APP_ALLOCATOR),dlmalloc scudo ))
+ifeq (scudo,$(TRUSTY_APP_ALLOCATOR))
+MODULE_LIBRARY_DEPS += \
+    trusty/user/base/lib/scudo
+endif
+ifeq (dlmalloc,$(TRUSTY_APP_ALLOCATOR))
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/dlmalloc
+endif
+ifeq (,$(TRUSTY_APP_ALLOCATOR))
+MODULE_LIBRARY_DEPS += \
+    trusty/user/base/lib/dlmalloc
+endif
+else
+$(error $(TRUSTY_APP_ALLOCATOR) not a supported allocator)
+endif
 endif
 
 ifeq ($(strip $(TRUSTY_APP_NAME)),)
@@ -175,6 +195,7 @@ all:: $(TRUSTY_APP_BIN) $(TRUSTY_APP_MANIFEST_BIN) $(TRUSTY_APP_ELF)
 # Reset local variables
 TRUSTY_APP :=
 TRUSTY_APP_NAME :=
+TRUSTY_APP_ALLOCATOR :=
 
 TRUSTY_APP_BIN :=
 TRUSTY_APP_ELF :=

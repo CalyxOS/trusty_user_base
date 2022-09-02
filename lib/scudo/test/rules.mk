@@ -25,9 +25,10 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/scudo_test.c \
 
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/libc-trusty \
 	trusty/user/base/lib/tipc \
 	trusty/user/base/lib/unittest \
+
+TRUSTY_APP_ALLOCATOR := scudo
 
 MODULE_INCLUDES += \
 	$(LOCAL_DIR)/include \

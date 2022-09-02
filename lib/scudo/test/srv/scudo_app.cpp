@@ -226,6 +226,15 @@ static int scudo_on_message(const struct tipc_port* port,
         free(arr);
         break;
     }
+
+    case SCUDO_ALLOC_LARGE: {
+        TLOGI("alloc 1.5MB\n");
+        char* arr = reinterpret_cast<char*>(malloc(1500000));
+        touch(arr);
+        free(arr);
+        break;
+    }
+
     default:
         TLOGE("Bad command: %d\n", msg.cmd);
         msg.cmd = SCUDO_BAD_CMD;
