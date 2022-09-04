@@ -226,6 +226,18 @@ static int scudo_on_message(const struct tipc_port* port,
         free(arr);
         break;
     }
+    /*
+     * Similar to SCUDO_DEALLOC_TYPE_MISMATCH, with dealloc_type_mismatch,
+     * Scudo should ensure that chunks from memalign() cannot be realloc()'d
+     * which could lose alignment.
+     */
+    case SCUDO_REALLOC_TYPE_MISMATCH: {
+        TLOGI("realloc type mismatch\n");
+        char* arr = reinterpret_cast<char*>(memalign(32, ARR_SIZE));
+        touch_and_print(arr, 'a');
+        arr = reinterpret_cast<char*>(realloc(arr, ARR_SIZE * 2));
+        break;
+    }
 
     case SCUDO_ALLOC_LARGE: {
         TLOGI("alloc 1.5MB\n");
