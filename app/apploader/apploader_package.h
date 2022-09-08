@@ -20,6 +20,8 @@
 #include <lk/compiler.h>
 #include <stddef.h>
 
+#define APPLOADER_PACKAGE_CBOR_ARRAY_SZ 4
+
 __BEGIN_CDECLS
 
 /**
@@ -37,11 +39,11 @@ __BEGIN_CDECLS
  */
 struct apploader_package_metadata {
     const uint8_t* elf_start;
-    uint64_t elf_size;
+    size_t elf_size;
     bool elf_is_cose_encrypt;
 
     const uint8_t* manifest_start;
-    uint64_t manifest_size;
+    size_t manifest_size;
 
     const uint8_t* public_key;
     unsigned int public_key_size;

@@ -49,6 +49,8 @@ constexpr size_t kAesGcmIvSize = 12;
 constexpr size_t kAesGcmTagSize = 16;
 constexpr size_t kAes128GcmKeySize = 16;
 
+constexpr size_t kCoseEncryptArrayElements = 4;
+
 using CoseByteView = std::basic_string_view<uint8_t>;
 
 using GetKeyFn =
@@ -93,21 +95,21 @@ bool coseSetSilenceErrors(bool value);
  * This function signs a given block of data with ECDSA-SHA256 and encodes both
  * the data and the signature using the COSE encoding from RFC 8152. The caller
  * may specify whether the data is included or detached from the returned
- * structure using the @detachContent paramenter, as well as additional
+ * structure using the @detachContent parameter, as well as additional
  * context-specific header values with the @protectedHeaders and
  * @unprotectedHeaders parameters.
  *
- * Return: A unique pointer to a &struct cppbor::Item containing the
- *         ```COSE_Sign1``` structure if the signing algorithm succeeds,
- *         or an uninitalized pointer otherwise.
+ * Return: A vector containing the encoded ```COSE_Sign1``` structure if the
+ *         signing algorithm succeeds, or a nullopt otherwise.
  */
-std::unique_ptr<cppbor::Item> coseSignEcDsa(const std::vector<uint8_t>& key,
-                                            uint8_t keyId,
-                                            const std::vector<uint8_t>& data,
-                                            cppbor::Map protectedHeaders,
-                                            cppbor::Map unprotectedHeaders,
-                                            bool detachContent,
-                                            bool tagged);
+std::optional<std::vector<uint8_t>> coseSignEcDsa(
+        const std::vector<uint8_t>& key,
+        uint8_t keyId,
+        const std::vector<uint8_t>& data,
+        const std::basic_string_view<uint8_t>& encodedProtectedHeaders,
+        std::basic_string_view<uint8_t>&,
+        bool detachContent,
+        bool tagged);
 
 /**
  * coseIsSigned() - Check if a block of bytes is a COSE signature emitted
@@ -192,17 +194,16 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
  * The caller may specify additional context-specific header values with the
  * @protectedHeaders and @unprotectedHeaders parameters.
  *
- * Return: A unique pointer to a &struct cppbor::Item containing the
- *         ```COSE_Encrypt``` structure if the encryption succeeds,
- *         or an default-initialized &std::unique_ptr otherwise.
+ * Return: A vector of bytes containing the encoded ```COSE_Encrypt``` structure
+ *         if the encryption succeeds, or a nullopt otherwise.
  */
-std::unique_ptr<cppbor::Item> coseEncryptAes128GcmKeyWrap(
+std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
         const std::vector<uint8_t>& key,
         uint8_t keyId,
-        const std::vector<uint8_t>& data,
+        const CoseByteView& data,
         const std::vector<uint8_t>& externalAad,
-        cppbor::Map protectedHeaders,
-        cppbor::Map unprotectedHeaders,
+        const std::vector<uint8_t>& encodedProtectedHeaders,
+        const CoseByteView& unprotectedHeaders,
         bool tagged);
 
 /**
@@ -226,11 +227,10 @@ std::unique_ptr<cppbor::Item> coseEncryptAes128GcmKeyWrap(
  *
  * Returns: %true if the decryption succeeds, %false otherwise.
  */
-bool coseDecryptAes128GcmKeyWrapInPlace(
-        const std::unique_ptr<cppbor::Item>& item,
-        GetKeyFn keyFn,
-        const std::vector<uint8_t>& externalAad,
-        bool checkTag,
-        const uint8_t** outPackageStart,
-        size_t* outPackageSize,
-        DecryptFn decryptFn = DecryptFn());
+bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& item,
+                                        GetKeyFn keyFn,
+                                        const std::vector<uint8_t>& externalAad,
+                                        bool checkTag,
+                                        const uint8_t** outPackageStart,
+                                        size_t* outPackageSize,
+                                        DecryptFn decryptFn = DecryptFn());

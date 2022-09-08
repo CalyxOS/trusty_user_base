@@ -17,8 +17,6 @@
 #define TLOG_TAG "apploader-cose"
 
 #include <assert.h>
-#include <cppbor.h>
-#include <cppbor_parse.h>
 #include <inttypes.h>
 #include <openssl/bn.h>
 #include <openssl/crypto.h>
@@ -33,6 +31,7 @@
 #include <optional>
 #include <vector>
 
+#include "cbor.h"
 #include "cose.h"
 
 #ifdef __COSE_HOST__
@@ -65,27 +64,19 @@ using EVP_CIPHER_CTX_Ptr =
 using SHA256Digest = std::array<uint8_t, SHA256_DIGEST_LENGTH>;
 
 static std::vector<uint8_t> coseBuildToBeSigned(
-        const std::vector<uint8_t>& encodedProtectedHeaders,
+        const std::basic_string_view<uint8_t>& encodedProtectedHeaders,
         const std::vector<uint8_t>& data) {
-    cppbor::Array sigStructure;
-    sigStructure.add("Signature1");
-    sigStructure.add(encodedProtectedHeaders);
+    cbor::VectorCborEncoder enc;
+    enc.encodeArray([&](auto& enc) {
+        enc.encodeTstr("Signature1");
+        enc.encodeBstr(encodedProtectedHeaders);
+        // We currently don't support Externally Supplied Data (RFC 8152
+        // section 4.3) so external_aad is the empty bstr
+        enc.encodeEmptyBstr();
+        enc.encodeBstr(data);
+    });
 
-    // We currently don't support Externally Supplied Data (RFC 8152
-    // section 4.3) so external_aad is the empty bstr
-    std::vector<uint8_t> emptyExternalAad;
-    sigStructure.add(emptyExternalAad);
-    sigStructure.add(data);
-    return sigStructure.encode();
-}
-
-static std::vector<uint8_t> coseEncodeHeaders(
-        const cppbor::Map& protectedHeaders) {
-    if (protectedHeaders.size() == 0) {
-        cppbor::Bstr emptyBstr(std::vector<uint8_t>({}));
-        return emptyBstr.encode();
-    }
-    return protectedHeaders.encode();
+    return enc.intoVec();
 }
 
 static std::optional<std::vector<uint8_t>> getRandom(size_t numBytes) {
@@ -190,22 +181,27 @@ static bool ecdsaSignatureDerToCose(
     return true;
 }
 
-std::unique_ptr<cppbor::Item> coseSignEcDsa(const std::vector<uint8_t>& key,
-                                            uint8_t keyId,
-                                            const std::vector<uint8_t>& data,
-                                            cppbor::Map protectedHeaders,
-                                            cppbor::Map unprotectedHeaders,
-                                            bool detachContent,
-                                            bool tagged) {
-    protectedHeaders.add(COSE_LABEL_ALG, COSE_ALG_ECDSA_256);
-    unprotectedHeaders.add(COSE_LABEL_KID, cppbor::Bstr(std::vector(1, keyId)));
+std::optional<std::vector<uint8_t>> coseSignEcDsa(
+        const std::vector<uint8_t>& key,
+        uint8_t keyId,
+        const std::vector<uint8_t>& data,
+        const std::basic_string_view<uint8_t>& encodedProtectedHeaders,
+        std::basic_string_view<uint8_t>& unprotectedHeaders,
+        bool detachContent,
+        bool tagged) {
+    cbor::VectorCborEncoder addnHeadersEnc;
+    addnHeadersEnc.encodeMap([&](auto& enc) {
+        enc.encodeKeyValue(COSE_LABEL_KID, [&](auto& enc) {
+            enc.encodeBstr(std::basic_string_view(&keyId, 1));
+        });
+    });
+    auto updatedUnprotectedHeaders =
+            cbor::mergeMaps(unprotectedHeaders, addnHeadersEnc.view());
+    if (!updatedUnprotectedHeaders.has_value()) {
+        COSE_PRINT_ERROR("Error updating unprotected headers\n");
+        return {};
+    }
 
-    // Canonicalize the headers to ensure a predictable layout
-    protectedHeaders.canonicalize(true);
-    unprotectedHeaders.canonicalize(true);
-
-    std::vector<uint8_t> encodedProtectedHeaders =
-            coseEncodeHeaders(protectedHeaders);
     std::vector<uint8_t> toBeSigned =
             coseBuildToBeSigned(encodedProtectedHeaders, data);
 
@@ -222,37 +218,61 @@ std::unique_ptr<cppbor::Item> coseSignEcDsa(const std::vector<uint8_t>& key,
         return {};
     }
 
-    auto coseSign1 = std::make_unique<cppbor::Array>();
-    coseSign1->add(encodedProtectedHeaders);
-    coseSign1->add(std::move(unprotectedHeaders));
-    if (detachContent) {
-        cppbor::Null nullValue;
-        coseSign1->add(std::move(nullValue));
-    } else {
-        coseSign1->add(data);
-    }
-    coseSign1->add(coseSignature);
+    auto arrayEncodingFn = [&](auto& enc) {
+        enc.encodeArray([&](auto& enc) {
+            /* 1: protected:empty_or_serialized_map */
+            enc.encodeBstr(encodedProtectedHeaders);
 
+            /* 2: unprotected:map */
+            enc.copyBytes(updatedUnprotectedHeaders.value());
+
+            /* 3: payload:bstr_or_nil */
+            if (detachContent) {
+                enc.encodeNull();
+            } else {
+                enc.encodeBstr(data);
+            }
+
+            /* 4: signature:bstr */
+            enc.encodeBstr(coseSignature);
+        });
+    };
+
+    cbor::VectorCborEncoder enc;
     if (tagged) {
-        return std::make_unique<cppbor::SemanticTag>(COSE_TAG_SIGN1,
-                                                     coseSign1.release());
+        enc.encodeTag(COSE_TAG_SIGN1, arrayEncodingFn);
     } else {
-        return coseSign1;
+        arrayEncodingFn(enc);
     }
+
+    return enc.intoVec();
 }
 
 bool coseIsSigned(CoseByteView data, size_t* signatureLength) {
-    auto [item, pos, err] = cppbor::parse(data.data(), data.size());
-    if (item) {
-        for (size_t i = 0; i < item->semanticTagCount(); i++) {
-            if (item->semanticTag(i) == COSE_TAG_SIGN1) {
+    struct CborIn in;
+    uint64_t tag;
+
+    CborInInit(data.data(), data.size(), &in);
+    while (!CborInAtEnd(&in)) {
+        if (CborReadTag(&in, &tag) == CBOR_READ_RESULT_OK) {
+            if (tag == COSE_TAG_SIGN1) {
                 if (signatureLength) {
-                    *signatureLength = std::distance(data.data(), pos);
+                    /* read tag item to get its size */
+                    CborReadSkip(&in);
+                    *signatureLength = CborInOffset(&in);
                 }
                 return true;
             }
+        } else if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+            /*
+             * CborReadSkip uses a stack to track nested content so parsing can
+             * fail if nesting of CBOR items causes stack exhaustion. The COSE
+             * format does not cause stack exhaustion so the input must be bad.
+             */
+            return false;
         }
     }
+
     return false;
 }
 
@@ -304,65 +324,79 @@ static bool checkEcDsaSignature(const SHA256Digest& digest,
 bool coseCheckEcDsaSignature(const std::vector<uint8_t>& signatureCoseSign1,
                              const std::vector<uint8_t>& detachedContent,
                              const std::vector<uint8_t>& publicKey) {
-    auto [item, _, message] = cppbor::parse(signatureCoseSign1);
-    if (item == nullptr) {
-        COSE_PRINT_ERROR("Passed-in COSE_Sign1 is not valid CBOR\n");
-        return false;
+    struct CborIn in;
+    CborInInit(signatureCoseSign1.data(), signatureCoseSign1.size(), &in);
+
+    uint64_t tag;
+    /* COSE message tag is optional */
+    if (CborReadTag(&in, &tag) == CBOR_READ_RESULT_OK) {
+        if (tag != COSE_TAG_SIGN1) {
+            COSE_PRINT_ERROR("Passed-in COSE_Sign1 contained invalid tag\n");
+            return false;
+        }
     }
-    const cppbor::Array* array = item->asArray();
-    if (array == nullptr) {
+
+    size_t arraySize;
+    if (CborReadArray(&in, &arraySize) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR("Value for COSE_Sign1 is not an array\n");
         return false;
     }
-    if (array->size() != 4) {
+
+    if (arraySize != 4) {
         COSE_PRINT_ERROR("Value for COSE_Sign1 is not an array of size 4\n");
         return false;
     }
 
-    const cppbor::Bstr* encodedProtectedHeadersBstr = (*array)[0]->asBstr();
-    if (encodedProtectedHeadersBstr == nullptr) {
+    const uint8_t* encodedProtectedHeadersPtr;
+    size_t encodedProtectedHeadersSize;
+    if (CborReadBstr(&in, &encodedProtectedHeadersSize,
+                     &encodedProtectedHeadersPtr) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR("Value for encodedProtectedHeaders is not a bstr\n");
         return false;
     }
-    const std::vector<uint8_t> encodedProtectedHeaders =
-            encodedProtectedHeadersBstr->value();
+    std::basic_string_view<uint8_t> encodedProtectedHeaders{
+            encodedProtectedHeadersPtr, encodedProtectedHeadersSize};
 
-    const cppbor::Map* unprotectedHeaders = (*array)[1]->asMap();
-    if (unprotectedHeaders == nullptr) {
+    size_t unprotectedHeadersSize;
+    if (CborReadMap(&in, &unprotectedHeadersSize) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR("Value for unprotectedHeaders is not a map\n");
         return false;
     }
 
-    std::vector<uint8_t> data;
-    const cppbor::Simple* payloadAsSimple = (*array)[2]->asSimple();
-    if (payloadAsSimple != nullptr) {
-        if (payloadAsSimple->asNull() == nullptr) {
-            COSE_PRINT_ERROR("Value for payload is not null or a bstr\n");
+    /* skip past unprotected headers by reading two items per map entry */
+    for (size_t item = 0; item < 2 * unprotectedHeadersSize; item++) {
+        if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR("Passed-in COSE_Sign1 is not valid CBOR\n");
             return false;
         }
-    } else {
-        const cppbor::Bstr* payloadAsBstr = (*array)[2]->asBstr();
-        if (payloadAsBstr == nullptr) {
-            COSE_PRINT_ERROR("Value for payload is not null or a bstr\n");
-            return false;
-        }
-        data = payloadAsBstr->value();  // TODO: avoid copy
     }
+
+    const uint8_t* dataPtr;
+    size_t dataSize = 0;
+    if (CborReadBstr(&in, &dataSize, &dataPtr) != CBOR_READ_RESULT_OK) {
+        if (CborReadNull(&in) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR("Value for payload is not null or a bstr\n");
+            return false;
+        }
+    }
+    std::vector<uint8_t> data(dataPtr, dataPtr + dataSize);
 
     if (data.size() > 0 && detachedContent.size() > 0) {
         COSE_PRINT_ERROR("data and detachedContent cannot both be non-empty\n");
         return false;
     }
 
-    const cppbor::Bstr* signatureBstr = (*array)[3]->asBstr();
-    if (signatureBstr == nullptr) {
+    const uint8_t* coseSignatureData;
+    size_t coseSignatureSize;
+    if (CborReadBstr(&in, &coseSignatureSize, &coseSignatureData) !=
+        CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR("Value for signature is not a bstr\n");
         return false;
     }
-    const std::vector<uint8_t>& coseSignature = signatureBstr->value();
-    if (coseSignature.size() != kEcdsaSignatureSize) {
+
+    if (coseSignatureSize != kEcdsaSignatureSize) {
         COSE_PRINT_ERROR("COSE signature length is %zu, expected %zu\n",
-                         coseSignature.size(), kEcdsaSignatureSize);
+                         coseSignatureSize, kEcdsaSignatureSize);
         return false;
     }
 
@@ -370,13 +404,15 @@ bool coseCheckEcDsaSignature(const std::vector<uint8_t>& signatureCoseSign1,
     // 8152 section 4.4). Since our API specifies only one of |data| and
     // |detachedContent| can be non-empty, it's simply just the non-empty one.
     auto& signaturePayload = data.size() > 0 ? data : detachedContent;
+
     std::vector<uint8_t> toBeSigned =
             coseBuildToBeSigned(encodedProtectedHeaders, signaturePayload);
-    if (!checkEcDsaSignature(sha256(toBeSigned), coseSignature.data(),
+    if (!checkEcDsaSignature(sha256(toBeSigned), coseSignatureData,
                              publicKey.data(), publicKey.size())) {
         COSE_PRINT_ERROR("Signature check failed\n");
         return false;
     }
+
     return true;
 }
 
@@ -506,14 +542,13 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
     // prepend a CBOR bstr header to the payload
     constexpr size_t kMaxPayloadSizeHeaderSize = 9;
     size_t payloadSize = packageSize - kPayloadOffset;
-    size_t payloadSizeHeaderSize = cppbor::headerSize(payloadSize);
+    size_t payloadSizeHeaderSize = cbor::encodedSizeOf(payloadSize);
     assert(payloadSizeHeaderSize <= kMaxPayloadSizeHeaderSize);
 
     uint8_t payloadSizeHeader[kMaxPayloadSizeHeaderSize];
-    const uint8_t* payloadHeaderEnd =
-            cppbor::encodeHeader(cppbor::BSTR, payloadSize, payloadSizeHeader,
-                                 payloadSizeHeader + kMaxPayloadSizeHeaderSize);
-    assert(payloadHeaderEnd == payloadSizeHeader + payloadSizeHeaderSize);
+
+    cbor::encodeBstrHeader(payloadSize, kMaxPayloadSizeHeaderSize,
+                           payloadSizeHeader);
 
     SHA256Digest digest;
     SHA256_CTX ctx;
@@ -539,35 +574,23 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
 }
 
 static std::tuple<std::unique_ptr<uint8_t[]>, size_t> coseBuildGcmAad(
-        std::string_view context,
-        std::basic_string_view<uint8_t> encodedProtectedHeaders,
-        std::basic_string_view<uint8_t> externalAad) {
-    cppbor::Array encStructure;
-    encStructure.add(context);
-    encStructure.add(cppbor::ViewBstr(encodedProtectedHeaders));
-    encStructure.add(cppbor::ViewBstr(externalAad));
+        const std::string_view context,
+        const std::basic_string_view<uint8_t> encodedProtectedHeaders,
+        const std::basic_string_view<uint8_t> externalAad) {
+    cbor::ArrayCborEncoder enc;
+    enc.encodeArray([&](auto& enc) {
+        enc.encodeTstr(context);
+        enc.encodeBstr(encodedProtectedHeaders);
+        enc.encodeBstr(externalAad);
+    });
 
-    auto encStructureSize = encStructure.encodedSize();
-    std::unique_ptr<uint8_t[]> encStructureEncoded(
-            new (std::nothrow) uint8_t[encStructureSize]);
-    if (!encStructureEncoded) {
-        return {};
-    }
-
-    auto* encStructureEnd = encStructureEncoded.get() + encStructureSize;
-    auto* p = encStructure.encode(encStructureEncoded.get(), encStructureEnd);
-    if (p == nullptr) {
-        return {};
-    }
-    assert(p == encStructureEnd);
-
-    return {std::move(encStructureEncoded), encStructureSize};
+    return {enc.intoVec().arr(), enc.size()};
 }
 
 static std::optional<std::vector<uint8_t>> encryptAes128Gcm(
         const std::vector<uint8_t>& key,
         const std::vector<uint8_t>& nonce,
-        const std::vector<uint8_t>& data,
+        const CoseByteView& data,
         std::basic_string_view<uint8_t> additionalAuthenticatedData) {
     if (key.size() != kAes128GcmKeySize) {
         COSE_PRINT_ERROR("key is not kAes128GcmKeySize bytes, got %zu\n",
@@ -676,28 +699,33 @@ static std::optional<std::vector<uint8_t>> encryptAes128Gcm(
     return encryptedData;
 }
 
-static std::unique_ptr<cppbor::Item> coseEncryptAes128Gcm(
-        std::string_view context,
+static std::optional<std::vector<uint8_t>> coseEncryptAes128Gcm(
+        const std::string_view context,
         const std::vector<uint8_t>& key,
-        const std::vector<uint8_t>& data,
+        const CoseByteView& data,
         const std::vector<uint8_t>& externalAad,
-        cppbor::Map protectedHeaders,
-        cppbor::Map unprotectedHeaders,
-        std::optional<cppbor::Array> recipients) {
+        const std::vector<uint8_t>& encodedProtectedHeaders,
+        const CoseByteView& unprotectedHeaders,
+        std::optional<std::vector<uint8_t>> recipients) {
     std::optional<std::vector<uint8_t>> iv = getRandom(kAesGcmIvSize);
     if (!iv) {
         COSE_PRINT_ERROR("Error generating encryption IV\n");
         return {};
     }
-    unprotectedHeaders.add(COSE_LABEL_IV, iv.value());
-    protectedHeaders.add(COSE_LABEL_ALG, COSE_ALG_A128GCM);
 
-    // Canonicalize the headers to ensure a predictable layout
-    protectedHeaders.canonicalize(true);
-    unprotectedHeaders.canonicalize(true);
+    cbor::VectorCborEncoder ivEnc;
+    ivEnc.encodeMap([&](auto& enc) {
+        enc.encodeKeyValue(COSE_LABEL_IV,
+                           [&](auto& enc) { enc.encodeBstr(iv.value()); });
+    });
 
-    std::vector<uint8_t> encodedProtectedHeaders =
-            coseEncodeHeaders(protectedHeaders);
+    auto finalUnprotectedHeaders =
+            cbor::mergeMaps(unprotectedHeaders, ivEnc.view());
+    if (!finalUnprotectedHeaders) {
+        COSE_PRINT_ERROR("Error updating unprotected headers with IV\n");
+        return {};
+    }
+
     std::basic_string_view encodedProtectedHeadersView{
             encodedProtectedHeaders.data(), encodedProtectedHeaders.size()};
     std::basic_string_view externalAadView{externalAad.data(),
@@ -713,23 +741,26 @@ static std::unique_ptr<cppbor::Item> coseEncryptAes128Gcm(
         return {};
     }
 
-    auto coseArray = std::make_unique<cppbor::Array>();
-    coseArray->add(encodedProtectedHeaders);
-    coseArray->add(std::move(unprotectedHeaders));
-    coseArray->add(ciphertext.value());
-    if (recipients) {
-        coseArray->add(std::move(recipients.value()));
-    }
-    return coseArray;
+    cbor::VectorCborEncoder enc;
+    enc.encodeArray([&](auto& enc) {
+        enc.encodeBstr(encodedProtectedHeaders);
+        enc.copyBytes(finalUnprotectedHeaders.value());
+        enc.encodeBstr(ciphertext.value());
+        if (recipients) {
+            enc.copyBytes(recipients.value());
+        }
+    });
+
+    return enc.intoVec();
 }
 
-std::unique_ptr<cppbor::Item> coseEncryptAes128GcmKeyWrap(
+std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
         const std::vector<uint8_t>& key,
         uint8_t keyId,
-        const std::vector<uint8_t>& data,
+        const CoseByteView& data,
         const std::vector<uint8_t>& externalAad,
-        cppbor::Map protectedHeaders,
-        cppbor::Map unprotectedHeaders,
+        const std::vector<uint8_t>& encodedProtectedHeaders,
+        const CoseByteView& unprotectedHeaders,
         bool tagged) {
     /* Generate and encrypt the CEK */
     std::optional<std::vector<uint8_t>> contentEncryptionKey =
@@ -739,39 +770,57 @@ std::unique_ptr<cppbor::Item> coseEncryptAes128GcmKeyWrap(
         return {};
     }
 
-    /* Build a COSE_Key structure for our CEK */
-    cppbor::Map coseKey{
-            COSE_LABEL_KEY_KTY,           COSE_KEY_TYPE_SYMMETRIC,
-            COSE_LABEL_KEY_ALG,           COSE_ALG_A128GCM,
-            COSE_LABEL_KEY_SYMMETRIC_KEY, contentEncryptionKey.value(),
-    };
-    coseKey.canonicalize(true);
+    cbor::VectorCborEncoder coseKeyEnc;
+    coseKeyEnc.encodeMap([&](auto& enc) {
+        enc.encodeKeyValue(COSE_LABEL_KEY_KTY, COSE_KEY_TYPE_SYMMETRIC);
+        enc.encodeKeyValue(COSE_LABEL_KEY_ALG, COSE_ALG_A128GCM);
+        enc.encodeKeyValue(COSE_LABEL_KEY_SYMMETRIC_KEY, [&](auto& enc) {
+            enc.encodeBstr(contentEncryptionKey.value());
+        });
+    });
+    CoseByteView coseKeyByteView = coseKeyEnc.view();
 
-    cppbor::Map keyUnprotectedHeaders{
-            COSE_LABEL_KID,
-            cppbor::Bstr(std::vector(1, keyId)),
-    };
+    cbor::VectorCborEncoder keyUnprotectedHeadersEnc;
+    keyUnprotectedHeadersEnc.encodeMap([&](auto& enc) {
+        enc.encodeKeyValue(COSE_LABEL_KID, [&](auto& enc) {
+            enc.encodeBstr(std::basic_string_view<uint8_t>(&keyId, 1));
+        });
+    });
+    auto keyUnprotectedHeaders = keyUnprotectedHeadersEnc.view();
+
+    cbor::VectorCborEncoder encodedProtectedHeadersForEncKey;
+    encodedProtectedHeadersForEncKey.encodeMap([&](auto& enc) {
+        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_ALG_A128GCM);
+    });
+
     auto encContentEncryptionKey = coseEncryptAes128Gcm(
-            COSE_CONTEXT_ENC_RECIPIENT, key, coseKey.encode(), {}, {},
-            std::move(keyUnprotectedHeaders), {});
-    if (!encContentEncryptionKey) {
+            COSE_CONTEXT_ENC_RECIPIENT, key, coseKeyByteView, {},
+            encodedProtectedHeadersForEncKey.intoVec(), keyUnprotectedHeaders,
+            {});
+    if (!encContentEncryptionKey.has_value()) {
         COSE_PRINT_ERROR("Error wrapping encryption key\n");
         return {};
     }
 
-    cppbor::Array recipients{encContentEncryptionKey.release()};
+    cbor::VectorCborEncoder recipientsEnc;
+    recipientsEnc.encodeArray(
+            [&](auto& enc) { enc.copyBytes(encContentEncryptionKey.value()); });
+    auto recipients = recipientsEnc.intoVec();
+
     auto coseEncrypt = coseEncryptAes128Gcm(
             COSE_CONTEXT_ENCRYPT, std::move(contentEncryptionKey.value()), data,
-            externalAad, std::move(protectedHeaders),
-            std::move(unprotectedHeaders), std::move(recipients));
-    if (!coseEncrypt) {
+            externalAad, encodedProtectedHeaders, unprotectedHeaders,
+            std::move(recipients));
+    if (!coseEncrypt.has_value()) {
         COSE_PRINT_ERROR("Error encrypting application package\n");
         return {};
     }
 
     if (tagged) {
-        return std::make_unique<cppbor::SemanticTag>(COSE_TAG_ENCRYPT,
-                                                     coseEncrypt.release());
+        cbor::VectorCborEncoder enc;
+        enc.encodeTag(COSE_TAG_ENCRYPT,
+                      [&](auto& enc) { enc.copyBytes(coseEncrypt.value()); });
+        return enc.intoVec();
     } else {
         return coseEncrypt;
     }
@@ -901,9 +950,9 @@ static bool decryptAes128GcmInPlace(
 }
 
 static bool coseDecryptAes128GcmInPlace(
-        std::string_view context,
-        const std::unique_ptr<cppbor::Item>& item,
-        std::basic_string_view<uint8_t> key,
+        const std::string_view context,
+        const CoseByteView& item,
+        const std::basic_string_view<uint8_t> key,
         const std::vector<uint8_t>& externalAad,
         const uint8_t** outPlaintextStart,
         size_t* outPlaintextSize,
@@ -911,78 +960,118 @@ static bool coseDecryptAes128GcmInPlace(
     assert(outPlaintextStart != nullptr);
     assert(outPlaintextSize != nullptr);
 
-    auto* itemArray = item->asArray();
-    if (itemArray == nullptr) {
+    struct CborIn in;
+    CborInInit(item.data(), item.size(), &in);
+
+    size_t num_elements;
+    if (CborReadArray(&in, &num_elements) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR("Encrypted data is not a CBOR array\n");
         return false;
     }
-    if (itemArray->size() < 3 || itemArray->size() > 4) {
+
+    if (num_elements < 3 || num_elements > 4) {
         COSE_PRINT_ERROR("Invalid COSE encryption array size, got %zu\n",
-                         itemArray->size());
+                         num_elements);
         return false;
     }
 
-    auto* encodedProtectedHeaders = itemArray->get(0)->asViewBstr();
-    if (encodedProtectedHeaders == nullptr) {
+    const uint8_t* enc_protected_headers_data;
+    size_t enc_protected_headers_size;
+    if (CborReadBstr(&in, &enc_protected_headers_size,
+                     &enc_protected_headers_data) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR(
                 "Failed to retrieve protected headers "
                 "from COSE encryption structure\n");
         return false;
     }
 
-    auto [protectedHeaders, pos, err] =
-            cppbor::parseWithViews(encodedProtectedHeaders->view().data(),
-                                   encodedProtectedHeaders->view().size());
-    if (!protectedHeaders) {
-        COSE_PRINT_ERROR("Failed to parse protected headers\n");
-        return false;
-    }
+    struct CborIn protHdrIn;
+    CborInInit(enc_protected_headers_data, enc_protected_headers_size,
+               &protHdrIn);
 
-    auto protectedHeadersMap = protectedHeaders->asMap();
-    if (protectedHeadersMap == nullptr) {
+    size_t numPairs;
+    if (CborReadMap(&protHdrIn, &numPairs) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR("Invalid protected headers CBOR type\n");
         return false;
     }
 
-    /* Validate alg to ensure the data was encrypted with AES-128-GCM */
-    auto& alg_item = protectedHeadersMap->get(COSE_LABEL_ALG);
-    if (alg_item == nullptr) {
-        COSE_PRINT_ERROR("Missing alg field in COSE encryption structure\n");
-        return false;
-    }
-    auto* alg = alg_item->asInt();
-    if (alg == nullptr) {
-        COSE_PRINT_ERROR(
-                "Wrong CBOR type for alg value in protected headers\n");
-        return false;
-    }
-    if (alg->value() != COSE_ALG_A128GCM) {
-        COSE_PRINT_ERROR("Invalid COSE algorithm, got %" PRId64 "\n",
-                         alg->value());
-        return false;
+    int64_t label;
+    std::optional<uint64_t> alg;
+    for (size_t i = 0; i < numPairs; i++) {
+        // Read key
+        if (CborReadInt(&protHdrIn, &label) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR(
+                    "Failed to read protected headers "
+                    "in COSE encryption structure\n");
+            return false;
+        }
+
+        // Read value
+        if (label == COSE_LABEL_ALG) {
+            uint64_t algVal;
+            if (CborReadUint(&protHdrIn, &algVal) != CBOR_READ_RESULT_OK) {
+                COSE_PRINT_ERROR(
+                        "Wrong CBOR type for alg value in unprotected headers\n");
+                return false;
+            }
+
+            if (algVal != COSE_ALG_A128GCM) {
+                COSE_PRINT_ERROR("Invalid COSE algorithm, got %" PRId64 "\n",
+                                 algVal);
+                return false;
+            }
+
+            alg = algVal;
+        } else if (CborReadSkip(&protHdrIn) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR(
+                    "Failed to read protected headers "
+                    "in COSE encryption structure\n");
+            return false;
+        }
     }
 
-    auto* unprotectedHeaders = itemArray->get(1)->asMap();
-    if (unprotectedHeaders == nullptr) {
+    if (CborReadMap(&in, &numPairs) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR(
                 "Failed to retrieve unprotected headers "
                 "from COSE encryption structure\n");
         return false;
     }
 
-    auto& iv_item = unprotectedHeaders->get(COSE_LABEL_IV);
-    if (iv_item == nullptr) {
+    const uint8_t* ivData = nullptr;
+    size_t ivSize;
+    for (size_t i = 0; i < numPairs; i++) {
+        // Read key
+        if (CborReadInt(&in, &label) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR(
+                    "Failed to read unprotected headers "
+                    "in COSE encryption structure\n");
+            return false;
+        }
+
+        // Read value
+        if (label == COSE_LABEL_IV) {
+            if (CborReadBstr(&in, &ivSize, &ivData) != CBOR_READ_RESULT_OK) {
+                COSE_PRINT_ERROR(
+                        "Wrong CBOR type for IV value in unprotected headers\n");
+                return false;
+            }
+        } else if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR(
+                    "Failed to read unprotected headers "
+                    "in COSE encryption structure\n");
+            return false;
+        }
+    }
+
+    if (ivData == nullptr) {
         COSE_PRINT_ERROR("Missing IV field in COSE encryption structure\n");
         return false;
     }
-    auto* iv = iv_item->asViewBstr();
-    if (iv == nullptr) {
-        COSE_PRINT_ERROR("Wrong CBOR type for IV value in protected headers\n");
-        return false;
-    }
 
-    auto ciphertext = itemArray->get(2)->asViewBstr();
-    if (ciphertext == nullptr) {
+    const uint8_t* ciphertextData;
+    size_t ciphertextSize;
+    if (CborReadBstr(&in, &ciphertextSize, &ciphertextData) !=
+        CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR(
                 "Failed to retrieve ciphertext "
                 "from COSE encryption structure\n");
@@ -991,29 +1080,30 @@ static bool coseDecryptAes128GcmInPlace(
 
     std::basic_string_view externalAadView{externalAad.data(),
                                            externalAad.size()};
-    auto [gcmAad, gcmAadSize] = coseBuildGcmAad(
-            context, encodedProtectedHeaders->view(), externalAadView);
-    std::basic_string_view gcmAadView{gcmAad.get(), gcmAadSize};
+    std::basic_string_view encodedProtectedHeaders{enc_protected_headers_data,
+                                                   enc_protected_headers_size};
+    auto [gcmAad, gcmAadSize] =
+            coseBuildGcmAad(context, encodedProtectedHeaders, externalAadView);
 
-    if (!keyDecryptFn(key, iv->view(),
-                      const_cast<uint8_t*>(ciphertext->view().data()),
-                      ciphertext->view().size(), gcmAadView,
-                      outPlaintextSize)) {
+    std::basic_string_view gcmAadView{gcmAad.get(), gcmAadSize};
+    std::basic_string_view ivView{ivData, ivSize};
+    if (!keyDecryptFn(key, ivView, const_cast<uint8_t*>(ciphertextData),
+                      ciphertextSize, gcmAadView, outPlaintextSize)) {
         return false;
     }
 
-    *outPlaintextStart = ciphertext->view().data();
+    *outPlaintextStart = ciphertextData;
+
     return true;
 }
 
-bool coseDecryptAes128GcmKeyWrapInPlace(
-        const std::unique_ptr<cppbor::Item>& item,
-        GetKeyFn keyFn,
-        const std::vector<uint8_t>& externalAad,
-        bool checkTag,
-        const uint8_t** outPackageStart,
-        size_t* outPackageSize,
-        DecryptFn keyDecryptFn) {
+bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
+                                        GetKeyFn keyFn,
+                                        const std::vector<uint8_t>& externalAad,
+                                        bool checkTag,
+                                        const uint8_t** outPackageStart,
+                                        size_t* outPackageSize,
+                                        DecryptFn keyDecryptFn) {
     assert(outPackageStart != nullptr);
     assert(outPackageSize != nullptr);
 
@@ -1021,83 +1111,139 @@ bool coseDecryptAes128GcmKeyWrapInPlace(
         keyDecryptFn = &decryptAes128GcmInPlace;
     }
 
-    if (checkTag) {
-        if (item->semanticTagCount() != 1) {
-            TLOGE("Invalid COSE_Encrypt tag count, expected 1 got %zd\n",
-                  item->semanticTagCount());
+    struct CborIn in;
+    CborInInit(cose_encrypt.data(), cose_encrypt.size(), &in);
+
+    uint64_t tag;
+    if (CborReadTag(&in, &tag) == CBOR_READ_RESULT_OK) {
+        if (checkTag && tag != COSE_TAG_ENCRYPT) {
+            TLOGE("Invalid COSE_Encrypt semantic tag: %" PRIu64 "\n", tag);
             return false;
         }
-        if (item->semanticTag() != COSE_TAG_ENCRYPT) {
-            TLOGE("Invalid COSE_Encrypt semantic tag: %" PRIu64 "\n",
-                  item->semanticTag());
-            return false;
-        }
+    } else if (checkTag) {
+        TLOGE("Expected COSE_Encrypt semantic tag\n");
+        return false;
     }
 
-    auto* itemArray = item->asArray();
-    if (itemArray == nullptr) {
+    size_t num_elements;
+    if (CborReadArray(&in, &num_elements) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR("Encrypted data is not a CBOR array\n");
         return false;
     }
-    if (itemArray->size() != 4) {
+
+    if (num_elements != kCoseEncryptArrayElements) {
         COSE_PRINT_ERROR("Invalid COSE_Encrypt array size, got %zu\n",
-                         itemArray->size());
+                         num_elements);
         return false;
     }
 
-    auto* recipientsArray = itemArray->get(3)->asArray();
-    if (recipientsArray == nullptr) {
+    // Skip past the first three array elemements
+    while (num_elements-- > 1) {
+        if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR(
+                    "Failed to retrieve recipients "
+                    "from COSE_Encrypt structure\n");
+            return false;
+        }
+    }
+
+    // Read recipients array
+    if (CborReadArray(&in, &num_elements) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR(
                 "Failed to retrieve recipients "
                 "from COSE_Encrypt structure\n");
         return false;
     }
-    if (recipientsArray->size() != 1) {
+
+    if (num_elements != 1) {
         COSE_PRINT_ERROR("Invalid recipients array size, got %zu\n",
-                         recipientsArray->size());
+                         num_elements);
         return false;
     }
 
-    auto& recipient = recipientsArray->get(0);
-    auto* recipientArray = recipient->asArray();
-    if (recipientArray == nullptr) {
+    const size_t recipientOffset = CborInOffset(&in);
+    // Read singleton recipient
+    if (CborReadArray(&in, &num_elements) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR("COSE_Recipient is not a CBOR array\n");
         return false;
     }
-    if (recipientArray->size() != 3) {
+
+    if (num_elements != 3) {
         COSE_PRINT_ERROR(
                 "Invalid COSE_Recipient structure array size, "
                 "got %zu\n",
-                recipientArray->size());
+                num_elements);
         return false;
     }
 
-    auto* unprotectedHeaders = recipientArray->get(1)->asMap();
-    if (unprotectedHeaders == nullptr) {
+    // Skip to unprotected headers array element
+    if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+        COSE_PRINT_ERROR("Failed to read COSE_Recipient structure\n");
+        return false;
+    }
+
+    size_t numPairs;
+    if (CborReadMap(&in, &numPairs) != CBOR_READ_RESULT_OK) {
         COSE_PRINT_ERROR(
                 "Failed to retrieve unprotected headers "
                 "from COSE_Recipient structure\n");
         return false;
     }
 
-    auto& keyIdItem = unprotectedHeaders->get(COSE_LABEL_KID);
-    if (keyIdItem == nullptr) {
-        COSE_PRINT_ERROR("Missing key id field in COSE_Recipient\n");
-        return false;
+    uint64_t label;
+    const uint8_t* keyIdBytes = nullptr;
+    size_t keyIdSize;
+    for (size_t i = 0; i < numPairs; i++) {
+        // Read key
+        if (CborReadUint(&in, &label) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR(
+                    "Failed to read unprotected headers "
+                    "in COSE_Recipient structure\n");
+            return false;
+        }
+
+        // Read value
+        if (label == COSE_LABEL_KID) {
+            if (CborReadBstr(&in, &keyIdSize, &keyIdBytes) !=
+                CBOR_READ_RESULT_OK) {
+                COSE_PRINT_ERROR(
+                        "Failed to extract key id from unprotected headers "
+                        "in COSE_Recipient structure\n");
+                return false;
+            }
+        } else if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR(
+                    "Failed to read unprotected headers "
+                    "in COSE_Recipient structure\n");
+            return false;
+        }
     }
-    auto* keyIdBytes = keyIdItem->asViewBstr();
-    if (keyIdBytes == nullptr) {
-        COSE_PRINT_ERROR("Wrong CBOR type for key id in COSE_Recipient\n");
-        return false;
-    }
-    if (keyIdBytes->view().size() != 1) {
-        COSE_PRINT_ERROR("Invalid key id field length, got %zu\n",
-                         keyIdBytes->view().size());
+
+    // Skip over ciphertext
+    if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+        COSE_PRINT_ERROR("Failed to read COSE_Recipient structure\n");
         return false;
     }
 
-    auto keyId = keyIdBytes->view()[0];
-    auto [keyEncryptionKeyStart, keyEncryptionKeySize] = keyFn(keyId);
+    if (!CborInAtEnd(&in)) {
+        COSE_PRINT_ERROR("Failed to read COSE_Recipient structure\n");
+        return false;
+    }
+
+    CoseByteView recipient = {cose_encrypt.data() + recipientOffset,
+                              CborInOffset(&in) - recipientOffset};
+
+    if (keyIdBytes == nullptr) {
+        COSE_PRINT_ERROR("Missing key id field in COSE_Recipient\n");
+        return false;
+    }
+
+    if (keyIdSize != 1) {
+        COSE_PRINT_ERROR("Invalid key id field length, got %zu\n", keyIdSize);
+        return false;
+    }
+
+    auto [keyEncryptionKeyStart, keyEncryptionKeySize] = keyFn(keyIdBytes[0]);
     if (!keyEncryptionKeyStart) {
         COSE_PRINT_ERROR("Failed to retrieve decryption key\n");
         return false;
@@ -1105,6 +1251,7 @@ bool coseDecryptAes128GcmKeyWrapInPlace(
 
     std::basic_string_view<uint8_t> keyEncryptionKey{
             keyEncryptionKeyStart.get(), keyEncryptionKeySize};
+
     const uint8_t* coseKeyStart;
     size_t coseKeySize;
     if (!coseDecryptAes128GcmInPlace(COSE_CONTEXT_ENC_RECIPIENT, recipient,
@@ -1114,71 +1261,86 @@ bool coseDecryptAes128GcmKeyWrapInPlace(
         return false;
     }
 
-    auto [coseKey, pos, err] =
-            cppbor::parseWithViews(coseKeyStart, coseKeySize);
-    if (!coseKey) {
-        COSE_PRINT_ERROR("Failed to parse COSE_Key structure\n");
+    CborInInit(coseKeyStart, coseKeySize, &in);
+    if (CborReadMap(&in, &numPairs) != CBOR_READ_RESULT_OK) {
+        COSE_PRINT_ERROR("COSE_Key structure is not a map\n");
         return false;
     }
 
-    auto* coseKeyMap = coseKey->asMap();
-    if (coseKeyMap == nullptr) {
-        COSE_PRINT_ERROR("COSE_Key structure is not an array\n");
-        return false;
+    int64_t keyLabel;
+    int64_t value;
+    bool ktyValidated = false;
+    bool algValidated = false;
+    const uint8_t* contentEncryptionKeyStart = nullptr;
+    size_t contentEncryptionKeySize = 0;
+    for (size_t i = 0; i < numPairs; i++) {
+        if (CborReadInt(&in, &keyLabel) != CBOR_READ_RESULT_OK) {
+            COSE_PRINT_ERROR("Failed to parse key in COSE_Key structure\n");
+            return false;
+        }
+
+        switch (keyLabel) {
+        case COSE_LABEL_KEY_KTY:
+            if (CborReadInt(&in, &value) != CBOR_READ_RESULT_OK) {
+                COSE_PRINT_ERROR("Wrong CBOR type for kty field of COSE_Key\n");
+                return false;
+            }
+            if (value != COSE_KEY_TYPE_SYMMETRIC) {
+                COSE_PRINT_ERROR("Invalid COSE_Key key type: %" PRId64 "\n",
+                                 value);
+                return false;
+            }
+            ktyValidated = true;
+            break;
+        case COSE_LABEL_KEY_ALG:
+            if (CborReadInt(&in, &value) != CBOR_READ_RESULT_OK) {
+                COSE_PRINT_ERROR("Wrong CBOR type for kty field of COSE_Key\n");
+                return false;
+            }
+            if (value != COSE_ALG_A128GCM) {
+                COSE_PRINT_ERROR("Invalid COSE_Key algorithm value: %" PRId64
+                                 "\n",
+                                 value);
+                return false;
+            }
+            algValidated = true;
+            break;
+        case COSE_LABEL_KEY_SYMMETRIC_KEY:
+            if (CborReadBstr(&in, &contentEncryptionKeySize,
+                             &contentEncryptionKeyStart)) {
+                COSE_PRINT_ERROR("Wrong CBOR type for key field of COSE_Key\n");
+                return false;
+            }
+            if (contentEncryptionKeySize != kAes128GcmKeySize) {
+                COSE_PRINT_ERROR(
+                        "Invalid content encryption key size, got %zu\n",
+                        contentEncryptionKeySize);
+                return false;
+            }
+            break;
+        default:
+            COSE_PRINT_ERROR("Invalid key field in COSE_Key: %" PRId64 "\n",
+                             label);
+            return false;
+            break;
+        }
     }
 
-    auto& ktyItem = coseKeyMap->get(COSE_LABEL_KEY_KTY);
-    if (ktyItem == nullptr) {
+    if (!ktyValidated) {
         COSE_PRINT_ERROR("Missing kty field of COSE_Key\n");
         return false;
-    }
-    auto* kty = ktyItem->asInt();
-    if (kty == nullptr) {
-        COSE_PRINT_ERROR("Wrong CBOR type for kty field of COSE_Key\n");
-        return false;
-    }
-    if (kty->value() != COSE_KEY_TYPE_SYMMETRIC) {
-        COSE_PRINT_ERROR("Invalid COSE_Key key type: %" PRId64 "\n",
-                         kty->value());
-        return false;
-    }
-
-    auto& algItem = coseKeyMap->get(COSE_LABEL_KEY_ALG);
-    if (algItem == nullptr) {
+    } else if (!algValidated) {
         COSE_PRINT_ERROR("Missing alg field of COSE_Key\n");
         return false;
-    }
-    auto* alg = algItem->asInt();
-    if (alg == nullptr) {
-        COSE_PRINT_ERROR("Invalid CBOR type for alg field of COSE_Key\n");
-        return false;
-    }
-    if (alg->value() != COSE_ALG_A128GCM) {
-        COSE_PRINT_ERROR("Invalid COSE_Key algorithm value: %" PRId64 "\n",
-                         alg->value());
-        return false;
-    }
-
-    auto& contentEncryptionKeyItem =
-            coseKeyMap->get(COSE_LABEL_KEY_SYMMETRIC_KEY);
-    if (contentEncryptionKeyItem == nullptr) {
+    } else if (!contentEncryptionKeyStart) {
         COSE_PRINT_ERROR("Missing key field in COSE_Key\n");
         return false;
     }
-    auto* contentEncryptionKey = contentEncryptionKeyItem->asViewBstr();
-    if (contentEncryptionKey == nullptr) {
-        COSE_PRINT_ERROR("Wrong CBOR type for key field of COSE_Key\n");
-        return false;
-    }
-    auto contentEncryptionKeySize = contentEncryptionKey->view().size();
-    if (contentEncryptionKeySize != kAes128GcmKeySize) {
-        COSE_PRINT_ERROR("Invalid content encryption key size, got %zu\n",
-                         contentEncryptionKeySize);
-        return false;
-    }
 
-    if (!coseDecryptAes128GcmInPlace(COSE_CONTEXT_ENCRYPT, item,
-                                     contentEncryptionKey->view(), externalAad,
+    const CoseByteView contentEncryptionKey = {contentEncryptionKeyStart,
+                                               contentEncryptionKeySize};
+    if (!coseDecryptAes128GcmInPlace(COSE_CONTEXT_ENCRYPT, cose_encrypt,
+                                     contentEncryptionKey, externalAad,
                                      outPackageStart, outPackageSize,
                                      decryptAes128GcmInPlace)) {
         COSE_PRINT_ERROR("Failed to decrypt payload\n");

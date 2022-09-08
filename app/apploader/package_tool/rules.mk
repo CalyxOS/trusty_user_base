@@ -15,7 +15,7 @@
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
-LIBCPPBOR_DIR := $(TRUSTY_TOP)/external/libcppbor
+OPEN_DICE_DIR := $(TRUSTY_TOP)/external/open-dice
 
 HOST_TOOL_NAME := apploader_package_tool
 
@@ -23,13 +23,13 @@ HOST_SRCS := \
 	$(LOCAL_DIR)/apploader_package_tool.cpp \
 	$(LOCAL_DIR)/../app_manifest_parser.cpp \
 	$(LOCAL_DIR)/../cose.cpp \
-	$(LIBCPPBOR_DIR)/src/cppbor.cpp \
-	$(LIBCPPBOR_DIR)/src/cppbor_parse.cpp \
+	$(OPEN_DICE_DIR)/src/cbor_reader.c \
+	$(OPEN_DICE_DIR)/src/cbor_writer.c \
 
 HOST_INCLUDE_DIRS := \
 	trusty/user/base/interface/apploader/include \
 	trusty/user/base/lib/apploader_policy_engine/include \
-	external/libcppbor/include/cppbor \
+	external/open-dice/include \
 
 # libcppbor checks if __TRUSTY__ is defined to determine whether it's linked
 # into Android or Trusty; the library uses some Android-specific logging and

@@ -40,7 +40,7 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/system_state \
 	trusty/user/base/interface/apploader \
 	external/boringssl \
-	external/libcppbor \
+	external/open-dice \
         $(TRUSTY_APPLOADER_POLICY_ENGINE) \
 
 # Enabling APPLOADER_ALLOW_NS_CONNECT will allow apploader connections from the

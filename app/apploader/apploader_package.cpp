@@ -17,8 +17,8 @@
 #define TLOG_TAG "apploader-package"
 
 #include <assert.h>
-#include <cppbor.h>
-#include <cppbor_parse.h>
+#include <dice/cbor_reader.h>
+#include <dice/cbor_writer.h>
 #include <interface/apploader/apploader_package.h>
 #include <interface/hwkey/hwkey.h>
 #include <inttypes.h>
@@ -35,6 +35,7 @@
 #include <optional>
 
 #include "apploader_package.h"
+#include "cbor.h"
 #include "cose.h"
 
 /*
@@ -102,20 +103,6 @@ static std::tuple<std::unique_ptr<uint8_t[]>, size_t> get_sign_key(
     memcpy(result.get(), *public_key_ptr, *public_key_size_ptr);
 
     return {std::move(result), static_cast<size_t>(*public_key_size_ptr)};
-}
-
-static std::optional<bool> get_cbor_bool(std::unique_ptr<cppbor::Item>& item) {
-    auto* item_simple = item->asSimple();
-    if (item_simple == nullptr) {
-        return {};
-    }
-
-    auto* item_bool = item_simple->asBool();
-    if (item_bool == nullptr) {
-        return {};
-    }
-
-    return item_bool->value();
 }
 
 static bool hwaesDecryptAes128GcmInPlace(
@@ -223,80 +210,75 @@ bool apploader_parse_package_metadata(
         return false;
     }
 
-    auto [pkg_item, _, error] = cppbor::parseWithViews(unsigned_package_start,
-                                                       unsigned_package_size);
-    if (pkg_item == nullptr) {
-        TLOGE("cppbor returned error: %s\n", error.c_str());
+    struct CborIn in;
+    CborInInit(unsigned_package_start, unsigned_package_size, &in);
+
+    uint64_t tag;
+    if (CborReadTag(&in, &tag) != CBOR_READ_RESULT_OK) {
+        TLOGE("Invalid package, failed to read semantic tag\n");
         return false;
     }
 
-    if (pkg_item->semanticTagCount() != 1) {
-        TLOGE("Invalid package semantic tag count, expected 1 got %zd\n",
-              pkg_item->semanticTagCount());
-        return false;
-    }
-    if (pkg_item->semanticTag() != APPLOADER_PACKAGE_CBOR_TAG_APP) {
-        TLOGE("Invalid package semantic tag: %" PRIu64 "\n",
-              pkg_item->semanticTag());
+    if (tag != APPLOADER_PACKAGE_CBOR_TAG_APP) {
+        TLOGE("Invalid package semantic tag: %" PRIu64 "\n", tag);
         return false;
     }
 
-    auto* pkg_array = pkg_item->asArray();
-    if (pkg_array == nullptr) {
+    size_t num_elements;
+    if (CborReadArray(&in, &num_elements) != CBOR_READ_RESULT_OK) {
         TLOGE("Expected CBOR array\n");
         return false;
     }
-    if (pkg_array->size() == 0) {
+
+    if (num_elements == 0) {
         TLOGE("Application package array is empty\n");
         return false;
     }
 
-    auto* version = pkg_array->get(0)->asUint();
-    if (version == nullptr) {
-        TLOGE("Invalid version field CBOR type, got: 0x%x\n",
-              static_cast<int>(pkg_array->get(0)->type()));
+    uint64_t version;
+    if (CborReadUint(&in, &version) != CBOR_READ_RESULT_OK) {
+        TLOGE("Invalid version field CBOR type\n");
         return false;
     }
-    if (version->unsignedValue() != APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT) {
+
+    if (version != APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT) {
         TLOGE("Invalid package version, expected %" PRIu64 " got %" PRIu64 "\n",
-              APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT,
-              version->unsignedValue());
+              APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT, version);
         return false;
     }
 
-    if (pkg_array->size() != 4) {
-        TLOGE("Invalid number of CBOR array elements: %zd\n",
-              pkg_array->size());
-        return false;
-    }
-
-    auto* headers = pkg_array->get(1)->asMap();
-    if (headers == nullptr) {
-        TLOGE("Invalid headers CBOR type, got: 0x%x\n",
-              static_cast<int>(pkg_array->get(1)->type()));
+    if (num_elements != APPLOADER_PACKAGE_CBOR_ARRAY_SZ) {
+        TLOGE("Invalid number of CBOR array elements: %zd\n", num_elements);
         return false;
     }
 
     /* Read headers and reject packages with invalid header labels */
     metadata->elf_is_cose_encrypt = false;
-    for (auto& [label_item, value_item] : *headers) {
-        auto* label_uint = label_item->asUint();
-        if (label_uint == nullptr) {
-            TLOGE("Invalid header label CBOR type, got: 0x%x\n",
-                  static_cast<int>(label_item->type()));
-            return false;
+
+    size_t num_pairs;
+    if (CborReadMap(&in, &num_pairs) != CBOR_READ_RESULT_OK) {
+        TLOGE("Invalid headers CBOR type, expected map\n");
+        return false;
+    }
+
+    uint64_t label;
+    for (size_t i = 0; i < num_pairs; i++) {
+        /* Read key */
+        if (CborReadUint(&in, &label) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr, "Invalid headers CBOR type, expected uint\n");
+            exit(EXIT_FAILURE);
         }
 
-        auto label = label_uint->unsignedValue();
+        /* Read value */
         switch (label) {
         case APPLOADER_PACKAGE_HEADER_LABEL_CONTENT_IS_COSE_ENCRYPT: {
-            auto value_opt_bool = get_cbor_bool(value_item);
-            if (!value_opt_bool.has_value()) {
-                TLOGE("Invalid content_is_cose_encrypt CBOR type\n");
-                return false;
+            auto val = cbor::readCborBoolean(in);
+            if (!val.has_value()) {
+                fprintf(stderr,
+                        "Invalid headers CBOR type, expected boolean\n");
+                exit(EXIT_FAILURE);
             }
-
-            metadata->elf_is_cose_encrypt = value_opt_bool.value();
+            metadata->elf_is_cose_encrypt = *val;
             break;
         }
 
@@ -326,7 +308,41 @@ bool apploader_parse_package_metadata(
             return get_key(hwkey_session, "encrypt", key_id);
         };
 
-        auto& cose_encrypt = pkg_array->get(2);
+        const size_t cose_encrypt_offset = CborInOffset(&in);
+        const uint8_t* cose_encrypt_start =
+                unsigned_package_start + cose_encrypt_offset;
+
+        /*
+         * The COSE_Encrypt structure can be encoded as either tagged or
+         * untagged depending on the context it will be used in.
+         */
+        if (CborReadTag(&in, &tag) != CBOR_READ_RESULT_OK) {
+            TLOGD("COSE_Encrypt content did not contain a semantic tag\n");
+        }
+
+        if (CborReadArray(&in, &num_elements) != CBOR_READ_RESULT_OK) {
+            TLOGE("Invalid COSE_Encrypt, expected an array\n");
+            return false;
+        }
+
+        if (num_elements != kCoseEncryptArrayElements) {
+            TLOGE("Invalid COSE_Encrypt, number of CBOR array elements: %zd\n",
+                  num_elements);
+            return false;
+        }
+
+        /* Skip to the end of the four element array */
+        for (size_t i = 0; i < num_elements; i++) {
+            if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+                TLOGE("Failed to skip to the end of COSE_Encrypt structure\n");
+                return false;
+            }
+        }
+
+        auto cose_encrypt_size = CborInOffset(&in) - cose_encrypt_offset;
+
+        const CoseByteView cose_encrypt = {cose_encrypt_start,
+                                           cose_encrypt_size};
         bool success = coseDecryptAes128GcmKeyWrapInPlace(
                 cose_encrypt, get_encrypt_key_handle, {}, false, &elf_start,
                 &elf_size, hwaesDecryptAes128GcmInPlace);
@@ -338,28 +354,20 @@ bool apploader_parse_package_metadata(
             return false;
         }
     } else {
-        auto* elf = pkg_array->get(2)->asViewBstr();
-        if (elf == nullptr) {
-            TLOGE("Invalid ELF CBOR type, got: 0x%x\n",
-                  static_cast<int>(pkg_array->get(2)->type()));
+        if (CborReadBstr(&in, &elf_size, &elf_start) != CBOR_READ_RESULT_OK) {
+            TLOGE("Invalid ELF CBOR type\n");
             return false;
         }
-
-        elf_start = reinterpret_cast<const uint8_t*>(elf->view().data());
-        elf_size = elf->view().size();
     }
 
-    auto* manifest = pkg_array->get(3)->asViewBstr();
-    if (manifest == nullptr) {
-        TLOGE("Invalid manifest CBOR type, got: 0x%x\n",
-              static_cast<int>(pkg_array->get(3)->type()));
+    if (CborReadBstr(&in, &metadata->manifest_size,
+                     &metadata->manifest_start) != CBOR_READ_RESULT_OK) {
+        TLOGE("Invalid manifest CBOR type\n");
         return false;
     }
 
     metadata->elf_start = elf_start;
     metadata->elf_size = elf_size;
-    metadata->manifest_start = manifest->view().data();
-    metadata->manifest_size = manifest->view().size();
 
     return true;
 }

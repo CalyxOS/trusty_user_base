@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <cppbor.h>
-#include <cppbor_parse.h>
+#include <dice/cbor_reader.h>
+#include <dice/cbor_writer.h>
 #include <endian.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -26,6 +26,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <array>
 #include <fstream>
 #include <memory>
 #include <sstream>
@@ -33,6 +34,7 @@
 #include <vector>
 
 #include "../app_manifest_parser.h"
+#include "../cbor.h"
 #include "../cose.h"
 
 enum class Mode {
@@ -180,18 +182,17 @@ static void build_package(const char* output_path,
     auto elf = read_entire_file(elf_path);
     auto manifest = read_entire_file(manifest_path);
 
-    cppbor::Map headers;
+    cbor::VectorCborEncoder encoded_package;
+    encoded_package.encodeTag(APPLOADER_PACKAGE_CBOR_TAG_APP, [&](auto& enc) {
+        enc.encodeArray([&](auto& enc) {
+            enc.encodeUint(APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT);
+            enc.encodeMap([&](auto& enc) { /* no elements */ });
+            enc.encodeBstr(elf);
+            enc.encodeBstr(manifest);
+        });
+    });
 
-    cppbor::Array untagged_package;
-    untagged_package.add(APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT);
-    untagged_package.add(std::move(headers));
-    untagged_package.add(cppbor::Bstr(std::move(elf)));
-    untagged_package.add(cppbor::Bstr(std::move(manifest)));
-
-    cppbor::SemanticTag tagged_package(APPLOADER_PACKAGE_CBOR_TAG_APP,
-                                       std::move(untagged_package));
-    auto encoded_package = tagged_package.encode();
-    write_entire_file(output_path, encoded_package);
+    write_entire_file(output_path, encoded_package.intoVec());
 }
 
 static std::vector<uint8_t> string_to_vector(std::string s) {
@@ -225,21 +226,28 @@ static void sign_package(const char* output_path,
         exit(EXIT_FAILURE);
     }
 
-    cppbor::Map protected_headers;
-    cppbor::Array trusty_array;
-    trusty_array.add("TrustyApp");
-    trusty_array.add(APPLOADER_SIGNATURE_FORMAT_VERSION_CURRENT);
-    protected_headers.add(COSE_LABEL_TRUSTY, std::move(trusty_array));
+    cbor::VectorCborEncoder enc;
+    enc.encodeMap([&](auto& enc) {
+        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_ALG_ECDSA_256);
+        enc.encodeKeyValue(COSE_LABEL_TRUSTY, [&](auto& enc) {
+            enc.encodeArray([&](auto& enc) {
+                enc.encodeTstr("TrustyApp");
+                enc.encodeUint(APPLOADER_SIGNATURE_FORMAT_VERSION_CURRENT);
+            });
+        });
+    });
 
     auto key = string_to_vector(read_entire_file(key_path));
-    auto sig = coseSignEcDsa(key, key_id, input, std::move(protected_headers),
-                             {}, true, true);
+    CoseByteView protectedHeadersView = enc.view();
+    std::basic_string_view<uint8_t> unprotectedHeadersView = {};
+    auto sig = coseSignEcDsa(key, key_id, input, protectedHeadersView,
+                             unprotectedHeadersView, true, true);
     if (!sig) {
         fprintf(stderr, "Failed to sign package\n");
         exit(EXIT_FAILURE);
     }
 
-    auto full_sig = sig->encode();
+    auto full_sig = sig.value();
     full_sig.insert(full_sig.end(), input.begin(), input.end());
     write_entire_file(output_path, full_sig);
 }
@@ -283,56 +291,59 @@ static void verify_package(const char* input_path, const char* key_path) {
 }
 
 struct ContentIsCoseEncrypt {
-    std::reference_wrapper<std::unique_ptr<cppbor::Item>> item_ref;
+    struct CborOut cursor;
     bool value;
 };
 
 static std::optional<ContentIsCoseEncrypt> find_content_is_cose_encrypt(
-        cppbor::Map* headers) {
+        const CoseByteView& headers) {
+    struct CborIn in;
+    size_t num_headers;
+    uint64_t label;
+    CborInInit(headers.data(), headers.size(), &in);
+    CborReadMap(&in, &num_headers);
     std::optional<ContentIsCoseEncrypt> res;
-    for (auto& [label_item, value_item] : *headers) {
-        auto* label_uint = label_item->asUint();
-        if (label_uint != nullptr &&
-            label_uint->unsignedValue() ==
-                    APPLOADER_PACKAGE_HEADER_LABEL_CONTENT_IS_COSE_ENCRYPT) {
+    for (size_t i = 0; i < num_headers; i++) {
+        if (CborReadUint(&in, &label) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr, "Invalid COSE header label.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (label == APPLOADER_PACKAGE_HEADER_LABEL_CONTENT_IS_COSE_ENCRYPT) {
             if (res.has_value()) {
                 fprintf(stderr,
                         "Duplicate content_is_cose_encrypt header fields\n");
                 exit(EXIT_FAILURE);
             }
 
-            auto* content_is_cose_encrypt_simple = value_item->asSimple();
-            if (content_is_cose_encrypt_simple == nullptr) {
+            /*
+             * CborIn and CborOut may be layout compatible but we should not
+             * assume that will always be true so copy each field explicitly.
+             */
+            struct CborOut cursor = {.buffer = (uint8_t*)in.buffer,
+                                     .buffer_size = in.buffer_size,
+                                     .cursor = in.cursor};
+            auto val = cbor::readCborBoolean(in);
+            if (!val.has_value()) {
                 fprintf(stderr,
-                        "Invalid content_is_cose_encrypt CBOR type, "
-                        "got: 0x%x\n",
-                        static_cast<int>(value_item->type()));
+                        "Invalid value for content_is_cose_encrypt header\n");
                 exit(EXIT_FAILURE);
             }
 
-            auto* content_is_cose_encrypt_bool =
-                    content_is_cose_encrypt_simple->asBool();
-            if (content_is_cose_encrypt_bool == nullptr) {
-                fprintf(stderr,
-                        "Invalid content_is_cose_encrypt CBOR simple type, "
-                        "got: 0x%x\n",
-                        static_cast<int>(
-                                content_is_cose_encrypt_simple->simpleType()));
-                exit(EXIT_FAILURE);
-            }
-
-            res = ContentIsCoseEncrypt{std::ref(value_item),
-                                       content_is_cose_encrypt_bool->value()};
+            res = {cursor, *val};
+        } else if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr, "Failed to parse COSE headers\n");
+            exit(EXIT_FAILURE);
         }
     }
+
     return res;
 }
 
-static void update_header_content_is_cose_encrypt(cppbor::Map* headers,
+static void update_header_content_is_cose_encrypt(std::vector<uint8_t>& headers,
                                                   bool new_value) {
-    // Walk the entire headers map to replace the content type value.
-    // We need to do this because cppbor::Map::get() returns a const reference.
-    auto content_is_cose_encrypt = find_content_is_cose_encrypt(headers);
+    auto content_is_cose_encrypt =
+            find_content_is_cose_encrypt({headers.data(), headers.size()});
     if (content_is_cose_encrypt.has_value()) {
         if (content_is_cose_encrypt->value == new_value) {
             fprintf(stderr, "Invalid content_is_cose_encrypt value\n");
@@ -340,94 +351,271 @@ static void update_header_content_is_cose_encrypt(cppbor::Map* headers,
         }
 
         // Update the content flag
-        content_is_cose_encrypt->item_ref.get() =
-                std::make_unique<cppbor::Bool>(new_value);
+        if (new_value) {
+            CborWriteTrue(&content_is_cose_encrypt->cursor);
+        } else {
+            CborWriteFalse(&content_is_cose_encrypt->cursor);
+        }
+        assert(!CborOutOverflowed(&content_is_cose_encrypt->cursor));
     } else if (new_value) {
-        headers->add(APPLOADER_PACKAGE_HEADER_LABEL_CONTENT_IS_COSE_ENCRYPT,
-                     cppbor::Bool(true));
-        headers->canonicalize(true);
+        cbor::VectorCborEncoder enc;
+        enc.encodeMap([&](auto& enc) {
+            enc.encodeKeyValue(
+                    APPLOADER_PACKAGE_HEADER_LABEL_CONTENT_IS_COSE_ENCRYPT,
+                    true);
+        });
+        const auto newHeaders = enc.view();
+
+        auto updatedHeaders =
+                cbor::mergeMaps({headers.data(), headers.size()}, newHeaders);
+        assert(updatedHeaders.has_value() && "Failed to update COSE headers");
+
+        headers.assign(updatedHeaders->begin(), updatedHeaders->end());
     }
 }
 
 struct PackageInfo {
-    // The root CBOR item for this package
-    std::unique_ptr<cppbor::Item> root_item;
+    // Application package format version
+    uint64_t version;
 
-    // The root CBOR item cast to an Array*
-    cppbor::Array& root_array;
+    // Application metadata as a map of headers
+    CoseByteView headers;
 
-    // The headers map
-    cppbor::Map& headers;
+    // ELF image or COSE_Encrypt structure
+    CoseByteView elf_item;
 
-    // Reference to the CBOR item containing the ELF file
-    // (encrypted or not)
-    std::reference_wrapper<std::unique_ptr<cppbor::Item>> elf_item_ref;
-
-    // Reference to the CBOR item containing the manifest
-    std::reference_wrapper<std::unique_ptr<cppbor::Item>> manifest_item_ref;
+    // Application manifest
+    CoseByteView manifest;
 };
 
+static void parse_cose_recipient(struct CborIn* in,
+                                 struct PackageInfo* package) {
+    size_t num_elements, num_pairs;
+
+    if (CborReadArray(in, &num_elements) != CBOR_READ_RESULT_OK) {
+        fprintf(stderr,
+                "Failed to read COSE_Recipient "
+                "from COSE encryption structure\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (num_elements != 3) {
+        fprintf(stderr, "Invalid COSE_Recipient array size, got %zu\n",
+                num_elements);
+        exit(EXIT_FAILURE);
+    }
+
+    const uint8_t* enc_protected_headers_data;
+    size_t enc_protected_headers_size;
+    if (CborReadBstr(in, &enc_protected_headers_size,
+                     &enc_protected_headers_data) != CBOR_READ_RESULT_OK) {
+        fprintf(stderr,
+                "Invalid COSE_Recipient. "
+                "Encrypted protected headers is not a binary string\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (CborReadMap(in, &num_pairs) != CBOR_READ_RESULT_OK) {
+        fprintf(stderr, "Invalid COSE_Recipient. Failed to read map\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (size_t i = 0; i < 2 * num_pairs; i++) {
+        if (CborReadSkip(in) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr,
+                    "Invalid COSE_Recipient. Failed to skip map element\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    const uint8_t* ciphertext_data;
+    size_t ciphertext_size;
+    if (CborReadBstr(in, &ciphertext_size, &ciphertext_data) !=
+        CBOR_READ_RESULT_OK) {
+        fprintf(stderr,
+                "Invalid COSE_Recipient. "
+                "Ciphertext is not a binary string\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
 static PackageInfo parse_package(std::string_view input, bool check_sign_tag) {
-    auto [item, pos, err] = cppbor::parseWithViews(
-            reinterpret_cast<const uint8_t*>(input.data()), input.size());
-    if (!item) {
+    struct CborIn in;
+    uint64_t tag;
+    size_t num_elements, num_pairs;
+    struct PackageInfo package;
+
+    CborInInit(reinterpret_cast<const uint8_t*>(input.data()), input.size(),
+               &in);
+
+    if (CborReadTag(&in, &tag) != CBOR_READ_RESULT_OK) {
         fprintf(stderr, "Failed to parse input file as CBOR\n");
         exit(EXIT_FAILURE);
     }
 
-    bool found_app_tag = false;
-    for (size_t i = 0; i < item->semanticTagCount(); i++) {
-        if (check_sign_tag && item->semanticTag(i) == COSE_TAG_SIGN1) {
-            fprintf(stderr, "Input file is already signed\n");
-            exit(EXIT_FAILURE);
-        }
-        if (item->semanticTag(i) == APPLOADER_PACKAGE_CBOR_TAG_APP) {
-            found_app_tag = true;
-        }
+    if (check_sign_tag && tag == COSE_TAG_SIGN1) {
+        fprintf(stderr, "Input file is already signed\n");
+        exit(EXIT_FAILURE);
     }
 
-    if (!found_app_tag) {
+    if (tag != APPLOADER_PACKAGE_CBOR_TAG_APP) {
         fprintf(stderr, "Input file is not a Trusty application package\n");
         exit(EXIT_FAILURE);
     }
 
-    auto* root_array = item->asArray();
-    if (root_array == nullptr) {
+    if (CborReadArray(&in, &num_elements) != CBOR_READ_RESULT_OK) {
         fprintf(stderr, "Invalid input file format\n");
         exit(EXIT_FAILURE);
     }
 
-    if (root_array->size() != 4) {
+    if (num_elements != APPLOADER_PACKAGE_CBOR_ARRAY_SZ) {
         fprintf(stderr, "Invalid number of CBOR array elements: %zd\n",
-                root_array->size());
+                num_elements);
         exit(EXIT_FAILURE);
     }
 
-    auto* version = root_array->get(0)->asUint();
-    if (version == nullptr) {
-        fprintf(stderr, "Invalid version field CBOR type, got: 0x%x\n",
-                static_cast<int>(root_array->get(0)->type()));
+    if (CborReadUint(&in, &package.version) != CBOR_READ_RESULT_OK) {
+        fprintf(stderr, "Invalid input file format\n");
         exit(EXIT_FAILURE);
     }
-    if (version->unsignedValue() != APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT) {
+
+    if (package.version != APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT) {
         fprintf(stderr,
                 "Invalid package version, expected %" PRIu64 " got %" PRIu64
                 "\n",
-                APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT,
-                version->unsignedValue());
+                APPLOADER_PACKAGE_FORMAT_VERSION_CURRENT, package.version);
         exit(EXIT_FAILURE);
     }
 
-    auto* headers = root_array->get(1)->asMap();
-    if (headers == nullptr) {
-        fprintf(stderr, "Invalid headers CBOR type, got: 0x%x\n",
-                static_cast<int>(root_array->get(1)->type()));
+    const size_t headers_offset = CborInOffset(&in);
+
+    if (CborReadMap(&in, &num_pairs) != CBOR_READ_RESULT_OK) {
+        fprintf(stderr, "Invalid input file format\n");
         exit(EXIT_FAILURE);
     }
 
-    return PackageInfo{std::move(item), *root_array, *headers,
-                       std::ref(root_array->get(2)),
-                       std::ref(root_array->get(3))};
+    uint64_t label;
+    bool content_is_cose_encrypt = false;
+    for (size_t i = 0; i < num_pairs; i++) {
+        // read key
+        if (CborReadUint(&in, &label) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr, "Invalid package headers\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // read value
+        switch (label) {
+        case APPLOADER_PACKAGE_HEADER_LABEL_CONTENT_IS_COSE_ENCRYPT: {
+            auto val = cbor::readCborBoolean(in);
+            if (!val.has_value()) {
+                fprintf(stderr, "Invalid value for content_is_cose_encrypt\n");
+                exit(EXIT_FAILURE);
+            }
+            content_is_cose_encrypt = *val;
+            break;
+        }
+
+        default:
+            fprintf(stderr,
+                    "Package headers contain invalid label: %" PRIu64 "\n",
+                    label);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    const size_t elf_offset = CborInOffset(&in);
+    package.headers = {(const uint8_t*)input.data() + headers_offset,
+                       elf_offset - headers_offset};
+
+    const uint8_t* elf_data;
+    size_t elf_size;
+    if (content_is_cose_encrypt) {
+        if (CborReadArray(&in, &num_elements) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr, "Invalid COSE encryption array\n");
+            exit(EXIT_FAILURE);
+        }
+
+        /* content is COSE_Encrypt */
+        if (num_elements < 3 || num_elements > 4) {
+            fprintf(stderr, "Invalid COSE encryption array size, got %zu\n",
+                    num_elements);
+            exit(EXIT_FAILURE);
+        }
+
+        const uint8_t* enc_protected_headers_data;
+        size_t enc_protected_headers_size;
+        if (CborReadBstr(&in, &enc_protected_headers_size,
+                         &enc_protected_headers_data) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr,
+                    "Failed to retrieve protected headers from COSE "
+                    "encryption structure\n");
+            exit(EXIT_FAILURE);
+        }
+
+        /* TODO: parse and validate protected headers */
+        if (CborReadMap(&in, &num_pairs) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr,
+                    "Failed to retrieve unprotected headers from COSE "
+                    "encryption structure\n");
+            exit(EXIT_FAILURE);
+        }
+
+        /* TODO: parse and validate unprotected headers */
+        for (size_t i = 0; i < 2 * num_pairs; i++) {
+            if (CborReadSkip(&in) != CBOR_READ_RESULT_OK) {
+                fprintf(stderr, "Invalid input file format\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        const uint8_t* ciphertext_data;
+        size_t ciphertext_size;
+        if (CborReadBstr(&in, &ciphertext_size, &ciphertext_data) !=
+            CBOR_READ_RESULT_OK) {
+            fprintf(stderr,
+                    "Failed to retrieve ciphertext "
+                    "from COSE encryption structure\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (num_elements == 4) {
+            size_t num_recipients;
+            if (CborReadArray(&in, &num_recipients) != CBOR_READ_RESULT_OK) {
+                fprintf(stderr,
+                        "Failed to read recipients array "
+                        "from COSE encryption structure\n");
+                exit(EXIT_FAILURE);
+            }
+
+            while (num_recipients--) {
+                parse_cose_recipient(&in, &package);
+            }
+        }
+
+        package.elf_item = {(const uint8_t*)input.data() + elf_offset,
+                            CborInOffset(&in) - elf_offset};
+    } else { /* content is unencrypted */
+        if (CborReadBstr(&in, &elf_size, &elf_data) != CBOR_READ_RESULT_OK) {
+            fprintf(stderr,
+                    "Failed to read ELF content from application package\n");
+            exit(EXIT_FAILURE);
+        }
+
+        package.elf_item = {elf_data, elf_size};
+    }
+
+    const uint8_t* manifest_data;
+    size_t manifest_size;
+    if (CborReadBstr(&in, &manifest_size, &manifest_data) !=
+        CBOR_READ_RESULT_OK) {
+        fprintf(stderr, "Invalid CBOR type. Failed to read manifest as Bstr\n");
+        exit(EXIT_FAILURE);
+    }
+    package.manifest = {manifest_data, manifest_size};
+
+    assert(CborInAtEnd(&in));
+
+    return package;
 }
 
 static void encrypt_package(const char* output_path,
@@ -436,12 +624,6 @@ static void encrypt_package(const char* output_path,
                             uint8_t key_id) {
     auto input = read_entire_file(input_path);
     auto pkg_info = parse_package(input, true);
-    auto* elf = pkg_info.elf_item_ref.get()->asViewBstr();
-    if (elf == nullptr) {
-        fprintf(stderr, "Invalid ELF CBOR type, got: 0x%x\n",
-                static_cast<int>(pkg_info.root_array.get(2)->type()));
-        exit(EXIT_FAILURE);
-    }
 
     auto key = string_to_vector(read_entire_file(key_path));
     if (key.size() != kAes128GcmKeySize) {
@@ -449,32 +631,38 @@ static void encrypt_package(const char* output_path,
         exit(EXIT_FAILURE);
     }
 
-    cppbor::Map protected_headers;
-    protected_headers.add(COSE_LABEL_TRUSTY, "TrustyApp");
+    cbor::VectorCborEncoder enc;
+    enc.encodeMap([&](auto& enc) {
+        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_ALG_A128GCM);
+        enc.encodeKeyValue(COSE_LABEL_TRUSTY, "TrustyApp");
+    });
 
-    std::vector<uint8_t> elf_vec(elf->view().begin(), elf->view().end());
-    auto cose_encrypt = coseEncryptAes128GcmKeyWrap(
-            key, key_id, elf_vec, {}, std::move(protected_headers), {}, false);
+    auto encodedProtectedHeaders = enc.intoVec();
+    auto cose_encrypt =
+            coseEncryptAes128GcmKeyWrap(key, key_id, pkg_info.elf_item, {},
+                                        encodedProtectedHeaders, {}, false);
     if (!cose_encrypt) {
         fprintf(stderr, "Failed to encrypt ELF file\n");
         exit(EXIT_FAILURE);
     }
 
-    auto enc_headers = pkg_info.headers.clone();
-    update_header_content_is_cose_encrypt(enc_headers->asMap(), true);
+    std::vector<uint8_t> enc_headers(pkg_info.headers.size());
+    pkg_info.headers.copy(enc_headers.data(), pkg_info.headers.size());
+
+    update_header_content_is_cose_encrypt(enc_headers, true);
 
     // Build a new encrypted array since the original array has a semantic
     // tag that we do not want to preserve.
-    cppbor::Array encrypted_array{
-            std::move(pkg_info.root_array.get(0)),
-            std::move(enc_headers),
-            std::move(cose_encrypt),
-            std::move(pkg_info.root_array.get(3)),
-    };
-
-    cppbor::SemanticTag tagged_package(APPLOADER_PACKAGE_CBOR_TAG_APP,
-                                       std::move(encrypted_array));
-    auto encoded_package = tagged_package.encode();
+    enc = cbor::VectorCborEncoder();
+    enc.encodeTag(APPLOADER_PACKAGE_CBOR_TAG_APP, [&](auto& enc) {
+        enc.encodeArray([&](auto& enc) {
+            enc.encodeInt(pkg_info.version);
+            enc.copyBytes(enc_headers);
+            enc.copyBytes(cose_encrypt.value());
+            enc.encodeBstr(pkg_info.manifest);
+        });
+    });
+    auto encoded_package = enc.intoVec();
     write_entire_file(output_path, encoded_package);
 }
 
@@ -483,11 +671,6 @@ static void decrypt_package(const char* output_path,
                             const char* key_path) {
     auto input = read_entire_file(input_path);
     auto pkg_info = parse_package(input, true);
-    if (pkg_info.elf_item_ref.get()->asArray() == nullptr) {
-        fprintf(stderr, "Invalid ELF CBOR type, got: 0x%x\n",
-                static_cast<int>(pkg_info.elf_item_ref.get()->type()));
-        exit(EXIT_FAILURE);
-    }
 
     auto key = string_to_vector(read_entire_file(key_path));
     if (key.size() != kAes128GcmKeySize) {
@@ -508,28 +691,30 @@ static void decrypt_package(const char* output_path,
 
     const uint8_t* package_start;
     size_t package_size;
-    if (!coseDecryptAes128GcmKeyWrapInPlace(pkg_info.elf_item_ref.get(),
-                                            get_key, {}, false, &package_start,
+    if (!coseDecryptAes128GcmKeyWrapInPlace(pkg_info.elf_item, get_key, {},
+                                            false, &package_start,
                                             &package_size)) {
         fprintf(stderr, "Failed to decrypt ELF file\n");
         exit(EXIT_FAILURE);
     }
 
-    auto dec_headers = pkg_info.headers.clone();
-    update_header_content_is_cose_encrypt(dec_headers->asMap(), false);
+    std::vector<uint8_t> dec_headers(pkg_info.headers.size());
+    pkg_info.headers.copy(dec_headers.data(), pkg_info.headers.size());
+    update_header_content_is_cose_encrypt(dec_headers, false);
 
     // Build a new decrypted array since the original array has a semantic
     // tag that we do not want to preserve.
-    cppbor::Array decrypted_array{
-            std::move(pkg_info.root_array.get(0)),
-            std::move(dec_headers),
-            std::make_pair(package_start, package_size),
-            std::move(pkg_info.root_array.get(3)),
-    };
+    cbor::VectorCborEncoder enc;
+    enc.encodeTag(APPLOADER_PACKAGE_CBOR_TAG_APP, [&](auto& enc) {
+        enc.encodeArray([&](auto& enc) {
+            enc.encodeInt(pkg_info.version);
+            enc.copyBytes(dec_headers);
+            enc.encodeBstr({package_start, package_size});
+            enc.copyBytes(pkg_info.manifest);
+        });
+    });
 
-    cppbor::SemanticTag tagged_package(APPLOADER_PACKAGE_CBOR_TAG_APP,
-                                       std::move(decrypted_array));
-    auto encoded_package = tagged_package.encode();
+    auto encoded_package = enc.intoVec();
     write_entire_file(output_path, encoded_package);
 }
 
@@ -562,7 +747,7 @@ static void print_package_info(const char* input_path) {
                                     input.size() - signature_length};
     auto pkg_info = parse_package(signed_package, false);
     auto content_is_cose_encrypt =
-            find_content_is_cose_encrypt(&pkg_info.headers);
+            find_content_is_cose_encrypt(pkg_info.headers);
     if (content_is_cose_encrypt && content_is_cose_encrypt->value) {
         printf("Encrypted: YES\n");
 
@@ -573,33 +758,24 @@ static void print_package_info(const char* input_path) {
             return {};
         };
 
-        if (pkg_info.elf_item_ref.get()->asArray() == nullptr) {
-            fprintf(stderr, "Invalid ELF CBOR type, got: 0x%x\n",
-                    static_cast<int>(pkg_info.elf_item_ref.get()->type()));
-            exit(EXIT_FAILURE);
-        }
-
         const uint8_t* package_start;
         size_t package_size;
-        coseDecryptAes128GcmKeyWrapInPlace(pkg_info.elf_item_ref.get(),
-                                           print_key_id, {}, false,
-                                           &package_start, &package_size);
-
+        coseDecryptAes128GcmKeyWrapInPlace(pkg_info.elf_item, print_key_id, {},
+                                           false, &package_start,
+                                           &package_size);
     } else {
         printf("Encrypted: NO\n");
 
         // Get manifest to check encryption requirement
-        if (pkg_info.manifest_item_ref.get()->asViewBstr() == nullptr) {
-            fprintf(stderr, "Invalid manifest CBOR type, got: 0x%x\n",
-                    static_cast<int>(pkg_info.manifest_item_ref.get()->type()));
+        if (pkg_info.manifest.size() == 0) {
+            fprintf(stderr, "Package did not contain a valid manifest\n");
             exit(EXIT_FAILURE);
         }
 
-        const auto* manifest = pkg_info.manifest_item_ref.get()->asViewBstr();
         struct manifest_extracts manifest_extracts;
         if (!apploader_parse_manifest(
-                    reinterpret_cast<const char*>(manifest->view().data()),
-                    manifest->view().size(), &manifest_extracts)) {
+                    reinterpret_cast<const char*>(pkg_info.manifest.data()),
+                    pkg_info.manifest.size(), &manifest_extracts)) {
             fprintf(stderr, "Unable to extract manifest fields\n");
             exit(EXIT_FAILURE);
         }
