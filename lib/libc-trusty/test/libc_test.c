@@ -679,4 +679,148 @@ TEST_F(libc, PointerAndUnsignedOneLine) {
                       "pointer1: 0x5000 number: 10000", RELEASE_BUILD);
 }
 
+TEST_F(libc, PointerUnsignedOneLineFilterOne) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "pointer1: %px number: %u", 0x5000,
+                      10000);
+    EXPECT_STREQ_COND(buffer, "pointer1: 0x5000 number: ***",
+                      "pointer1: 0x5000 number: 10000", RELEASE_BUILD);
+}
+
+TEST_F(libc, PointerUnsignedOneLineFilterOneInverse) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "pointer1: %p number: %ux", 0x5000,
+                      10000);
+    EXPECT_STREQ_COND(buffer, "pointer1: 0x*** number: 10000",
+                      "pointer1: 0x5000 number: 10000", RELEASE_BUILD);
+}
+
+TEST_F(libc, PointerUnsignedHexOneLineFilterOne) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "pointer1: %px number: %u hex: %xx",
+                      0x5000, 10000, 0X7000);
+    EXPECT_STREQ_COND(buffer, "pointer1: 0x5000 number: *** hex: 7000",
+                      "pointer1: 0x5000 number: 10000 hex: 7000",
+                      RELEASE_BUILD);
+}
+
+TEST_F(libc, PointerUnsignedHexOneLineFilterOneInverse) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "pointer1: %p number: %ux hex: %x",
+                      0x5000, 10000, 0X7000);
+    EXPECT_STREQ_COND(buffer, "pointer1: 0x*** number: 10000 hex: ***",
+                      "pointer1: 0x5000 number: 10000 hex: 7000",
+                      RELEASE_BUILD);
+}
+
+TEST_F(libc, ReleaseUnfilteredPointerPrintTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "pointer: %px", (void*)0x5000);
+    EXPECT_STREQ(buffer, "pointer: 0x5000");
+}
+
+TEST_F(libc, ReleaseUnfilteredLargNegIntTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "integer: %dx", -4097);
+    EXPECT_STREQ(buffer, "integer: -4097");
+}
+
+TEST_F(libc, ReleaseUnfilteredLargerHexTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "unsigned integer: 0x%xx", 0x1001);
+    EXPECT_STREQ(buffer, "unsigned integer: 0x1001");
+}
+
+TEST_F(libc, ReleaseUnfilteredLargerUintTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "unsigned integer: %ux", 4097);
+    EXPECT_STREQ(buffer, "unsigned integer: 4097");
+}
+
+TEST_F(libc, ReleaseUnfilteredLargerUintXAtEndTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "unsigned integer: %uxx", 34127);
+    EXPECT_STREQ(buffer, "unsigned integer: 34127x");
+}
+
+TEST_F(libc, ReleaseUnfilteredPrintfBufferLargeEnoughTest) {
+    char buffer[BUFFER_SIZE];
+    memset(buffer, 0, BUFFER_SIZE);
+    buffer[5] = '@';
+
+    snprintf_filtered(buffer, 5, "%xx", 0x3000);
+    EXPECT_STREQ(buffer, "3000");
+    EXPECT_EQ(buffer[5], '@');
+}
+
+TEST_F(libc, ReleaseUnfilteredPrintfBufferLargeEnoughForReleaseTest) {
+    char buffer[BUFFER_SIZE];
+    memset(buffer, 0, BUFFER_SIZE);
+    buffer[4] = '@';
+
+    snprintf_filtered(buffer, 4, "%xx", 0x3000);
+    EXPECT_STREQ(buffer, "300");
+    EXPECT_EQ(buffer[4], '@');
+}
+
+TEST_F(libc, ReleaseUnfilteredPrintfBufferTooSmallForReleaseTest) {
+    char buffer[BUFFER_SIZE];
+    memset(buffer, 0, BUFFER_SIZE);
+    buffer[3] = '@';
+
+    snprintf_filtered(buffer, 3, "%xx", 0x3000);
+    EXPECT_STREQ(buffer, "30");
+    EXPECT_EQ(buffer[3], '@');
+}
+
+TEST_F(libc, ReleaseUnfilteredPrintfStringXPrintsTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "%sx", "hello");
+    EXPECT_STREQ(buffer, "hellox");
+}
+
+TEST_F(libc, ThreeModifierTogetherOneNotFilteredTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "%d%xx%u", 98765, 0x43210, 123456);
+    EXPECT_STREQ_COND(buffer, "***43210***", "9876543210123456", RELEASE_BUILD);
+}
+
+TEST_F(libc, ThreeModifierTogetherOneNotFilteredInverseTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE, "%dx%x%ux", 98765, 0x43210, 123456);
+    EXPECT_STREQ_COND(buffer, "98765***123456", "9876543210123456",
+                      RELEASE_BUILD);
+}
+
+TEST_F(libc, ReleaseUnfilteredThreeModifiersTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf_filtered(buffer, BUFFER_SIZE,
+                      "pointer: %px unsigned: %ux signed: %dx", (void*)0x5000,
+                      7000, 80000);
+    EXPECT_STREQ(buffer, "pointer: 0x5000 unsigned: 7000 signed: 80000");
+}
+
+TEST_F(libc, SnprintfModifierNotUsedTest) {
+    char buffer[BUFFER_SIZE];
+
+    snprintf(buffer, BUFFER_SIZE,
+             "hex: %xx pointer: %px unsigned: %ux signed: %dx", 2, (void*)3, 4,
+             5);
+
+    EXPECT_STREQ(buffer, "hex: 2x pointer: 0x3x unsigned: 4x signed: 5x");
+}
+
 PORT_TEST(libc, "com.android.libctest");
