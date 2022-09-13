@@ -748,8 +748,27 @@ static void print_package_info(const char* input_path) {
     auto pkg_info = parse_package(signed_package, false);
     auto content_is_cose_encrypt =
             find_content_is_cose_encrypt(pkg_info.headers);
+
+    // Get manifest to check encryption requirement
+    if (pkg_info.manifest.size() == 0) {
+        fprintf(stderr, "Package did not contain a valid manifest\n");
+        exit(EXIT_FAILURE);
+    }
+
+    struct manifest_extracts manifest_extracts;
+    if (!apploader_parse_manifest(
+                reinterpret_cast<const char*>(pkg_info.manifest.data()),
+                pkg_info.manifest.size(), &manifest_extracts)) {
+        fprintf(stderr, "Unable to extract manifest fields\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (content_is_cose_encrypt && content_is_cose_encrypt->value) {
-        printf("Encrypted: YES\n");
+        if (manifest_extracts.requires_encryption) {
+            printf("Encrypted: YES, REQUIRED\n");
+        } else {
+            printf("Encrypted: YES, OPTIONAL\n");
+        }
 
         // Call into cose.cpp with a callback that prints the key id
         auto print_key_id = [
@@ -764,26 +783,16 @@ static void print_package_info(const char* input_path) {
                                            false, &package_start,
                                            &package_size);
     } else {
-        printf("Encrypted: NO\n");
-
-        // Get manifest to check encryption requirement
-        if (pkg_info.manifest.size() == 0) {
-            fprintf(stderr, "Package did not contain a valid manifest\n");
-            exit(EXIT_FAILURE);
-        }
-
-        struct manifest_extracts manifest_extracts;
-        if (!apploader_parse_manifest(
-                    reinterpret_cast<const char*>(pkg_info.manifest.data()),
-                    pkg_info.manifest.size(), &manifest_extracts)) {
-            fprintf(stderr, "Unable to extract manifest fields\n");
-            exit(EXIT_FAILURE);
-        }
-
         if (manifest_extracts.requires_encryption) {
-            fprintf(stderr, "Error: application requires encryption\n");
+            printf("Encrypted: NO, REQUIRED\n");
+            fprintf(stderr,
+                    "Error: app is not encrypted, contrary to manifest requirement.\n");
+            fprintf(stderr,
+                    "Either encrypt the app, or remove the manifest requirement.\n");
             exit(EXIT_FAILURE);
         }
+
+        printf("Encrypted: NO, OPTIONAL\n");
     }
 
     // Restore the old silence flag
