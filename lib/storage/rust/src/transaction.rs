@@ -1,4 +1,4 @@
-use crate::{sys, Error, OpenMode, SecureFile, Session};
+use crate::{sys, DirIter, Error, OpenMode, SecureFile, Session};
 
 /// A pending transaction used to group multiple file operations for efficiency.
 ///
@@ -107,6 +107,22 @@ impl Transaction<'_> {
     /// * `name` cannot be deleted because it is open as a file handle.
     pub fn remove(&mut self, name: &str) -> Result<(), Error> {
         self.session.remove_impl(name, false)
+    }
+
+    /// Returns an iterator that can be used to list the files in storage.
+    ///
+    /// The iterator will yield instances of [`Result<(String, FileState)>`],
+    /// where the contained `String` is the name of a file.
+    ///
+    /// # Errors
+    ///
+    /// This function or the returned iterator will yield an error in the
+    /// following situations, but is not limited to just these cases:
+    ///
+    /// * The session is closed (i.e. the `Session` object is dropped) while the
+    ///   iterator is still in use.
+    pub fn list_files(&mut self) -> Result<DirIter, Error> {
+        self.session.list_files()
     }
 }
 

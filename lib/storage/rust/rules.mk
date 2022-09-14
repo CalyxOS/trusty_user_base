@@ -31,11 +31,15 @@ MODULE_BINDGEN_SRC_HEADER := $(LOCAL_DIR)/bindings.h
 
 MODULE_INCLUDES += \
 	$(LOCAL_DIR)/../include/lib/storage \
+	trusty/user/base/interface/storage/include \
 
 MODULE_BINDGEN_ALLOW_VARS := \
 	STORAGE_.* \
 
 MODULE_BINDGEN_ALLOW_FUNCTIONS := \
+	storage_.* \
+	
+MODULE_BINDGEN_ALLOW_TYPES := \
 	storage_.* \
 
 MODULE_RUST_TESTS := true

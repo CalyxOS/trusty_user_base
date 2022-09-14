@@ -1,4 +1,4 @@
-use crate::{Error, ErrorCode, OpenMode, Port, Session};
+use crate::{Error, ErrorCode, FileState, OpenMode, Port, Session};
 use test::assert_eq;
 
 /// Tests that connecting to the service works.
@@ -97,10 +97,10 @@ fn rename_delete() {
 fn cannot_rename_open_file() {
     let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
 
-    let file_name = "cannot_rename_or_delete_open_file.txt";
+    // Clear any leftover files from a previous test run.
+    remove_all(&mut session);
 
-    let _ = session.remove(file_name);
-    let _ = session.remove("different_file.txt");
+    let file_name = "cannot_rename_or_delete_open_file.txt";
 
     // Create the file and open a handle for it.
     let file = session.open_file(file_name, OpenMode::CreateExclusive).unwrap();
@@ -129,9 +129,8 @@ fn multiple_files_in_transaction() {
     let file_contents = "multiple_files_in_transaction";
     let mut buf = [0; 32];
 
-    // Make sure there aren't existing files from previous runs.
-    let _ = session.remove(file_a);
-    let _ = session.remove(file_b);
+    // Clear any leftover files from a previous test run.
+    remove_all(&mut session);
 
     // Start a transaction, create two files, and then write the contents of those
     // files before committing the transaction.
@@ -175,8 +174,8 @@ fn discard_transaction() {
     let file_contents = "commit_transaction_on_drop";
     let mut buf = [0; 32];
 
-    // Make sure there aren't existing files from previous runs.
-    let _ = session.remove(file_name);
+    // Clear any leftover files from a previous test run.
+    remove_all(&mut session);
 
     // Begin to make changes in a transaction, then discard the transaction without
     // committing the pending changes.
@@ -195,6 +194,82 @@ fn discard_transaction() {
         session.read(file_name, &mut buf),
         "Unexpected result when renaming open file",
     );
+}
+
+/// Tests directory enumeration in an empty directory.
+#[test]
+fn list_empty_dir() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+
+    // Reset the storage dir so that we can test listing files in an empty dir.
+    remove_all(&mut session);
+
+    // Verify that listing files in an empty dir yields no elements.
+    for entry in session.list_files().unwrap() {
+        let entry = entry.unwrap();
+        panic!("Unexpected file: {:?}", entry);
+    }
+}
+
+/// Tests that directory enumeration correctly returns errors if the session is
+/// closed while directory enumeration is still in progress.
+#[test]
+fn drop_session_while_listing() {
+    // Open a session, start listing files, and then drop the `Session` object
+    // while keeping the `DirIter` object alive.
+    let mut dir_iter = {
+        let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+        session.list_files().unwrap()
+    };
+
+    // Verify that attempting to use the iterator after the session is closed
+    // generates an error and then only yields `None`.
+    assert_eq!(Some(Err(Error::Code(ErrorCode::NotFound))), dir_iter.next());
+    assert_eq!(None, dir_iter.next());
+    assert_eq!(None, dir_iter.next());
+}
+
+/// Verifies that directory enumeration lists files correctly, and that that
+/// states of files are reported correctly.
+#[test]
+fn list_during_transaction() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+
+    // Clear any leftover files from a previous test run.
+    remove_all(&mut session);
+
+    let file_a = "file_a.txt";
+    let file_b = "file_b.txt";
+    let file_contents = "Hello, world!";
+
+    // Create a file and write to it such that it is fully committed.
+    session.write(file_a, file_contents.as_bytes()).unwrap();
+
+    let mut transaction = session.begin_transaction();
+
+    // Create a file as part of `transaction` that will be in the "added" state.
+    let mut file = transaction.open_file(file_b, OpenMode::CreateExclusive).unwrap();
+    transaction.write_all(&mut file, file_contents.as_bytes()).unwrap();
+
+    // Verify that listing files while a transaction is active correctly reports all
+    // expected files and in the correct states.
+    let mut dir_iter = transaction.list_files().unwrap();
+    assert_eq!(Some(Ok((file_a.into(), FileState::Committed))), dir_iter.next());
+    assert_eq!(Some(Ok((file_b.into(), FileState::Added))), dir_iter.next());
+    assert_eq!(None, dir_iter.next());
+
+    transaction.discard().unwrap();
+}
+
+/// Removes all files in the storage for `session`.
+///
+/// Useful for resetting the state of the storage for tests that need to iterate
+/// the contents of storage and so need things to be in a known starting state.
+fn remove_all(session: &mut Session) {
+    for entry in session.list_files().unwrap() {
+        let (name, _state) = entry.unwrap();
+        session.remove(&name).unwrap();
+    }
 }
 
 test::init!();

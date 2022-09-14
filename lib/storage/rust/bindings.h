@@ -16,4 +16,5 @@
 
 /* Aggregates headers to generate Rust bindings for the storage crate */
 
+#include <interface/storage/storage.h>
 #include <storage.h>

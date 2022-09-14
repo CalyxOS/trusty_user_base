@@ -114,15 +114,37 @@
 //! committed or discarded. This ensures that there's no way to accidentally
 //! perform a file operation through `Session` that circumvents the atomicity
 //! guarantees provided by the transaction.
+//!
+//! # Listing Files
+//!
+//! You can use [`Session::list_files`] and [`Transaction::list_files`] to list
+//! the files in the current session's storage. Note that the storage service
+//! does not currently support directories, and so it always lists the files at
+//! the root directory. The iterator returned by these methods yields the name
+//! of the file and its current state, i.e. if the file is fully committed to
+//! disk or if it is being added/removed in the current transaction.
+//!
+//! ```
+//! for entry in session.list_files().unwrap() {
+//!     let (name, state) = entry.unwrap();
+//!     println!("File {} is in state {:?}", name, state);
+//! }
+//! ```
 
 #![no_std]
+#![feature(allocator_api)]
 
 pub use crate::transaction::*;
 pub use trusty_sys::Error as ErrorCode;
 
+use core::alloc::AllocError;
 use core::ffi::c_void;
 use core::mem::MaybeUninit;
+use core::ptr;
+use trusty_std::alloc::TryAllocFrom;
 use trusty_std::ffi::{CString, TryNewError};
+use trusty_std::string::{FromUtf8Error, String};
+use trusty_std::vec::Vec;
 use trusty_sys::{c_int, c_long};
 
 #[cfg(test)]
@@ -507,6 +529,22 @@ impl Session {
     pub fn begin_transaction(&mut self) -> Transaction<'_> {
         Transaction { session: self }
     }
+
+    /// Returns an iterator that can be used to list the files in storage.
+    ///
+    /// The iterator will yield instances of [`Result<(String, FileState)>`],
+    /// where the contained `String` is the name of a file.
+    ///
+    /// # Errors
+    ///
+    /// This function or the returned iterator will yield an error in the
+    /// following situations, but is not limited to just these cases:
+    ///
+    /// * The session is closed (i.e. the `Session` object is dropped) while the
+    ///   iterator is still in use.
+    pub fn list_files(&mut self) -> Result<DirIter, Error> {
+        DirIter::new(self)
+    }
 }
 
 impl Drop for Session {
@@ -570,6 +608,10 @@ pub enum Error {
 
     // An error converting a string or path for FFI.
     TryNew(TryNewError),
+
+    Alloc(AllocError),
+
+    Utf8(FromUtf8Error),
 }
 
 impl Error {
@@ -623,6 +665,18 @@ impl Error {
 impl From<TryNewError> for Error {
     fn from(from: TryNewError) -> Self {
         Error::TryNew(from)
+    }
+}
+
+impl From<AllocError> for Error {
+    fn from(from: AllocError) -> Self {
+        Error::Alloc(from)
+    }
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(from: FromUtf8Error) -> Self {
+        Error::Utf8(from)
     }
 }
 
@@ -710,4 +764,150 @@ impl Default for OpenMode {
     fn default() -> Self {
         OpenMode::Open
     }
+}
+
+/// Iterator over the entries in a directory.
+///
+/// This iterator is returned from [`Session::list_files`] and
+/// [`Transaction::list_files`] and will yield instances of [`Result<(String,
+/// FileState)>`]. If the iterator yields an error at any point during iteration,
+/// subsequent calls to [`next`][Iterator::next] will always return `None`.
+///
+/// # Errors
+///
+/// Yields an error if the session was closed.
+#[derive(Debug)]
+pub struct DirIter {
+    session: sys::storage_session_t,
+    raw: *mut sys::storage_open_dir_state,
+    finished: bool,
+}
+
+impl DirIter {
+    fn new(session: &mut Session) -> Result<Self, Error> {
+        let mut dir_ptr = ptr::null_mut();
+
+        // SAFETY: FFI call to underlying C API. The raw session handle is
+        // guaranteed to be valid until the `Session` object is dropped.
+        Error::try_from_code(unsafe {
+            sys::storage_open_dir(session.raw, ptr::null(), &mut dir_ptr)
+        })?;
+
+        if dir_ptr.is_null() {
+            return Err(Error::Code(ErrorCode::Generic));
+        }
+
+        Ok(DirIter { session: session.raw, raw: dir_ptr, finished: false })
+    }
+
+    /// Attempts to get the next file item in the directory.
+    ///
+    /// This method provides the bulk of the logic for the `Iterator` impl for
+    /// `DirIter`, but returns a `Result<Option>` instead of an `Option<Result>` the way
+    /// the `next` method needs to. This allows us to use `?` within `try_next` to
+    /// propagate errors. The `Iterator::next` method can then simply do
+    /// `try_next().transpose()` to convert the result to the correct form for the
+    /// `Iterator` API.
+    fn try_next(&mut self) -> Result<Option<(String, FileState)>, Error> {
+        let mut buf = [0; sys::STORAGE_MAX_NAME_LENGTH_BYTES as usize];
+        let mut flags = 0;
+
+        // SAFETY: FFI call to underlying C API. The raw session handle is guaranteed to
+        // be valid while the `Session` object is alive, and the raw dir iter pointer is
+        // likewise guaranteed to be valid while the `DirIter` object is alive.
+        let bytes_read = Error::try_from_size(unsafe {
+            let code = sys::storage_read_dir(
+                self.session,
+                self.raw,
+                &mut flags,
+                buf.as_mut_ptr(),
+                buf.len(),
+            );
+
+            code as isize
+        })?;
+
+        // Convert the output `flags` value into the corresponding `FileState`, and
+        // handle the end of iteration as necessary.
+        let state =
+            match u32::from(flags) & sys::storage_file_list_flag_STORAGE_FILE_LIST_STATE_MASK {
+                sys::storage_file_list_flag_STORAGE_FILE_LIST_COMMITTED => FileState::Committed,
+                sys::storage_file_list_flag_STORAGE_FILE_LIST_ADDED => FileState::Added,
+                sys::storage_file_list_flag_STORAGE_FILE_LIST_REMOVED => FileState::Removed,
+
+                sys::storage_file_list_flag_STORAGE_FILE_LIST_END => return Ok(None),
+
+                flag => {
+                    panic!("Unexpected flag returned from `storage_read_dir`: {:#x}", flag);
+                }
+            };
+
+        // Convert our temporary stack-allocated buffer into a `String` so that it can
+        // be returned to the caller.
+        //
+        // NOTE: `bytes_read` should only ever be 0 when indicating that we've finished
+        // enumerating the directory, in which case we should have already returned
+        // `None`. But we perform an extra check here to make sure we don't overflow
+        // when doing `bytes_read - 1` if there is a case where `bytes_read` can be 0.
+        let name = if bytes_read > 0 {
+            // NOTE: `bytes_read` will include the terminating nul byte at the end of the C
+            // string, so we subtract 1 when creating the `String` to exclude that
+            // terminating byte.
+            let buf = Vec::try_alloc_from(&buf[..bytes_read - 1])?;
+            String::from_utf8(buf)?
+        } else {
+            panic!("`storage_read_dir` returned file name length 0");
+        };
+
+        Ok(Some((name, state)))
+    }
+}
+
+impl Iterator for DirIter {
+    type Item = Result<(String, FileState), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Always return `None` if we should no longer continue enumerating entries.
+        if self.finished {
+            return None;
+        }
+
+        let next = self.try_next().transpose();
+
+        // Once we yield `None` or an error once we want to effectively "fuse" the
+        // iterator so that we only return `None` going forward. This avoids the
+        // iterator getting stuck in a loop where it continues to yield errors forever
+        // if the underlying iterator gets into an invalid state (e.g. if the session is
+        // closed).
+        self.finished = match &next {
+            None | Some(Err(..)) => true,
+            _ => false,
+        };
+
+        next
+    }
+}
+
+impl Drop for DirIter {
+    fn drop(&mut self) {
+        // SAFETY: FFI call to underlying C API. The raw session handle is guaranteed to
+        // be valid until the `Session` object is dropped, and the raw dir state pointer
+        // is guaranteed to be valid until this point.
+        unsafe { sys::storage_close_dir(self.session, self.raw) }
+    }
+}
+
+/// The state of a file when listing directory entries.
+///
+/// Part of the element yielded by [`DirIter`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FileState {
+    /// The file is committed and has not been removed in a pending transaction.
+    Committed,
+
+    /// The file will be added by the current transaction.
+    Added,
+
+    /// The file will be removed by the current transaction.
+    Removed,
 }
