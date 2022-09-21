@@ -18,6 +18,7 @@
 # args:
 # MODULE : module name (required)
 # MODULE_AIDLS: list of AIDL files
+# MODULE_AIDL_FLAGS: optional flags for the AIDL_TOOL binary
 
 MODULE_SRCS := $(call TOBUILDDIR,$(patsubst %.aidl,%.cpp,$(MODULE_AIDLS)))
 AIDL_HEADER_DIR := $(BUILDDIR)/include
@@ -33,11 +34,12 @@ MODULE_AIDL_INCLUDES := $(foreach dir,$(sort $(foreach src,$(MODULE_AIDLS),$(dir
 $(MODULE_SRCS): AIDL_TOOL := $(AIDL_TOOL)
 $(MODULE_SRCS): AIDL_HEADER_DIR := $(AIDL_HEADER_DIR)
 $(MODULE_SRCS): MODULE_AIDL_INCLUDES := $(MODULE_AIDL_INCLUDES)
+$(MODULE_SRCS): MODULE_AIDL_FLAGS := $(MODULE_AIDL_FLAGS)
 $(MODULE_SRCS): $(BUILDDIR)/%.cpp: %.aidl
 	@$(MKDIR)
 	@mkdir -p $(AIDL_HEADER_DIR)
 	@echo generating $@ from AIDL
-	$(NOECHO)$(AIDL_TOOL) --lang=cpp $(MODULE_AIDL_INCLUDES) -h $(AIDL_HEADER_DIR) -o $(dir $@) $<
+	$(NOECHO)$(AIDL_TOOL) --lang=cpp $(MODULE_AIDL_INCLUDES) -h $(AIDL_HEADER_DIR) -o $(dir $@) $< $(MODULE_AIDL_FLAGS)
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libstdc++-trusty \
@@ -50,5 +52,6 @@ include make/library.mk
 
 MODULE_AIDLS :=
 MODULE_AIDL_INCLUDES :=
+MODULE_AIDL_FLAGS :=
 AIDL_HEADER_DIR :=
 AIDL_TOOL :=
