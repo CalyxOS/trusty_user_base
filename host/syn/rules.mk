@@ -35,6 +35,7 @@ MODULE_RUSTFLAGS += \
 	--cfg 'feature="quote"' \
 	--cfg 'feature="visit"' \
 	--cfg 'feature="visit-mut"' \
+	--allow rustdoc::broken-intra-doc-links \
 
 MODULE_LIBRARY_DEPS := \
 	trusty/user/base/host/proc-macro2 \

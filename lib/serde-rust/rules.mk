@@ -28,6 +28,7 @@ MODULE_RUSTFLAGS += \
 	--cfg 'feature="alloc"' \
 	--cfg 'feature="derive"' \
 	--cfg 'feature="serde_derive"' \
+	--allow rustdoc::broken-intra-doc-links \
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/liballoc-rust \

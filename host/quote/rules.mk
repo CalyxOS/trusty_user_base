@@ -26,6 +26,7 @@ MODULE_RUST_EDITION := 2018
 MODULE_RUSTFLAGS += \
 	--cfg 'feature="default"' \
 	--cfg 'feature="proc-macro"' \
+	--allow rustdoc::broken-intra-doc-links \
 
 MODULE_LIBRARY_DEPS := \
 	trusty/user/base/host/proc-macro2 \

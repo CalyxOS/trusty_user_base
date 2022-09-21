@@ -47,6 +47,7 @@ MODULE_RUSTFLAGS += \
 MODULE_RUSTFLAGS += \
 	-A unused-variables \
 	-A non-fmt-panics \
+	-A deprecated \
 
 MODULE_ADD_IMPLICIT_DEPS := false
 
