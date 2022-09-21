@@ -32,7 +32,7 @@ MODULE_RUSTFLAGS += \
 	--cfg 'libc_priv_mod_use' \
 	--cfg 'libc_union' \
 	--cfg 'libc_const_size_of' \
-	--cfg 'libc__align' \
+	--cfg 'libc_align' \
 	--cfg 'libc_core_cvoid' \
 	--cfg 'libc_packedN' \
 	--cfg 'libc_thread_local' \
