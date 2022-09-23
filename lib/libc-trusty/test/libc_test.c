@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <ctype.h>
 #include <elf.h>
 #include <endian.h>
 #include <errno.h>
@@ -821,6 +822,21 @@ TEST_F(libc, SnprintfModifierNotUsedTest) {
              5);
 
     EXPECT_STREQ(buffer, "hex: 2x pointer: 0x3x unsigned: 4x signed: 5x");
+}
+
+TEST_F(libc, UnsignedOverflowMacros) {
+    for (int i = 0; i < 0x100; i++) {
+        // When the macros defined in ctype.h are used for these functions, they
+        // trigger UBSAN for a subset of the inputs. Otherwise the function
+        // calls are likely optimized out since the results aren't used.
+        (void)isalpha(i);
+        (void)isdigit(i);
+        (void)islower(i);
+        (void)isupper(i);
+        (void)isprint(i);
+        (void)isgraph(i);
+        (void)isspace(i);
+    }
 }
 
 PORT_TEST(libc, "com.android.libctest");
