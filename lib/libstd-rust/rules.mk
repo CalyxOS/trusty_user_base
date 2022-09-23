@@ -59,4 +59,6 @@ else
 $(error Unrecognized arch $(ARCH), expected arm or arm64)
 endif
 
+MODULE_SKIP_DOCS := true
+
 include make/library.mk

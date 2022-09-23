@@ -699,14 +699,16 @@ pub enum Port {
 
     /// Provides storage that will be preserved during a normal device wipe.
     ///
-    /// Also provides tamper and rollback protection, same as [`TamperDetect`].
+    /// Also provides tamper and rollback protection, same as
+    /// [`TamperDetect`][Self::TamperDetect].
     TamperDetectPersist,
 
     /// Provides access to storage before the non-secure OS has booted.
     ///
-    /// Also provides tamper and rollback protection, same as [`TamperDetect`]. This
-    /// storage might also not be wiped when device user data is wiped (i.e. during
-    /// a factory reset), but that property is not guaranteed.
+    /// Also provides tamper and rollback protection, same as
+    /// [`TamperDetect`][Self::TamperDetect]. This storage might also not be wiped
+    /// when device user data is wiped (i.e. during a factory reset), but that
+    /// property is not guaranteed.
     TamperDetectEarlyAccess,
 
     /// Provides tamper-proof storage.
