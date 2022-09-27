@@ -137,5 +137,6 @@ ssize_t read_msg(handle_t handle,
                  ipc_msg_t* msg);
 int put_msg(handle_t handle, uint32_t msg_id);
 ssize_t send_msg(handle_t handle, ipc_msg_t* msg);
+handle_t dup(handle_t handle);
 
 __END_CDECLS

@@ -75,3 +75,7 @@ int put_msg(handle_t handle, uint32_t msg_id) {
 ssize_t send_msg(handle_t handle, struct ipc_msg* msg) {
     return _trusty_send_msg(handle, msg);
 }
+
+handle_t dup(handle_t handle) {
+    return _trusty_dup(handle);
+}
