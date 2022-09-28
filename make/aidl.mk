@@ -39,7 +39,8 @@ $(MODULE_SRCS): $(BUILDDIR)/%.cpp: %.aidl
 	@$(MKDIR)
 	@mkdir -p $(AIDL_HEADER_DIR)
 	@echo generating $@ from AIDL
-	$(NOECHO)$(AIDL_TOOL) --lang=cpp $(MODULE_AIDL_INCLUDES) -h $(AIDL_HEADER_DIR) -o $(dir $@) $(MODULE_AIDL_FLAGS) $<
+	$(NOECHO)$(AIDL_TOOL) --lang=cpp --structured $(MODULE_AIDL_INCLUDES) \
+		-h $(AIDL_HEADER_DIR) -o $(dir $@) $(MODULE_AIDL_FLAGS) $<
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libstdc++-trusty \
