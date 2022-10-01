@@ -1,4 +1,5 @@
 #!/bin/sh
+# pylint: disable=pointless-string-statement,wrong-import-position
 "." "`dirname $0`/../../../vendor/google/aosp/scripts/envsetup.sh"
 "exec" "$PY3" "$0" "$@"
 
@@ -88,11 +89,13 @@ class TestManifest(unittest.TestCase):
         ]
 
         for msg, int_value, expected_value in cases:
-            with self.subTest(msg, value=int_value, expected_value=expected_value):
+            with self.subTest(msg, value=int_value,
+                              expected_value=expected_value):
                 constants = {}
                 log = manifest_compiler.Log()
                 config_data = {"data": int_value}
-                data = manifest_compiler.get_int(config_data, "data", constants, log)
+                data = manifest_compiler.get_int(config_data, "data", constants,
+                                                 log)
                 self.assertEqual(len(config_data), 0)
                 self.assertFalse(log.error_occurred())
                 self.assertEqual(data, expected_value)
@@ -111,7 +114,8 @@ class TestManifest(unittest.TestCase):
                 constants = {}
                 log = manifest_compiler.Log()
                 config_data = {"data": int_value}
-                data = manifest_compiler.get_int(config_data, "data", constants, log)
+                data = manifest_compiler.get_int(config_data, "data", constants,
+                                                 log)
                 self.assertEqual(len(config_data), 0)
                 self.assertTrue(log.error_occurred())
                 self.assertIsNone(data)
@@ -228,8 +232,7 @@ class TestManifest(unittest.TestCase):
         """Test with invalid value"""
         log = manifest_compiler.Log()
         config_data = {"data": 123}
-        _data = manifest_compiler.get_list(config_data, "data", log,
-                                           optional=True)
+        manifest_compiler.get_list(config_data, "data", log, optional=True)
         self.assertTrue(log.error_occurred())
 
     def test_get_dict_1(self):
@@ -262,8 +265,7 @@ class TestManifest(unittest.TestCase):
         """Test with invalid value"""
         log = manifest_compiler.Log()
         config_data = {"data": 123}
-        _data = manifest_compiler.get_dict(config_data, "data",
-                                           log, optional=True)
+        manifest_compiler.get_dict(config_data, "data", log, optional=True)
         self.assertTrue(log.error_occurred())
 
     def test_validate_uuid_1(self):
@@ -468,7 +470,7 @@ class TestManifest(unittest.TestCase):
                               "offset": "0x70001000"}]
 
         log = manifest_compiler.Log()
-        _mem_io_map_list = manifest_compiler.parse_mem_map(
+        manifest_compiler.parse_mem_map(
             mem_map_json_data, manifest_compiler.MEM_MAP, constants, log)
         self.assertTrue(log.error_occurred())
 
@@ -489,7 +491,7 @@ class TestManifest(unittest.TestCase):
         mem_map_json_data = [{"id": 1, "addr": "0x70000000"}]
 
         log = manifest_compiler.Log()
-        _mem_io_map_list = manifest_compiler.parse_mem_map(
+        manifest_compiler.parse_mem_map(
             mem_map_json_data, manifest_compiler.MEM_MAP, constants, log)
         self.assertTrue(log.error_occurred())
 
@@ -502,7 +504,7 @@ class TestManifest(unittest.TestCase):
         mem_map_json_data = ["id", 1, "addr", "0x70000000"]
 
         log = manifest_compiler.Log()
-        _mem_io_map_list = manifest_compiler.parse_mem_map(
+        manifest_compiler.parse_mem_map(
             mem_map_json_data, manifest_compiler.MEM_MAP, constants, log)
         self.assertTrue(log.error_occurred())
 
@@ -516,7 +518,7 @@ class TestManifest(unittest.TestCase):
                        {"id": 1, "addr": "0x70000000"}}
 
         log = manifest_compiler.Log()
-        _mem_io_map_list = manifest_compiler.parse_mem_map(
+        manifest_compiler.parse_mem_map(
             manifest_compiler.get_list(
                 config_data, manifest_compiler.MEM_MAP, log,
                 optional=True),
@@ -639,7 +641,7 @@ class TestManifest(unittest.TestCase):
             manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: True}]}
 
         log = manifest_compiler.Log()
-        _mgmt_flags = manifest_compiler.parse_mgmt_flags(
+        manifest_compiler.parse_mgmt_flags(
             manifest_compiler.get_dict(
                 config_data, manifest_compiler.MGMT_FLAGS, log,
                 optional=True),
@@ -672,7 +674,7 @@ class TestManifest(unittest.TestCase):
         log = manifest_compiler.Log()
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
         start_ports_list = manifest_compiler.parse_app_start_ports(
             port_conf_data, manifest_compiler.START_PORTS, constants, log)
         self.assertFalse(log.error_occurred())
@@ -769,7 +771,7 @@ class TestManifest(unittest.TestCase):
             }]
 
         log = manifest_compiler.Log()
-        _start_ports_list = manifest_compiler.parse_app_start_ports(
+        manifest_compiler.parse_app_start_ports(
             start_ports_json_data, manifest_compiler.START_PORTS,
             constants, log)
         self.assertTrue(log.error_occurred())
@@ -784,14 +786,14 @@ class TestManifest(unittest.TestCase):
             }]
 
         log = manifest_compiler.Log()
-        _start_ports_list = manifest_compiler.parse_app_start_ports(
+        manifest_compiler.parse_app_start_ports(
             start_ports_json_data, manifest_compiler.START_PORTS,
             constants, log)
         self.assertTrue(log.error_occurred())
 
     def test_validate_app_name_1(self):
         log = manifest_compiler.Log()
-        _data = manifest_compiler.parse_app_name("", log)
+        manifest_compiler.parse_app_name("", log)
         self.assertTrue(log.error_occurred())
 
     def test_validate_app_name_2(self):
@@ -944,7 +946,7 @@ class TestManifest(unittest.TestCase):
                        manifest_compiler.START_PORT_NAME: TEST_PORT}
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
         data_uuid = manifest_compiler.get_string(
             config_data, manifest_compiler.UUID, constants, log)
         data_port = manifest_compiler.get_string(
@@ -975,24 +977,21 @@ class TestManifest(unittest.TestCase):
             }
         ]
         log = manifest_compiler.Log()
-        _constants = manifest_compiler.extract_config_constants(
-            constants_data, log)
+        manifest_compiler.extract_config_constants(constants_data, log)
         self.assertTrue(log.error_occurred())
 
     def test_const_config_3(self):
         """Test constant config no constants"""
         constants_data = [{"header": "test_uuid.h", "constants": []}]
         log = manifest_compiler.Log()
-        _constants = manifest_compiler.extract_config_constants(
-            constants_data, log)
+        manifest_compiler.extract_config_constants(constants_data, log)
         self.assertFalse(log.error_occurred())
 
     def test_const_config_4(self):
         """Test constant config with missing header field"""
         constants_data = [{"constants": []}]
         log = manifest_compiler.Log()
-        _constants = manifest_compiler.extract_config_constants(
-            constants_data, log)
+        manifest_compiler.extract_config_constants(constants_data, log)
         self.assertTrue(log.error_occurred())
 
     def test_const_config_5(self):
@@ -1017,11 +1016,11 @@ class TestManifest(unittest.TestCase):
         log = manifest_compiler.Log()
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
         self.assertFalse(log.error_occurred())
-        _data = manifest_compiler.get_string(config_data,
-                                             manifest_compiler.START_PORT_NAME,
-                                             constants, log)
+        manifest_compiler.get_string(config_data,
+                                     manifest_compiler.START_PORT_NAME,
+                                     constants, log)
         self.assertTrue(log.error_occurred())
 
     def test_const_config_6(self):
@@ -1034,8 +1033,7 @@ class TestManifest(unittest.TestCase):
         }]
 
         log = manifest_compiler.Log()
-        _conf_constants = manifest_compiler.extract_config_constants(
-            constants_data, log)
+        manifest_compiler.extract_config_constants(constants_data, log)
         self.assertTrue(log.error_occurred())
 
     def test_const_config_7(self):
@@ -1055,7 +1053,7 @@ class TestManifest(unittest.TestCase):
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
         self.assertFalse(log.error_occurred())
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
         self.assertFalse(log.error_occurred())
         data = manifest_compiler.get_int(config_data,
                                          manifest_compiler.MIN_HEAP,
@@ -1080,7 +1078,7 @@ class TestManifest(unittest.TestCase):
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
         self.assertFalse(log.error_occurred())
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
         self.assertFalse(log.error_occurred())
         data = manifest_compiler.get_int(config_data,
                                          manifest_compiler.MIN_HEAP,
@@ -1102,8 +1100,7 @@ class TestManifest(unittest.TestCase):
         }]
 
         log = manifest_compiler.Log()
-        _conf_constants = manifest_compiler.extract_config_constants(
-            constants_data, log)
+        manifest_compiler.extract_config_constants(constants_data, log)
         self.assertTrue(log.error_occurred())
 
     def test_const_config_10(self):
@@ -1123,7 +1120,7 @@ class TestManifest(unittest.TestCase):
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
         self.assertFalse(log.error_occurred())
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
         self.assertFalse(log.error_occurred())
         data = manifest_compiler.get_boolean(
             config_data, manifest_compiler.START_PORT_ALLOW_TA_CONNECT,
@@ -1407,7 +1404,7 @@ class TestManifest(unittest.TestCase):
 
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
 
         # Pack manifest config_data
         # Unpack the binary packed data to JSON text
@@ -1457,11 +1454,9 @@ class TestManifest(unittest.TestCase):
             manifest_compiler.PINNED_CPU: 3
         }
 
-        '''
-        Pack manifest config_data
-        Unpack the binary packed data to JSON text
-        Validate unpacked JSON text
-        '''
+        # Pack manifest config_data
+        # Unpack the binary packed data to JSON text
+        # Validate unpacked JSON text
         self.assertEqual(
             manifest_compiler.manifest_data_to_json(config_ref_data),
             manifest_compiler.unpack_binary_manifest_to_json(
@@ -1517,7 +1512,7 @@ class TestManifest(unittest.TestCase):
 
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
 
         # Pack manifest config_data
         # Unpack the binary packed data to JSON text
@@ -1585,7 +1580,7 @@ class TestManifest(unittest.TestCase):
 
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
 
         # Pack manifest config_data
         # Unpack the binary packed data to JSON text
@@ -1646,7 +1641,7 @@ class TestManifest(unittest.TestCase):
 
         conf_constants = manifest_compiler.extract_config_constants(
             constants_data, log)
-        constants = manifest_compiler.index_constants(conf_constants, log)
+        constants = manifest_compiler.index_constants(conf_constants)
 
         # Pack manifest config_data
         # Unpack the binary packed data to JSON text
@@ -1666,7 +1661,7 @@ def pack_manifest_config_data(self, config_data, log, constants):
     self.assertFalse(log.error_occurred())
 
     # pack manifest config data
-    packed_data = manifest_compiler.pack_manifest_data(manifest, log)
+    packed_data = manifest_compiler.pack_manifest_data(manifest)
     self.assertEqual(len(config_data), 0)
     self.assertFalse(log.error_occurred())
     self.assertIsNotNone(packed_data)

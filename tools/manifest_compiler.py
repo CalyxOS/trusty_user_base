@@ -1,4 +1,5 @@
 #!/bin/sh
+# pylint: disable=pointless-string-statement,wrong-import-position
 "." "`dirname $0`/../../../vendor/google/aosp/scripts/envsetup.sh"
 "exec" "$PY3" "$0" "$@"
 
@@ -213,11 +214,11 @@ class StartPort(object):
 
 
 class MemIOMap(object):
-    def __init__(self, id_, addr, size, type, non_secure):
+    def __init__(self, id_, addr, size, type_, non_secure):
         self.id = id_
         self.addr = addr
         self.size = size
-        self.type = type
+        self.type = type_
         self.non_secure = non_secure
 
 
@@ -274,7 +275,7 @@ class Log(object):
         self.error_count = 0
 
     def error(self, msg):
-        sys.stderr.write("Error: {}\n".format(msg))
+        sys.stderr.write(f"Error: {msg}\n")
         self.error_count += 1
 
     def error_occurred(self):
@@ -300,8 +301,7 @@ def get_constant(constants, key, type_, log):
         return None
 
     if const.type != type_:
-        log.error("{} constant type mismatch, expected type is {}"
-                  .format(key, type_))
+        log.error(f"{key} constant type mismatch, expected type is {type_}")
         return None
 
     return const.value
@@ -310,13 +310,12 @@ def get_constant(constants, key, type_, log):
 def get_string(manifest_dict, key, constants, log, optional=False,
                default=None):
     """
-    Determines whether the value for the given key in dictionary is of type string
-    and if it is a string then returns the value.
+    Determines whether the value for the given key in dictionary is of type
+    string and if it is a string then returns the value.
     """
     if key not in manifest_dict:
         if not optional:
-            log.error("Manifest is missing required attribute - {}"
-                      .format(key))
+            log.error(f"Manifest is missing required attribute - {key}")
         return default
 
     value = manifest_dict.pop(key)
@@ -335,8 +334,7 @@ def coerce_to_string(value, key, log):
     if not isinstance(value, str):
         log.error(
             "Invalid value for" +
-            " {} - \"{}\", Valid string value is expected"
-            .format(key, value))
+            f" {key} - \"{value}\", Valid string value is expected")
         return None
 
     return value
@@ -345,13 +343,12 @@ def coerce_to_string(value, key, log):
 def get_int(manifest_dict, key, constants, log, optional=False,
             default=None):
     """
-    Determines whether the value for the given key in dictionary is of type integer
-    and if it is int then returns the value
+    Determines whether the value for the given key in dictionary is of type
+    integer and if it is int then returns the value
     """
     if key not in manifest_dict:
         if not optional:
-            log.error("Manifest is missing required attribute - {}"
-                      .format(key))
+            log.error(f"Manifest is missing required attribute - {key}")
         return default
 
     value = manifest_dict.pop(key)
@@ -370,14 +367,12 @@ def coerce_to_int(value, key, log):
         try:
             return int(value, 0)
         except ValueError:
-            log.error("Invalid value for" +
-                      " {} - \"{}\", valid integer or hex string is expected"
-                      .format(key, value))
+            log.error(f"Invalid value for {key} - \"{value}\", " +
+                      "valid integer or hex string is expected")
             return None
     else:
         log.error("Invalid value for" +
-                  " {} - \"{}\", valid integer value is expected"
-                  .format(key, value))
+                  f" {key} - \"{value}\", valid integer value is expected")
         return None
 
 
@@ -388,8 +383,7 @@ def get_list(manifest_dict, key, log, optional=False, default=None):
     """
     if key not in manifest_dict:
         if not optional:
-            log.error("Manifest is missing required attribute - {}"
-                      .format(key))
+            log.error(f"Manifest is missing required attribute - {key}")
         return default
 
     return coerce_to_list(manifest_dict.pop(key), key, log)
@@ -398,8 +392,7 @@ def get_list(manifest_dict, key, log, optional=False, default=None):
 def coerce_to_list(value, key, log):
     if not isinstance(value, list):
         log.error("Invalid value for" +
-                  " {} - \"{}\", valid list is expected"
-                  .format(key, value))
+                  f" {key} - \"{value}\", valid list is expected")
         return None
 
     return value
@@ -413,8 +406,7 @@ def get_dict(manifest_dict, key, log, optional=False, default=None):
     """
     if key not in manifest_dict:
         if not optional:
-            log.error("Manifest is missing required attribute - {}"
-                      .format(key))
+            log.error(f"Manifest is missing required attribute - {key}")
         return default
 
     return coerce_to_dict(manifest_dict.pop(key), key, log)
@@ -423,8 +415,7 @@ def get_dict(manifest_dict, key, log, optional=False, default=None):
 def coerce_to_dict(value, key, log):
     if not isinstance(value, dict):
         log.error("Invalid value for" +
-                  " {} - \"{}\", valid dict is expected"
-                  .format(key, value))
+                  f" {key} - \"{value}\", valid dict is expected")
         return None
 
     return value
@@ -433,13 +424,12 @@ def coerce_to_dict(value, key, log):
 def get_boolean(manifest_dict, key, constants, log, optional=False,
                 default=None):
     """
-    Determines whether the value for the given key in dictionary is of type boolean
-    and if it is boolean then returns the value
+    Determines whether the value for the given key in dictionary is of type
+    boolean and if it is boolean then returns the value
     """
     if key not in manifest_dict:
         if not optional:
-            log.error("Manifest is missing required attribute - {}"
-                      .format(key))
+            log.error(f"Manifest is missing required attribute - {key}")
         return default
 
     value = manifest_dict.pop(key)
@@ -454,8 +444,7 @@ def coerce_to_boolean(value, key, log):
     if not isinstance(value, bool):
         log.error(
             "Invalid value for" +
-            " {} - \"{}\", Valid boolean value is expected"
-            .format(key, value))
+            f" {key} - \"{value}\", Valid boolean value is expected")
         return None
 
     return value
@@ -464,8 +453,7 @@ def coerce_to_boolean(value, key, log):
 def get_uuid(manifest_dict, key, constants, log, optional=False, default=None):
     if key not in manifest_dict:
         if not optional:
-            log.error("Manifest is missing required attribute - {}"
-                      .format(key))
+            log.error(f"Manifest is missing required attribute - {key}")
         return default
 
     uuid = get_string(manifest_dict, key, {}, log, optional, default)
@@ -530,16 +518,11 @@ def parse_memory_size(memory_size, memory_kind, log, zero_is_ok=True):
         return None
 
     if memory_size == 0 and not zero_is_ok:
-        log.error(
-            "{}: Minimum memory size cannot be zero."
-                .format(memory_kind)
-        )
+        log.error(f"{memory_kind}: Minimum memory size cannot be zero.")
         return None
     elif memory_size < 0 or memory_size % 4096 != 0:
-        log.error(
-            "{}: {}, Minimum memory size should be "
-            .format(memory_kind, memory_size) +
-            "non-negative multiple of 4096")
+        log.error(f"{memory_kind}: {memory_size}, Minimum memory size should " +
+                  "be a non-negative multiple of 4096")
         return None
 
     return memory_size
@@ -556,10 +539,9 @@ def parse_shadow_stack_size(stack_size, log):
     # shadow call stack is only supported on arm64 where pointers are 8 bytes
     ptr_size = 8
     if stack_size < 0 or stack_size % ptr_size != 0:
-        log.error(
-            "{}: {}, Minimum shadow stack size should be "
-            .format(MIN_SHADOW_STACK, stack_size) +
-            "non-negative multiple of the native pointer size")
+        log.error(f"{MIN_SHADOW_STACK}: {stack_size}, Minimum shadow stack " +
+                  "size should be a non-negative multiple of the native " +
+                  "pointer size")
         return None
 
     return stack_size
@@ -569,8 +551,7 @@ def parse_mem_map_type(mem_map_type, log):
     if mem_map_type not in {MEM_MAP_TYPE_CACHED,
                             MEM_MAP_TYPE_UNCACHED,
                             MEM_MAP_TYPE_UNCACHED_DEVICE}:
-        log.error("Unknown mem_map.type entry in manifest: {} "
-                  .format(mem_map_type))
+        log.error(f"Unknown mem_map.type entry in manifest: {mem_map_type}")
 
     return mem_map_type
 
@@ -596,8 +577,8 @@ def parse_mem_map(mem_maps, key, constants, log):
                         optional=True)
         )
         if mem_map_entry:
-            log.error("Unknown attributes in mem_map entries in manifest: {} "
-                      .format(mem_map_entry))
+            log.error("Unknown attributes in mem_map entries in "
+                      f"manifest: {mem_map_entry}")
         mem_io_maps.append(mem_map)
 
     return mem_io_maps
@@ -617,8 +598,8 @@ def parse_mgmt_flags(flags, constants, log):
     )
 
     if flags:
-        log.error("Unknown attributes in mgmt_flags entries in manifest: {} "
-                  .format(flags))
+        log.error("Unknown attributes in mgmt_flags entries in " +
+                  f"manifest: {flags}")
 
     return mgmt_flags
 
@@ -633,9 +614,8 @@ def parse_apploader_flags(flags, constants, log):
     )
 
     if flags:
-        log.error(
-            "Unknown attributes in apploader_flags entries in manifest: {} "
-                .format(flags))
+        log.error("Unknown attributes in apploader_flags entries in " +
+                  f"manifest: {flags}")
 
     return apploader_flags
 
@@ -650,8 +630,8 @@ def parse_app_start_ports(start_port_list, key, constants, log):
 
         name = get_port(port_entry, START_PORT_NAME, constants, log)
         if len(name) >= IPC_PORT_PATH_MAX:
-            log.error("Length of start port name should be less than {}"
-                      .format(IPC_PORT_PATH_MAX))
+            log.error("Length of start port name should be less than " +
+                      str(IPC_PORT_PATH_MAX))
 
         flags = get_dict(port_entry, START_PORT_FLAGS, log)
         start_ports_flag = None
@@ -664,10 +644,10 @@ def parse_app_start_ports(start_port_list, key, constants, log):
 
         if port_entry:
             log.error("Unknown attributes in start_ports entries" +
-                      " in manifest: {} ".format(port_entry))
+                      f" in manifest: {port_entry}")
         if flags:
             log.error("Unknown attributes in start_ports.flags entries" +
-                      " in manifest: {} ".format(flags))
+                      f" in manifest: {flags}")
 
         start_ports.append(StartPort(name, len(name), start_ports_flag))
 
@@ -747,7 +727,7 @@ def parse_manifest_config(manifest_dict, constants, default_app_name, log):
 
     # look for any extra attributes
     if manifest_dict:
-        log.error("Unknown attributes in manifest: {} ".format(manifest_dict))
+        log.error(f"Unknown attributes in manifest: {manifest_dict} ")
 
     if log.error_occurred():
         return None
@@ -821,12 +801,12 @@ def pack_inline_string(value):
     """
     size = len(value) + 1
     pad_len = 3 - (size + 3) % 4
-    packed = struct.pack("I", size) + value.encode() + b'\0' + pad_len * b'\0'
+    packed = struct.pack("I", size) + value.encode() + b"\0" + pad_len * b"\0"
     assert len(packed) % 4 == 0
     return packed
 
 
-def pack_manifest_data(manifest, log):
+def pack_manifest_data(manifest):
     """
     Creates Packed data from extracted manifest data
     Writes the packed data to binary file
@@ -1008,8 +988,10 @@ def unpack_binary_manifest_to_data(packed_data):
             (name_size,), packed_data = struct.unpack(
                 "I", packed_data[:4]), packed_data[4:]
             # read the name without a trailing null character
-            start_port_entry[START_PORT_NAME], packed_data = \
-                packed_data[:name_size - 1].decode(), packed_data[name_size - 1:]
+            start_port_entry[START_PORT_NAME], packed_data = (
+                packed_data[:name_size - 1].decode(),
+                packed_data[name_size - 1:]
+            )
             # discard trailing null characters
             # it includes trailing null character of a string and null padding
             pad_len = 1 + 3 - (name_size + 3) % 4
@@ -1047,7 +1029,7 @@ def unpack_binary_manifest_to_data(packed_data):
                 apploader_flag[APPLOADER_FLAGS_REQUIRES_ENCRYPTION] = True
             manifest[APPLOADER_FLAGS] = apploader_flag
         else:
-            raise Exception("Unknown tag: {}".format(tag))
+            raise Exception(f"Unknown tag: {tag}")
 
     return manifest
 
@@ -1059,14 +1041,12 @@ def write_packed_data_to_bin_file(packed_data, output_file, log):
             out_file.write(packed_data)
             out_file.close()
     except IOError as ex:
-        log.error(
-            "Unable to write to output file: {}"
-            .format(output_file) + "\n" + str(ex))
+        log.error(f"Unable to write to output file: {output_file}\n" + str(ex))
 
 
 def read_json_config_file(input_file, log):
     try:
-        with open(input_file, "r") as read_file:
+        with open(input_file, "r", encoding="utf-8") as read_file:
             manifest_dict = json.load(read_file)
         return manifest_dict
     except IOError as ex:
@@ -1089,45 +1069,44 @@ def read_config_constants(const_config_files, log):
     return const_configs_list
 
 
-def define_integer_const_entry(const, log):
+def define_integer_const_entry(const):
     text = hex(const.value) if const.hex_num else str(const.value)
     if const.unsigned:
         text += "U"
 
-    return "#define {} ({})\n".format(const.name, text)
+    return f"#define {const.name} ({text})\n"
 
 
-def define_string_const_entry(const, log):
-    return "#define {} {}\n".format(const.name, json.dumps(const.value))
+def define_string_const_entry(const):
+    return f"#define {const.name} {json.dumps(const.value)}\n"
 
 
-def define_bool_const_entry(const, log):
-    return "#define {} ({})\n".format(const.name, json.dumps(const.value))
+def define_bool_const_entry(const):
+    return f"#define {const.name} ({json.dumps(const.value)})\n"
 
 
-def define_uuid_const_entry(const, log):
+def define_uuid_const_entry(const):
     uuid = const.value.hex()
 
     part = ", ".join(
         ["0x" + uuid[index:index + 2] for index in range(16, len(uuid), 2)])
 
-    value = "{{0x{}, 0x{}, 0x{}, {{ {} }}}}\n".format(
-        uuid[:8], uuid[8:12], uuid[12:16], part)
+    value = f"{{0x{uuid[:8]}, 0x{uuid[8:12]}, 0x{uuid[12:16]}, {{ {part} }}}}\n"
 
-    return "#define {} {}".format(const.name, value)
+    return f"#define {const.name} {value}"
 
 
-def create_header_entry(constant, log):
+def create_header_entry(constant):
     if constant.type == CONST_PORT:
-        return define_string_const_entry(constant, log)
+        return define_string_const_entry(constant)
     elif constant.type == CONST_UUID:
-        return define_uuid_const_entry(constant, log)
+        return define_uuid_const_entry(constant)
     elif constant.type == CONST_INT:
-        return define_integer_const_entry(constant, log)
+        return define_integer_const_entry(constant)
     elif constant.type == CONST_BOOL:
-        return define_bool_const_entry(constant, log)
+        return define_bool_const_entry(constant)
     else:
-        raise Exception("Unknown tag: {}".format(constant.type))
+        raise Exception(f"Unknown tag: {constant.type}")
 
 
 def write_consts_to_header_file(const_config, header_dir, log):
@@ -1141,16 +1120,14 @@ def write_consts_to_header_file(const_config, header_dir, log):
         os.makedirs(dir_name)
 
     try:
-        with open(header_file, "w") as out_file:
+        with open(header_file, "w", encoding="utf-8") as out_file:
             out_file.write("#pragma once\n")
             out_file.write("#include <stdbool.h>\n\n")
             for const in const_config.constants:
-                header_entries = create_header_entry(const, log)
+                header_entries = create_header_entry(const)
                 out_file.write(header_entries)
     except IOError as ex:
-        log.error(
-            "Unable to write to header file: {}"
-            .format(header_file) + "\n" + str(ex))
+        log.error(f"Unable to write to header file: {header_file}\n" + str(ex))
 
 
 def parse_constant(constant, log):
@@ -1176,7 +1153,7 @@ def parse_constant(constant, log):
         value = get_boolean(constant, CONST_VALUE, {}, log)
         return Constant(name, value, const_type)
     else:
-        log.error("Unknown constant type: {}".format(const_type))
+        log.error("Unknown constant type: {const_type}")
 
 
 def parse_config_constant(const_config, log):
@@ -1196,12 +1173,10 @@ def parse_config_constant(const_config, log):
             continue
         constants.append(parse_constant(item, log))
         if item:
-            log.error("Unknown attributes in constant: {} "
-                      .format(item))
+            log.error("Unknown attributes in constant: {item}")
 
     if const_config:
-        log.error("Unknown attributes in constants config: {} "
-                  .format(const_config))
+        log.error(f"Unknown attributes in constants config: {const_config}")
 
     return ConfigConstants(constants, header_file)
 
@@ -1239,7 +1214,7 @@ def process_config_constants(const_config_files, header_dir, log):
     return config_constants
 
 
-def index_constants(config_constants, log):
+def index_constants(config_constants):
     constants = {}
     for const_config in config_constants:
         for const in const_config.constants:
@@ -1248,7 +1223,7 @@ def index_constants(config_constants, log):
     return constants
 
 
-def main(argv):
+def main():
     """
     Handles the command line arguments
     Parses the given manifest input file and creates packed data
@@ -1329,19 +1304,18 @@ def main(argv):
     if not args.output_filename:
         return 0
 
-    constants = index_constants(config_constants, log)
+    constants = index_constants(config_constants)
 
     if not os.path.exists(args.input_filename):
         log.error(
-            "Manifest config JSON file doesn't exist: {}"
-                .format(args.input_filename))
+            f"Manifest config JSON file doesn't exist: {args.input_filename}")
         return 1
 
     manifest_dict = read_json_config_file(args.input_filename, log)
     if log.error_occurred():
         return 1
 
-    # By default app directory name will be used as app-name
+    # By default, app directory name will be used as app-name
     default_app_name = os.path.basename(os.path.dirname(args.input_filename))
 
     # parse the manifest config
@@ -1368,7 +1342,7 @@ def main(argv):
            (manifest.min_shadow_stack == 0)
 
     # Pack the data as per C structures
-    packed_data = pack_manifest_data(manifest, log)
+    packed_data = pack_manifest_data(manifest)
     if log.error_occurred():
         return 1
 
@@ -1381,4 +1355,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
