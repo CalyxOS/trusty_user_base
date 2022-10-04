@@ -94,6 +94,8 @@ include make/module.mk
 else  # TRUSTY_NEW_MODULE_SYSTEM is true
 
 ifeq ($(call TOBOOL,$(BUILD_AS_RUST_TEST_MODULE)),true)
+# Disable Rust tests on architectures that do not support Rust
+ifeq ($(call TOBOOL,$(ARCH_$(ARCH)_SUPPORTS_RUST)),true)
 $(info Building $(MODULE) as a rust test service)
 MODULE := $(MODULE)-test
 MODULE_RUSTFLAGS += --test
@@ -109,6 +111,7 @@ TRUSTY_RUST_USER_TESTS += $(MODULE)
 
 include make/trusted_app.mk
 
+endif
 else # Not building rust test app
 
 # Build with the new module system. Currently, the Trusty userspace libraries
@@ -124,7 +127,13 @@ MODULE_IS_RUST := true
 ifeq ($(strip $(MODULE_RUST_CRATE_TYPES)),)
 MODULE_RUST_CRATE_TYPES := rlib
 endif
+# Disable Rust modules on architectures that do not support Rust
+ifeq ($(call TOBOOL,$(ARCH_$(ARCH)_SUPPORTS_RUST)),false)
+MODULE_DISABLED := true
 endif
+endif
+
+ifeq ($(call TOBOOL,$(MODULE_DISABLED)),false)
 
 ifneq ($(filter proc-macro,$(MODULE_RUST_CRATE_TYPES)),)
 
@@ -611,6 +620,7 @@ DEPENDENCY_MODULE_PATH := $(MODULE)
 include make/userspace_recurse.mk
 endif
 
+endif # module is not disabled
 endif # not building rust test app
 endif # building userspace module
 
@@ -627,6 +637,7 @@ MODULE_RSOBJS :=
 MODULE_RUSTDOC_OBJECT :=
 MODULE_RUSTDOCFLAGS :=
 MODULE_SKIP_DOCS :=
+MODULE_DISABLED :=
 MODULE_SDK_LIB_NAME :=
 MODULE_SDK_HEADER_INSTALL_DIR :=
 MODULE_SDK_HEADERS :=
