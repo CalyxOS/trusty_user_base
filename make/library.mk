@@ -393,6 +393,13 @@ MODULE_RUSTFLAGS += $(addprefix --extern ,$(MODULE_RLIBS))
 MODULE_RUSTFLAGS_PRELINK := $(MODULE_RUSTFLAGS)
 MODULE_RUSTFLAGS += --emit link
 
+# Allow all lints if the module is in external/. This matches the behavior of
+# soong.
+ifneq ($(filter external/%,$(MODULE_SRCS)),)
+MODULE_RUSTFLAGS += --cap-lints allow
+MODULE_RUSTDOCFLAGS += --cap-lints allow
+endif
+
 MODULE_RSOBJS :=
 
 ifneq ($(filter proc-macro,$(MODULE_RUST_CRATE_TYPES)),)
