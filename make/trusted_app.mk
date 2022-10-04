@@ -110,17 +110,6 @@ endif
 
 TRUSTY_APP_TOOLCHAIN_PREFIX := $(ARCH_$(ARCH)_TOOLCHAIN_PREFIX)
 
-# TODO: we could find the runtime like this.
-# TRUSTY_APP_LIBGCC := $(shell $(CC) $(GLOBAL_COMPILEFLAGS) $(ARCH_$(ARCH)_COMPILEFLAGS) $(THUMBCFLAGS) --rtlib=compiler-rt -print-libgcc-file-name)
-# However the compiler currently does not contain non-x86 prebuilts for the
-# linux-gnu ABI. We could either get those prebuilts added to the toolchain or
-# switch to the android ABI.
-# Note there are two copies of compiler-rt in the toolchain - framework and NDK.
-# We're using the NDK version because the path is more stable and the difference
-# should not matter for this library. (The main difference is which version of
-# libcxx they link against, and the builtins do not use C++.)
-TRUSTY_APP_LIBGCC := $(CLANG_BINDIR)/../runtimes_ndk_cxx/libclang_rt.builtins-$(STANDARD_ARCH_NAME)-android.a
-
 TRUSTY_APP_LD := $(CLANG_BINDIR)/ld.lld
 TRUSTY_APP_OBJCOPY := $(CLANG_BINDIR)/llvm-objcopy
 TRUSTY_APP_STRIP := $(CLANG_BINDIR)/llvm-strip
