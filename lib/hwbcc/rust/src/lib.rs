@@ -54,7 +54,7 @@ use trusty_sys::{c_long, Error};
 #[repr(u32)]
 enum BccCmd {
     RespBit = hwbcc_cmd_HWBCC_CMD_RESP_BIT,
-    SignKey = hwbcc_cmd_HWBCC_CMD_SIGN_KEY,
+    SignData = hwbcc_cmd_HWBCC_CMD_SIGN_DATA,
     GetBcc = hwbcc_cmd_HWBCC_CMD_GET_BCC,
     GetDiceArtifacts = hwbcc_cmd_HWBCC_CMD_GET_DICE_ARTIFACTS,
     NsDeprivilege = hwbcc_cmd_HWBCC_CMD_NS_DEPRIVILEGE,
@@ -93,31 +93,38 @@ impl<'s> Serialize<'s> for BccMsgHeader {
     }
 }
 
-/// Request to sign a key.
-struct SignKeyMsg<'a> {
+/// Request to sign data.
+struct SignDataMsg<'a> {
     header: BccMsgHeader,
-    /// Contains signing algorithm, key size, aad size
+    /// Contains signing algorithm, data size, aad size
     algorithm: SigningAlgorithm,
-    key: &'a [u8],
+    data: &'a [u8],
     // size is needed for reference in serialization
-    key_size: u16,
+    data_size: u16,
     aad: &'a [u8],
     // size is needed for reference in serialization
     aad_size: u32,
 }
 
-impl<'a> SignKeyMsg<'a> {
+impl<'a> SignDataMsg<'a> {
     fn new(
         header: BccMsgHeader,
         algorithm: SigningAlgorithm,
-        key: &'a [u8],
+        data: &'a [u8],
         aad: &'a [u8],
     ) -> Self {
-        Self { header, algorithm, key, key_size: key.len() as u16, aad, aad_size: aad.len() as u32 }
+        Self {
+            header,
+            algorithm,
+            data,
+            data_size: data.len() as u16,
+            aad,
+            aad_size: aad.len() as u32,
+        }
     }
 }
 
-impl<'s> Serialize<'s> for SignKeyMsg<'s> {
+impl<'s> Serialize<'s> for SignDataMsg<'s> {
     fn serialize<'a: 's, S: Serializer<'s>>(
         &'a self,
         serializer: &mut S,
@@ -128,10 +135,10 @@ impl<'s> Serialize<'s> for SignKeyMsg<'s> {
         //  corresponding C representations
         unsafe {
             serializer.serialize_as_bytes(&self.algorithm)?;
-            serializer.serialize_as_bytes(&self.key_size)?;
+            serializer.serialize_as_bytes(&self.data_size)?;
             serializer.serialize_as_bytes(&self.aad_size)?;
         }
-        serializer.serialize_bytes(self.key)?;
+        serializer.serialize_bytes(self.data)?;
         serializer.serialize_bytes(self.aad)
     }
 }
@@ -237,7 +244,7 @@ fn read_payload(resp: HwBccResponse, buf: &mut [u8]) -> Result<&[u8], HwBccError
 pub struct DataResult<'a> {
     /// Boot certificate chain (BCC).
     pub bcc: &'a [u8],
-    /// COSE_Sign1 message containing the input MAC key signed with either device
+    /// COSE_Sign1 message containing the input data signed with either device
     /// private key or test key, which is also the leaf in the BCC.
     pub cose_sign1: &'a [u8],
 }
@@ -247,7 +254,7 @@ pub struct DataResult<'a> {
 /// Protected data returned to the client is comprised of two parts:
 /// 1. Boot certificate chain (BCC).
 ///    Client may request test values using `test_mode`.
-/// 2. COSE_Sign1 message containing the input `mac_key` signed with either device.
+/// 2. COSE_Sign1 message containing the input `data` signed with either device.
 ///    The user specifies which signing algorithm to use with `cose_algorithm`
 ///    and any additional authenticated data (AAD) in the `aad` buffer.
 ///
@@ -278,7 +285,7 @@ pub struct DataResult<'a> {
 pub fn get_protected_data<'a>(
     test_mode: HwBccMode,
     cose_algorithm: SigningAlgorithm,
-    key: &[u8],
+    data: &[u8],
     aad: &[u8],
     cose_sign1: &'a mut [u8],
     bcc: &'a mut [u8],
@@ -296,11 +303,11 @@ pub fn get_protected_data<'a>(
     let port = CStr::from_bytes_with_nul(HWBCC_PORT).expect("HWBCC_PORT was not null terminated");
     let session = Handle::connect(port)?;
 
-    // sign key
+    // sign data
 
-    let cmd = BccCmd::SignKey;
+    let cmd = BccCmd::SignData;
     let req =
-        SignKeyMsg::new(BccMsgHeader { cmd, test_mode, context: 0 }, cose_algorithm, key, aad);
+        SignDataMsg::new(BccMsgHeader { cmd, test_mode, context: 0 }, cose_algorithm, data, aad);
     session.send(&req)?;
 
     let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];

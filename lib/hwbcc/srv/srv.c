@@ -28,12 +28,13 @@
 
 struct hwbcc_req {
     struct hwbcc_req_hdr hdr;
-    struct hwbcc_req_sign_key args;
-    uint8_t key_and_aad[HWBCC_MAX_ENCODED_KEY_SIZE + HWBCC_MAX_AAD_SIZE];
+    struct hwbcc_req_sign_data args;
+    uint8_t data_and_aad[HWBCC_MAX_DATA_TO_SIGN_SIZE + HWBCC_MAX_AAD_SIZE];
 };
 STATIC_ASSERT(sizeof(struct hwbcc_req) ==
-              sizeof(struct hwbcc_req_hdr) + sizeof(struct hwbcc_req_sign_key) +
-                      HWBCC_MAX_ENCODED_KEY_SIZE + HWBCC_MAX_AAD_SIZE);
+              sizeof(struct hwbcc_req_hdr) +
+                      sizeof(struct hwbcc_req_sign_data) +
+                      HWBCC_MAX_DATA_TO_SIGN_SIZE + HWBCC_MAX_AAD_SIZE);
 
 struct hwbcc_resp {
     struct hwbcc_resp_hdr hdr;
@@ -131,26 +132,26 @@ static void on_channel_cleanup(void* ctx) {
     hwbcc_ops->close(s);
 }
 
-static int handle_sign_key(hwbcc_session_t s,
-                           handle_t chan,
-                           uint32_t test_mode,
-                           struct hwbcc_req_sign_key* args,
-                           const uint8_t* key_and_aad) {
+static int handle_sign_data(hwbcc_session_t s,
+                            handle_t chan,
+                            uint32_t test_mode,
+                            struct hwbcc_req_sign_data* args,
+                            const uint8_t* data_and_aad) {
     int rc;
     struct hwbcc_resp resp = {0};
     size_t payload_size = 0;
 
     assert(hwbcc_ops);
 
-    rc = hwbcc_ops->sign_key(s, test_mode, args->algorithm, key_and_aad,
-                             args->key_size, key_and_aad + args->key_size,
+    rc = hwbcc_ops->sign_key(s, test_mode, args->algorithm, data_and_aad,
+                             args->data_size, data_and_aad + args->data_size,
                              args->aad_size, resp.payload, sizeof(resp.payload),
                              &payload_size);
     if (rc != NO_ERROR) {
-        TLOGE("HWBCC_CMD_SIGN_KEY failure: %d\n", rc);
+        TLOGE("HWBCC_CMD_SIGN_DATA failure: %d\n", rc);
     }
 
-    resp.hdr.cmd = HWBCC_CMD_SIGN_KEY | HWBCC_CMD_RESP_BIT;
+    resp.hdr.cmd = HWBCC_CMD_SIGN_DATA | HWBCC_CMD_RESP_BIT;
     resp.hdr.status = rc;
     resp.hdr.payload_size = payload_size;
     rc = tipc_send1(chan, &resp, sizeof(resp.hdr) + payload_size);
@@ -266,7 +267,7 @@ static int on_message(const struct tipc_port* port, handle_t chan, void* ctx) {
     }
 
     switch (req.hdr.cmd) {
-    case HWBCC_CMD_SIGN_KEY: {
+    case HWBCC_CMD_SIGN_DATA: {
         if ((size_t)rc < sizeof(req.hdr) + sizeof(req.args)) {
             return ERR_BAD_LEN;
         }
@@ -275,17 +276,17 @@ static int on_message(const struct tipc_port* port, handle_t chan, void* ctx) {
             return ERR_BAD_LEN;
         }
 
-        if (req.args.key_size > HWBCC_MAX_ENCODED_KEY_SIZE) {
+        if (req.args.data_size > HWBCC_MAX_DATA_TO_SIGN_SIZE) {
             return ERR_BAD_LEN;
         }
 
         if (rc - sizeof(req.hdr) - sizeof(req.args) !=
-            req.args.key_size + req.args.aad_size) {
+            req.args.data_size + req.args.aad_size) {
             return ERR_BAD_LEN;
         }
 
-        return handle_sign_key(s, chan, req.hdr.test_mode, &req.args,
-                               req.key_and_aad);
+        return handle_sign_data(s, chan, req.hdr.test_mode, &req.args,
+                                req.data_and_aad);
     }
 
     case HWBCC_CMD_GET_BCC:

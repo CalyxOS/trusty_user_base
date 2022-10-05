@@ -27,7 +27,8 @@ __BEGIN_CDECLS
  * hwbcc_get_protected_data() - Retrieves protected data.
  * @test_mode:           Whether or not a to return test values.
  * @cose_algorithm:      COSE encoding of which signing algorithm to use.
- * @mac_key:             Pointer to MAC key.
+ * @data:                Pointer to data.
+ * @data_size:           Size of @data.
  * @aad:                 Pointer to AAD.
  * @aad_size:            Size of @aad.
  * @cose_sign1:          Buffer to push the formatted Sign1 msg into.
@@ -39,15 +40,15 @@ __BEGIN_CDECLS
  *
  * Protected data returned to the client is comprised of two parts:
  * 1. Boot certificate chain (BCC). Client may request test values.
- * 2. COSE_Sign1 message containing the input MAC key signed with either device
+ * 2. COSE_Sign1 message containing the input data signed with either device
  * private key or test key, which is also the leaf in the BCC.
  *
  * Return: 0 on success, or an error code < 0 on failure.
  */
 int hwbcc_get_protected_data(uint8_t test_mode,
                              int32_t cose_algorithm,
-                             const uint8_t* key,
-                             uint32_t key_size,
+                             const uint8_t* data,
+                             uint32_t data_size,
                              const uint8_t* aad,
                              size_t aad_size,
                              uint8_t* cose_sign1,

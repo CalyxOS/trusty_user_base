@@ -74,56 +74,62 @@ static int recv_resp(handle_t chan,
 }
 
 /**
- * sign_key() - Signs a MAC key and returns a COSE_Sign1 message.
+ * sign_data() - Signs data and returns a COSE_Sign1 message.
  * @chan:                TIPC channel to HWBCC server
  * @test_mode:           Whether or not a to return test values.
  * @cose_algorithm:      COSE encoding of which signing algorithm to use.
- * @mac_key:             Pointer to MAC key.
+ * @data:                Pointer to data.
+ * @data_size:           Size of @data.
  * @aad:                 Pointer to AAD.
  * @aad_size:            Size of @aad.
  * @cose_sign1:          Buffer to push the formatted Sign1 msg into.
  * @cose_sign1_buf_size: Size of the buffer.
  * @cose_sign1_size:     Out parameter for actual size of the buffer used.
  *
- * Signs a MAC key using the device private key, encoding the result in a
+ * Signs data using the device private key, encoding the result in a
  * COSE_Sign1 message.
  *
  * Return: 0 on success, or an error code < 0 on failure.
  */
-static int sign_key(handle_t chan,
-                    uint8_t test_mode,
-                    int32_t cose_algorithm,
-                    const uint8_t* key,
-                    uint32_t key_size,
-                    const uint8_t* aad,
-                    size_t aad_size,
-                    uint8_t* cose_sign1,
-                    size_t cose_sign1_buf_size,
-                    size_t* cose_sign1_size) {
+static int sign_data(handle_t chan,
+                     uint8_t test_mode,
+                     int32_t cose_algorithm,
+                     const uint8_t* data,
+                     uint32_t data_size,
+                     const uint8_t* aad,
+                     size_t aad_size,
+                     uint8_t* cose_sign1,
+                     size_t cose_sign1_buf_size,
+                     size_t* cose_sign1_size) {
     int rc;
-    struct hwbcc_sign_key_hdr {
+    struct hwbcc_sign_data_hdr {
         struct hwbcc_req_hdr hdr;
-        struct hwbcc_req_sign_key args;
+        struct hwbcc_req_sign_data args;
     } req;
-    STATIC_ASSERT(sizeof(struct hwbcc_sign_key_hdr) ==
+    STATIC_ASSERT(sizeof(struct hwbcc_sign_data_hdr) ==
                   sizeof(struct hwbcc_req_hdr) +
-                          sizeof(struct hwbcc_req_sign_key));
-    assert(key);
+                          sizeof(struct hwbcc_req_sign_data));
+    assert(data);
     if (aad_size > 0) {
         assert(aad);
     }
     assert(cose_sign1);
     assert(cose_sign1_size);
 
+    if (data_size > HWBCC_MAX_DATA_TO_SIGN_SIZE) {
+        TLOGE("Data exceeds HWBCC_MAX_DATA_TO_SIGN_SIZE limit.\n");
+        return ERR_BAD_LEN;
+    }
+
     if (aad_size > HWBCC_MAX_AAD_SIZE) {
         TLOGE("AAD exceeds HWBCC_MAX_AAD_SIZE limit.\n");
         return ERR_BAD_LEN;
     }
 
-    req.hdr.cmd = HWBCC_CMD_SIGN_KEY;
+    req.hdr.cmd = HWBCC_CMD_SIGN_DATA;
     req.hdr.test_mode = test_mode;
     req.args.algorithm = cose_algorithm;
-    req.args.key_size = key_size;
+    req.args.data_size = data_size;
     req.args.aad_size = aad_size;
 
     uint32_t iov_count = 2;
@@ -133,8 +139,8 @@ static int sign_key(handle_t chan,
                     .iov_len = sizeof(req),
             },
             {
-                    .iov_base = (void*)key,
-                    .iov_len = key_size,
+                    .iov_base = (void*)data,
+                    .iov_len = data_size,
             },
             {
                     .iov_base = NULL,
@@ -154,12 +160,12 @@ static int sign_key(handle_t chan,
 
     rc = send_msg(chan, &msg);
     if (rc < 0) {
-        TLOGE("Unable to send sign_key request: %d\n", rc);
+        TLOGE("Unable to send sign_data request: %d\n", rc);
         return rc;
     }
 
-    if ((size_t)rc != sizeof(req) + req.args.key_size + req.args.aad_size) {
-        TLOGE("Only sent %d bytes of the sign_key request.\n", rc);
+    if ((size_t)rc != sizeof(req) + req.args.data_size + req.args.aad_size) {
+        TLOGE("Only sent %d bytes of the sign_data request.\n", rc);
         return rc;
     }
 
@@ -206,8 +212,8 @@ static int get_bcc(handle_t chan,
 
 int hwbcc_get_protected_data(uint8_t test_mode,
                              int32_t cose_algorithm,
-                             const uint8_t* key,
-                             uint32_t key_size,
+                             const uint8_t* data,
+                             uint32_t data_size,
                              const uint8_t* aad,
                              size_t aad_size,
                              uint8_t* cose_sign1,
@@ -225,10 +231,10 @@ int hwbcc_get_protected_data(uint8_t test_mode,
         return rc;
     }
 
-    rc = sign_key(chan, test_mode, cose_algorithm, key, key_size, aad, aad_size,
-                  cose_sign1, cose_sign1_buf_size, cose_sign1_size);
+    rc = sign_data(chan, test_mode, cose_algorithm, data, data_size, aad,
+                   aad_size, cose_sign1, cose_sign1_buf_size, cose_sign1_size);
     if (rc != NO_ERROR) {
-        TLOGE("Failed sign_key(): %d\n", rc);
+        TLOGE("Failed sign_data(): %d\n", rc);
         goto out;
     }
 
