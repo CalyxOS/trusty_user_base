@@ -19,7 +19,6 @@
 // behavior.
 #![allow(unused_unsafe)]
 
-use crate::util::{abort_internal, print_internal};
 use alloc::collections::TryReserveError;
 use core::cmp;
 use core::intrinsics;
@@ -424,12 +423,4 @@ unsafe impl GlobalAlloc for System {
             realloc_fallback(self, ptr, layout, new_size)
         }
     }
-}
-
-#[cfg(not(test))]
-#[doc(hidden)]
-#[alloc_error_handler]
-pub fn rust_oom(layout: Layout) -> ! {
-    print_internal(format_args!("memory allocation of {} bytes failed\n", layout.size()));
-    abort_internal()
 }

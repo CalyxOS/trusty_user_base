@@ -44,10 +44,6 @@ impl Write for Stderr {
     }
 }
 
-pub(crate) fn panic_output() -> Option<impl Write> {
-    Some(stderr())
-}
-
 fn _write(fd: u32, message: &[u8]) -> fmt::Result {
     let mut iov =
         trusty_sys::iovec { iov_base: message.as_ptr() as *mut _, iov_len: message.len() };

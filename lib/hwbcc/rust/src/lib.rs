@@ -22,7 +22,6 @@
 //! provided are subject to tipc failures; the corresponding error
 //! codes will be returned in these cases.
 
-#![no_std]
 #![feature(allocator_api)]
 
 #[cfg(test)]

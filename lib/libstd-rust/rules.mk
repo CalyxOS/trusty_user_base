@@ -51,12 +51,15 @@ MODULE_RUSTFLAGS += \
 
 MODULE_ADD_IMPLICIT_DEPS := false
 
-ifeq ($(ARCH),arm)
-MODULE_RUST_ENV += STD_ENV_ARCH=arm
-else ifeq ($(ARCH),arm64)
+# `STD_ENV_ARCH` needs to be set when building libstd. For ARM64 `ARCH` needs to
+# be translated to the architecture name that rustc expects, but for the
+# remaining targets `ARCH` already matches. This will need to be updated
+# accordingly if we add support for additional targets where `ARCH` doesn't line
+# up with rustc's architecture names.
+ifeq ($(ARCH),arm64)
 MODULE_RUST_ENV += STD_ENV_ARCH=aarch64
 else
-$(error Unrecognized arch $(ARCH), expected arm or arm64)
+MODULE_RUST_ENV += STD_ENV_ARCH=$(ARCH)
 endif
 
 MODULE_SKIP_DOCS := true

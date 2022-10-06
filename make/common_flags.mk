@@ -1,8 +1,7 @@
 ifeq ($(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)),true)
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/libcore-rust \
-	trusty/user/base/lib/libcompiler_builtins-rust \
+	trusty/user/base/lib/libstd-rust \
 
 else
 MODULE_LIBRARY_DEPS += trusty/user/base/lib/libc-trusty

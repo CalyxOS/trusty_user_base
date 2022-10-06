@@ -19,6 +19,15 @@ MODULE := $(LOCAL_DIR)
 
 CFG_IF_SRC_DIR = external/rust/crates/cfg-if
 
+MODULE_LIBRARY_DEPS += \
+	trusty/user/base/lib/libcore-rust \
+	trusty/user/base/lib/libcompiler_builtins-rust \
+
+# NOTE: This crate is a dependency of libstd, so we can't implicitly depend on
+# libstd as we would normally. The dependencies listed above are the ones
+# declared in the `Cargo.toml` when the `rustc-dep-of-std` feature is enabled.
+MODULE_ADD_IMPLICIT_DEPS := false
+
 MODULE_SRCS := $(CFG_IF_SRC_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := cfg_if
