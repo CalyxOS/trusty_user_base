@@ -27,6 +27,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/uio.h>
+#include <uapi/trusty_ipc.h>
 #include <uapi/trusty_uuid.h>
 
 __BEGIN_CDECLS
