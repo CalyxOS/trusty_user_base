@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
+#include <apploader/cbor.h>
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <string_view>
 #include <vector>
 
-#include "cbor.h"
 #include "dice/cbor_reader.h"
 #include "dice/cbor_writer.h"
 #include "gtest/gtest.h"

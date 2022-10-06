@@ -15,6 +15,7 @@
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
+PACKAGE_DIR := $(TRUSTY_TOP)/trusty/user/base/lib/apploader_package
 OPEN_DICE_DIR := $(TRUSTY_TOP)/external/open-dice
 
 HOST_TOOL_NAME := apploader_package_tool
@@ -22,12 +23,13 @@ HOST_TOOL_NAME := apploader_package_tool
 HOST_SRCS := \
 	$(LOCAL_DIR)/apploader_package_tool.cpp \
 	$(LOCAL_DIR)/../app_manifest_parser.cpp \
-	$(LOCAL_DIR)/../cose.cpp \
+	$(PACKAGE_DIR)/cose.cpp \
 	$(OPEN_DICE_DIR)/src/cbor_reader.c \
 	$(OPEN_DICE_DIR)/src/cbor_writer.c \
 
 HOST_INCLUDE_DIRS := \
 	trusty/user/base/interface/apploader/include \
+	trusty/user/base/lib/apploader_package/include \
 	trusty/user/base/lib/apploader_policy_engine/include \
 	external/open-dice/include \
 

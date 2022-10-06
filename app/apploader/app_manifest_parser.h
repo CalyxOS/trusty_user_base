@@ -16,9 +16,9 @@
 
 #pragma once
 
+#include <apploader/package.h>
 #include <lib/apploader_policy_engine/apploader_policy_engine.h>
 #include <lk/compiler.h>
-#include "apploader_package.h"
 
 __BEGIN_CDECLS
 

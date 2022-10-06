@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <apploader/cbor.h>
+#include <apploader/cose.h>
 #include <dice/cbor_reader.h>
 #include <dice/cbor_writer.h>
 #include <endian.h>
@@ -34,8 +36,6 @@
 #include <vector>
 
 #include "../app_manifest_parser.h"
-#include "../cbor.h"
-#include "../cose.h"
 
 enum class Mode {
     UNKNOWN,

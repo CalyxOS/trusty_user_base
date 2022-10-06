@@ -16,6 +16,9 @@
 
 #define TLOG_TAG "apploader-package"
 
+#include <apploader/cbor.h>
+#include <apploader/cose.h>
+#include <apploader/package.h>
 #include <assert.h>
 #include <dice/cbor_reader.h>
 #include <dice/cbor_writer.h>
@@ -33,10 +36,6 @@
 #include <trusty_log.h>
 #include <uapi/err.h>
 #include <optional>
-
-#include "apploader_package.h"
-#include "cbor.h"
-#include "cose.h"
 
 /*
  * Maximum size of any key we could possibly get from hwkey.

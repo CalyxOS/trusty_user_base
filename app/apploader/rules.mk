@@ -21,26 +21,21 @@ MANIFEST := $(LOCAL_DIR)/manifest.json
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/apploader.c \
-	$(LOCAL_DIR)/apploader_package.cpp \
 	$(LOCAL_DIR)/app_version.cpp \
 	$(LOCAL_DIR)/app_manifest_parser.cpp \
-	$(LOCAL_DIR)/cose.cpp \
 
 # Override this to provide a different policy engine
 TRUSTY_APPLOADER_POLICY_ENGINE ?= trusty/user/base/lib/sample/apploader_policy_engine
 
 MODULE_LIBRARY_DEPS += \
 	trusty/kernel/lib/app_manifest \
+	trusty/user/base/lib/apploader_package \
 	trusty/user/base/lib/apploader_policy_engine \
 	trusty/user/base/lib/libstdc++-trusty \
 	trusty/user/base/lib/tipc \
-	trusty/user/base/lib/hwaes \
-	trusty/user/base/lib/hwkey \
 	trusty/user/base/lib/storage \
 	trusty/user/base/lib/system_state \
 	trusty/user/base/interface/apploader \
-	external/boringssl \
-	external/open-dice \
         $(TRUSTY_APPLOADER_POLICY_ENGINE) \
 
 # Enabling APPLOADER_ALLOW_NS_CONNECT will allow apploader connections from the

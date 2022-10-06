@@ -18,6 +18,7 @@
 
 #include <inttypes.h>
 #include <lk/compiler.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 #define APPLOADER_PACKAGE_CBOR_ARRAY_SZ 4

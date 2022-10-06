@@ -712,9 +712,7 @@ public:
         }
     }
 
-    State state() const {
-        return mState;
-    }
+    State state() const { return mState; }
 
 private:
     State mState = State::kInitial;

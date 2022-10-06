@@ -16,6 +16,8 @@
 
 #define TLOG_TAG "apploader-cose"
 
+#include <apploader/cbor.h>
+#include <apploader/cose.h>
 #include <assert.h>
 #include <inttypes.h>
 #include <openssl/bn.h>
@@ -30,9 +32,6 @@
 #include <array>
 #include <optional>
 #include <vector>
-
-#include "cbor.h"
-#include "cose.h"
 
 #ifdef __COSE_HOST__
 #define COSE_PRINT_ERROR(...)         \

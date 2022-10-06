@@ -18,6 +18,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 HOST_TEST := cbor_test
 
 GTEST_DIR := external/googletest/googletest
+PACKAGE_DIR := trusty/user/base/lib/apploader_package
 OPEN_DICE_DIR := external/open-dice
 LIBCPPBOR_DIR := external/libcppbor
 
@@ -38,6 +39,7 @@ HOST_SRCS := \
 
 HOST_INCLUDE_DIRS := \
         $(LOCAL_DIR)/../.. \
+	$(PACKAGE_DIR)/include \
         $(OPEN_DICE_DIR)/include \
         $(LIBCPPBOR_DIR)/include/cppbor \
         $(GTEST_DIR)/include \

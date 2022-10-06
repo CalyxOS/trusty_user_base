@@ -16,10 +16,10 @@
 
 #pragma once
 
+#include <apploader/package.h>
 #include <inttypes.h>
 
 #include "app_manifest_parser.h"
-#include "apploader_package.h"
 
 __BEGIN_CDECLS
 

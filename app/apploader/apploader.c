@@ -16,6 +16,7 @@
 
 #define TLOG_TAG "apploader"
 
+#include <apploader/package.h>
 #include <assert.h>
 #include <endian.h>
 #include <interface/apploader/apploader.h>
@@ -38,7 +39,6 @@
 
 #include "app_manifest_parser.h"
 #include "app_version.h"
-#include "apploader_package.h"
 
 struct apploader_req {
     struct apploader_header hdr;

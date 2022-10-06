@@ -16,6 +16,7 @@
 
 #define TLOG_TAG "apploader-app-version"
 
+#include <apploader/package.h>
 #include <assert.h>
 #include <inttypes.h>
 #include <lib/app_manifest/app_manifest.h>
@@ -28,7 +29,6 @@
 #include <array>
 
 #include "app_manifest_parser.h"
-#include "apploader_package.h"
 
 constexpr const char kStorageFilePrefix[] = "app_version.";
 
