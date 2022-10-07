@@ -43,4 +43,6 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libcore-rust \
 	trusty/user/base/lib/libc-trusty \
 
+MODULE_ADD_IMPLICIT_DEPS := false
+
 include make/library.mk

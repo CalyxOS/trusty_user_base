@@ -32,4 +32,6 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libc-rust \
 	trusty/user/base/lib/libcompiler_builtins-rust \
 
+MODULE_ADD_IMPLICIT_DEPS := false
+
 include make/library.mk
