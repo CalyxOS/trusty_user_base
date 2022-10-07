@@ -30,9 +30,8 @@
  */
 
 use crate::context::CONTEXT;
-use core::fmt;
-use core::panic::Location;
-use trusty_std::eprintln;
+use std::fmt;
+use std::panic::Location;
 
 #[derive(Debug)]
 #[doc(hidden)]

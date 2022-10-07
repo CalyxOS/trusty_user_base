@@ -18,11 +18,9 @@
 //!
 //! Logs to stderr based on a compile-time configured log level.
 
-#![no_std]
-
 use log::{Level, LevelFilter, Log, Metadata, Record};
-use trusty_std::io::{stderr, Write};
-use trusty_std::write;
+use std::io::{stderr, Write};
+use std::write;
 
 pub struct TrustyLogger;
 

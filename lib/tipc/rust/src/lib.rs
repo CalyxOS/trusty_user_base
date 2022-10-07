@@ -25,7 +25,6 @@
 //! respectively. Receiving a message blocks until a message arrives or the
 //! handle is closed.
 
-#![no_std]
 #![feature(allocator_api)]
 
 #[allow(non_camel_case_types)]

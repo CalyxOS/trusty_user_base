@@ -481,7 +481,7 @@ macro_rules! service_dispatcher {
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
                         let msg = <$service as $crate::Service>::Message::deserialize(msg, msg_handles).map_err(|e| {
-                            trusty_std::eprintln!("Could not parse message: {:?}", e);
+                            eprintln!("Could not parse message: {:?}", e);
                             TipcError::InvalidData
                         })?;
                         if let ConnectionKind::$service(conn) = &connection.1 {
@@ -499,7 +499,7 @@ macro_rules! service_dispatcher {
                         if let ConnectionKind::$service(conn) = &connection.1 {
                             $crate::Service::on_disconnect(&**s, conn)
                         } else {
-                            trusty_std::eprintln!("Expected a connection with kind {}", stringify!($service));
+                            eprintln!("Expected a connection with kind {}", stringify!($service));
                         }
                     })*
                 }

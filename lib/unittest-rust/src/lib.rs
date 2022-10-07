@@ -31,8 +31,6 @@
 
 //! # Trusty Rust Testing Framework
 
-#![no_std]
-
 use tipc::{Handle, Manager, PortCfg, Serialize, Serializer, Service, TipcError, Uuid};
 use trusty_std::alloc::Vec;
 
