@@ -66,6 +66,7 @@ enum storage_cmd {
 
     STORAGE_FILE_MOVE = 10 << STORAGE_REQ_SHIFT,
     STORAGE_FILE_LIST = 11 << STORAGE_REQ_SHIFT,
+    STORAGE_FILE_GET_MAX_SIZE = 12 << STORAGE_REQ_SHIFT,
 };
 
 /**
@@ -266,6 +267,24 @@ struct storage_file_open_resp {
  */
 struct storage_file_close_req {
     uint32_t handle;
+};
+
+/**
+ * struct storage_file_get_max_size_req - request format for
+ *                                        STORAGE_FILE_GET_MAX_SIZE
+ * @handle: the handle for the file whose max size is requested
+ */
+struct storage_file_get_max_size_req {
+    uint32_t handle;
+};
+
+/**
+ * struct storage_file_get_max_size_resp - response format for
+ *                                         STORAGE_FILE_GET_MAX_SIZE
+ * @max_size:   the maximum size of the file
+ */
+struct storage_file_get_max_size_resp {
+    uint64_t max_size;
 };
 
 /**
