@@ -1214,7 +1214,7 @@ def main():
         dest="input_filename",
         required=False,
         type=str,
-        help="It should be trust app manifest config JSON file"
+        help="It should be trusty app manifest config JSON file"
     )
     parser.add_argument(
         "-o", "--output",
