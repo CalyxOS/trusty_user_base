@@ -1,9 +1,10 @@
 #!/bin/sh
-# pylint: disable=pointless-string-statement,wrong-import-position
-"." "`dirname $0`/../../../vendor/google/aosp/scripts/envsetup.sh"
-"exec" "$PY3" "$0" "$@"
+""":" # Shell script (in docstring to appease pylint)
+# Find and invoke hermetic python3 interpreter
+. "`dirname $0`/../../../vendor/google/aosp/scripts/envsetup.sh"
+exec "$PY3" "$0" "$@"
+# Shell script end
 
-"""
 Command to run tests:
   python3 -m unittest -v test_manifest_compiler
 """

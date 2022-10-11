@@ -1,9 +1,10 @@
 #!/bin/sh
-# pylint: disable=pointless-string-statement,wrong-import-position
-"." "`dirname $0`/../../../vendor/google/aosp/scripts/envsetup.sh"
-"exec" "$PY3" "$0" "$@"
+""":" # Shell script (in docstring to appease pylint)
+# Find and invoke hermetic python3 interpreter
+. "`dirname $0`/../../../vendor/google/aosp/scripts/envsetup.sh"
+exec "$PY3" "$0" "$@"
+# Shell script end
 
-"""
 This program will take trusted application's manifest config JSON file as
 input. Processes the JSON config file and creates packed data
 mapping to C structures and dumps in binary format.
