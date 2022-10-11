@@ -48,8 +48,12 @@ MODULE_SRCS := \
 	$(GTEST_DIR)/src/gtest-test-part.cc \
 	$(GTEST_DIR)/src/gtest-typed-test.cc \
 
+MODULE_EXPORT_INCLUDES += \
+	$(LOCAL_DIR)/include \
+
 MODULE_LIBRARY_DEPS += \
         trusty/user/base/lib/libstdc++-trusty \
         trusty/user/base/lib/libcxxabi-trusty \
+        trusty/user/base/lib/unittest \
 
 include make/library.mk

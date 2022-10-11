@@ -23,7 +23,7 @@
 #define PORT_GTEST(suite_name, port_name_string)          \
     __BEGIN_CDECLS                                        \
     static bool run_##suite_name(struct unittest* test) { \
-        return RUN_ALL_TESTS();                           \
+        return RUN_ALL_TESTS() == 0;                      \
     }                                                     \
                                                           \
     int main(int argc, char** argv) {                     \
