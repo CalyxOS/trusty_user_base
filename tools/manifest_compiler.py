@@ -236,9 +236,7 @@ class ApploaderFlags(object):
 
 
 class Manifest(object):
-    """
-    Holds Manifest data to be used for packing
-    """
+    """Holds Manifest data to be used for packing"""
 
     def __init__(
             self,
@@ -268,9 +266,7 @@ class Manifest(object):
 
 
 class Log(object):
-    """
-    Tracks errors during manifest compilation
-    """
+    """Tracks errors during manifest compilation"""
 
     def __init__(self):
         self.error_count = 0
@@ -284,16 +280,15 @@ class Log(object):
 
 
 def get_string_sub_type(field):
-    """
-    For the given manifest JSON field it returns its literal value type mapped.
+    """For the given manifest JSON field it returns its literal value type
+    mapped.
     """
     if field == UUID:
         return CONST_UUID
-    elif field == START_PORT_NAME:
+    if field == START_PORT_NAME:
         return CONST_PORT
-    else:
-        # field with string value but doesn't support a constant
-        return None
+    # field with string value but doesn't support a constant
+    return None
 
 
 def get_constant(constants, key, type_, log):
@@ -310,8 +305,7 @@ def get_constant(constants, key, type_, log):
 
 def get_string(manifest_dict, key, constants, log, optional=False,
                default=None):
-    """
-    Determines whether the value for the given key in dictionary is of type
+    """Determines whether the value for the given key in dictionary is of type
     string and if it is a string then returns the value.
     """
     if key not in manifest_dict:
@@ -343,8 +337,7 @@ def coerce_to_string(value, key, log):
 
 def get_int(manifest_dict, key, constants, log, optional=False,
             default=None):
-    """
-    Determines whether the value for the given key in dictionary is of type
+    """Determines whether the value for the given key in dictionary is of type
     integer and if it is int then returns the value
     """
     if key not in manifest_dict:
@@ -361,10 +354,9 @@ def get_int(manifest_dict, key, constants, log, optional=False,
 
 
 def coerce_to_int(value, key, log):
-    if isinstance(value, int) and \
-            not isinstance(value, bool):
+    if isinstance(value, int) and not isinstance(value, bool):
         return value
-    elif isinstance(value, str):
+    if isinstance(value, str):
         try:
             return int(value, 0)
         except ValueError:
@@ -378,9 +370,8 @@ def coerce_to_int(value, key, log):
 
 
 def get_list(manifest_dict, key, log, optional=False, default=None):
-    """
-    Determines whether the value for the given key in dictionary is of type List
-    and if it is List then returns the value
+    """Determines whether the value for the given key in dictionary is of type
+    List and if it is List then returns the value
     """
     if key not in manifest_dict:
         if not optional:
@@ -400,10 +391,8 @@ def coerce_to_list(value, key, log):
 
 
 def get_dict(manifest_dict, key, log, optional=False, default=None):
-    """
-    Determines whether the value for the given
-    key in dictionary is of type Dictionary
-    and if it is Dictionary then returns the value
+    """Determines whether the value for the given key in dictionary is of type
+    Dictionary and if it is Dictionary then returns the value
     """
     if key not in manifest_dict:
         if not optional:
@@ -424,8 +413,7 @@ def coerce_to_dict(value, key, log):
 
 def get_boolean(manifest_dict, key, constants, log, optional=False,
                 default=None):
-    """
-    Determines whether the value for the given key in dictionary is of type
+    """Determines whether the value for the given key in dictionary is of type
     boolean and if it is boolean then returns the value
     """
     if key not in manifest_dict:
@@ -470,9 +458,8 @@ def get_port(port, key, constants, log, optional=False, default=None):
 
 
 def parse_uuid(uuid, log):
-    """
-    Validate and arrange UUID byte order
-    If its valid UUID then returns 16 byte UUID
+    """Validate and arrange UUID byte order. If it is valid UUID then return 16
+    byte UUID
     """
     if uuid is None:
         return None
@@ -511,9 +498,8 @@ def parse_uuid(uuid, log):
 
 
 def parse_memory_size(memory_size, memory_kind, log, zero_is_ok=True):
-    """
-    Validate memory size value.
-    if success return memory size value else return None
+    """Validate memory size value. If valid, return memory size value else
+    return None
     """
     if memory_size is None:
         return None
@@ -521,7 +507,7 @@ def parse_memory_size(memory_size, memory_kind, log, zero_is_ok=True):
     if memory_size == 0 and not zero_is_ok:
         log.error(f"{memory_kind}: Minimum memory size cannot be zero.")
         return None
-    elif memory_size < 0 or memory_size % 4096 != 0:
+    if memory_size < 0 or memory_size % 4096 != 0:
         log.error(f"{memory_kind}: {memory_size}, Minimum memory size should " +
                   "be a non-negative multiple of 4096")
         return None
@@ -739,8 +725,7 @@ def parse_manifest_config(manifest_dict, constants, default_app_name, log):
 
 
 def swap_uuid_bytes(uuid):
-    """
-    This script represents UUIDs in a purely big endian order.
+    """This script represents UUIDs in a purely big endian order.
     Trusty stores the first three components of the UUID in little endian order.
     Rearrange the byte order accordingly by doing inverse
     on first three components of UUID
@@ -795,8 +780,7 @@ def pack_start_port_flags(flags):
 
 
 def pack_inline_string(value):
-    """
-    Pack a given string with null padding to make its size
+    """Pack a given string with null padding to make its size
     multiple of 4.
     packed data includes length + string + null + padding
     """
@@ -808,8 +792,7 @@ def pack_inline_string(value):
 
 
 def pack_manifest_data(manifest):
-    """
-    Creates Packed data from extracted manifest data
+    """Creates Packed data from extracted manifest data.
     Writes the packed data to binary file
     """
     # PACK {
@@ -892,8 +875,7 @@ def manifest_data_to_json(manifest):
 
 
 def unpack_binary_manifest_to_data(packed_data):
-    """
-    This method can be used for extracting manifest data from packed binary.
+    """This method can be used for extracting manifest data from packed binary.
     UUID should be present in packed data.
     """
     manifest = {}
@@ -1100,14 +1082,13 @@ def define_uuid_const_entry(const):
 def create_header_entry(constant):
     if constant.type == CONST_PORT:
         return define_string_const_entry(constant)
-    elif constant.type == CONST_UUID:
+    if constant.type == CONST_UUID:
         return define_uuid_const_entry(constant)
-    elif constant.type == CONST_INT:
+    if constant.type == CONST_INT:
         return define_integer_const_entry(constant)
-    elif constant.type == CONST_BOOL:
+    if constant.type == CONST_BOOL:
         return define_bool_const_entry(constant)
-    else:
-        raise Exception(f"Unknown tag: {constant.type}")
+    raise Exception(f"Unknown tag: {constant.type}")
 
 
 def write_consts_to_header_file(const_config, header_dir, log):
@@ -1141,26 +1122,26 @@ def parse_constant(constant, log):
     if const_type == CONST_PORT:
         value = get_string(constant, CONST_VALUE, {}, log)
         return Constant(name, value, const_type)
-    elif const_type == CONST_UUID:
+    if const_type == CONST_UUID:
         value = get_string(constant, CONST_VALUE, {}, log)
         return Constant(name, parse_uuid(value, log), const_type)
-    elif const_type == CONST_INT:
+    if const_type == CONST_INT:
         unsigned = get_boolean(constant, CONST_UNSIGNED, {}, log)
         text_value = constant.get(CONST_VALUE)
         hex_num = isinstance(text_value, str) and text_value.startswith("0x")
         value = get_int(constant, CONST_VALUE, {}, log)
         return Constant(name, value, const_type, unsigned, hex_num)
-    elif const_type == CONST_BOOL:
+    if const_type == CONST_BOOL:
         value = get_boolean(constant, CONST_VALUE, {}, log)
         return Constant(name, value, const_type)
-    else:
-        log.error("Unknown constant type: {const_type}")
+
+    log.error(f"Unknown constant type: {const_type}")
+    return None
 
 
 def parse_config_constant(const_config, log):
-    """
-    Parse a given JSON constant-config data structure containing
-    a header and list of constants
+    """Parse a given JSON constant-config data structure containing a header and
+    list of constants
     """
     header_file = get_string(const_config, HEADER, {}, log)
 
@@ -1193,9 +1174,8 @@ def extract_config_constants(config_consts_list, log):
 
 
 def process_config_constants(const_config_files, header_dir, log):
-    """
-    Parse JSON config constants and creates separate header files with constants
-    for each JSON config
+    """Parse JSON config constants and creates separate header files with
+    constants for each JSON config
     """
     if const_config_files is None:
         return []
@@ -1225,10 +1205,8 @@ def index_constants(config_constants):
 
 
 def main():
-    """
-    Handles the command line arguments
-    Parses the given manifest input file and creates packed data
-    Writes the packed data to binary output file.
+    """Handles the command line arguments. Parses the given manifest input file
+    and creates packed data. Writes the packed data to binary output file.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(

@@ -18,9 +18,7 @@ TEST_PORT = "SAMPLE_PORT"
 TEST_SIZE = "SAMPLE_SIZE"
 
 class TestManifest(unittest.TestCase):
-    """
-    Test with integer value as input to get_string
-    """
+    """Test with integer value as input to get_string"""
 
     def test_get_string_1(self):
         constants = {}
@@ -141,9 +139,8 @@ class TestManifest(unittest.TestCase):
         self.assertIsNone(data)
 
     def test_get_int_missing_optional_field_with_default(self):
-        """
-        Test with non-existing attribute,
-        which is optional field and default value given.
+        """Test with non-existing attribute, which is optional field and default
+        value given.
         """
         constants = {}
         log = manifest_compiler.Log()
@@ -497,9 +494,8 @@ class TestManifest(unittest.TestCase):
         self.assertTrue(log.error_occurred())
 
     def test_validate_mem_map_6(self):
-        """
-        Test with a memory mapping entry with invalid JSON format
-        Pass invalid list of JSON attributes
+        """Test with a memory mapping entry with invalid JSON format. Pass
+        invalid list of JSON attributes
         """
         constants = {}
         mem_map_json_data = ["id", 1, "addr", "0x70000000"]
@@ -510,9 +506,8 @@ class TestManifest(unittest.TestCase):
         self.assertTrue(log.error_occurred())
 
     def test_validate_mem_map_7(self):
-        """
-        Test with a memory mapping entry with invalid JSON format
-        Pass a MEM_MAP JSON object instead of list of MEM_MAP JSON objects.
+        """Test with a memory mapping entry with invalid JSON format. Pass a
+        MEM_MAP JSON object instead of list of MEM_MAP JSON objects.
         """
         constants = {}
         config_data = {manifest_compiler.MEM_MAP:
@@ -605,8 +600,7 @@ class TestManifest(unittest.TestCase):
                              manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP])
 
     def test_validate_mgmt_flags_4(self):
-        """
-        Test with a management flags missing
+        """Test with a management flags missing
         manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT
         """
         constants = {}
@@ -812,9 +806,8 @@ class TestManifest(unittest.TestCase):
         self.assertEqual(data, app_name.strip())
 
     def test_manifest_valid_dict_1(self):
-        """
-        Test with valid UUID with hex values and
-        valid values for min_heap and min_stack.
+        """Test with valid UUID with hex values and valid values for min_heap
+        and min_stack.
         """
         constants = {}
         uuid_in = "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf"
@@ -879,9 +872,8 @@ class TestManifest(unittest.TestCase):
         self.assertNotEqual(manifest.min_shadow_stack, manifest.min_stack)
 
     def test_manifest_invalid_dict_2(self):
-        """
-        Test with invalid value in config,
-        UUID with integer value and string values for min_stack.
+        """Test with invalid value in config, UUID with integer value and string
+        values for min_stack.
         """
         constants = {}
         log = manifest_compiler.Log()
@@ -1088,8 +1080,7 @@ class TestManifest(unittest.TestCase):
         self.assertFalse(log.error_occurred())
 
     def test_const_config_9(self):
-        """
-        Test constant config with unsigned field missing in int type constant
+        """Test constant config with unsigned field missing in int type constant
         """
         test_value = "0x1000"
         constants_data = [{
@@ -1130,8 +1121,7 @@ class TestManifest(unittest.TestCase):
         self.assertFalse(log.error_occurred())
 
     def test_manifest_valid_pack_1(self):
-        """
-        Test with valid UUID with hex values and
+        """Test with valid UUID with hex values and
         valid values for min_heap and min_stack.
         Pack the manifest config data and unpack it and
         verify it with the expected values
@@ -1174,8 +1164,7 @@ class TestManifest(unittest.TestCase):
                     self, config_data, log, constants)))
 
     def test_manifest_valid_pack_2(self):
-        """
-        Test with valid manifest config containing
+        """Test with valid manifest config containing
         - UUID
         - min_heap and min_stack
         - memory mapping entries
@@ -1231,8 +1220,7 @@ class TestManifest(unittest.TestCase):
                     self, config_data, log, constants)))
 
     def test_manifest_valid_pack_3(self):
-        """
-        Test with valid manifest config containing
+        """Test with valid manifest config containing
         - UUID
         - min_heap, min_stack, and min_shadow_stack
         - Management flags
@@ -1268,8 +1256,7 @@ class TestManifest(unittest.TestCase):
                     self, config_data, log, constants)))
 
     def test_manifest_valid_pack_4(self):
-        """
-        Test with valid manifest config containing
+        """Test with valid manifest config containing
         - UUID
         - min_heap and min_stack
         - start_ports
@@ -1332,8 +1319,7 @@ class TestManifest(unittest.TestCase):
                     self, config_data, log, constants)))
 
     def test_manifest_valid_pack_5(self):
-        """
-        Test with valid manifest config with multiple constants configs
+        """Test with valid manifest config with multiple constants configs
         - UUID
         - start_ports
         Pack the manifest config data and unpack it and
@@ -1417,8 +1403,7 @@ class TestManifest(unittest.TestCase):
                     self, config_data, log, constants)))
 
     def test_manifest_valid_pack_6(self):
-        """
-        Test with valid manifest config containing
+        """Test with valid manifest config containing
         - UUID
         - min_heap and min_stack
         - pinned_cpu
@@ -1465,8 +1450,7 @@ class TestManifest(unittest.TestCase):
                     self, config_data, log, constants)))
 
     def test_manifest_valid_pack_7(self):
-        """
-        Test with valid manifest config with a constants config containing
+        """Test with valid manifest config with a constants config containing
         - UUID
         - min_heap and min_stack
         - pinned_cpu
@@ -1525,8 +1509,7 @@ class TestManifest(unittest.TestCase):
                     self, config_data, log, constants)))
 
     def test_manifest_valid_pack_8(self):
-        """
-        Test with valid manifest config with a constants config containing
+        """Test with valid manifest config with a constants config containing
         - UUID
         - min_heap, min_stack, and min_shadow_stack
         - version
@@ -1593,8 +1576,7 @@ class TestManifest(unittest.TestCase):
                     self, config_data, log, constants)))
 
     def test_manifest_valid_pack_9(self):
-        """
-        Test with valid manifest config with a constants config containing
+        """Test with valid manifest config with a constants config containing
         - UUID
         - min_heap, min_stack
         - apploader_flags
