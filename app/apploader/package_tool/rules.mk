@@ -43,6 +43,11 @@ HOST_FLAGS := -D__TRUSTY__
 # depending on whether it's compiled for a host tool or Trusty application.
 HOST_FLAGS += -D__COSE_HOST__
 
+# Select app package signing variant
+ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_SIGN_P384)))
+HOST_FLAGS += -DAPPLOADER_PACKAGE_SIGN_P384
+endif
+
 HOST_LIBS := \
 	c++ \
 

@@ -19,17 +19,30 @@
 
 set -e
 
-if [ "$#" -ne 2 ]; then
-    echo -e "Usage: $0 <private key file> <public key file>"
+if [ "$#" -ne 3 ]; then
+    echo -e "Usage: $0 <p256|p384> <private key file> <public key file>"
     exit 1
 fi
 
-PRIVATE_KEY_FILE=$1
-PUBLIC_KEY_FILE=$2
+case $1 in
+    p256)
+        EC_CURVE_NAME=prime256v1
+        ;;
+    p384)
+        EC_CURVE_NAME=secp384r1
+        ;;
+    *)
+        echo "Invalid key type"
+        exit 1
+        ;;
+esac
+
+PRIVATE_KEY_FILE=$2
+PUBLIC_KEY_FILE=$3
 
 openssl ecparam \
     -genkey \
-    -name prime256v1 \
+    -name $EC_CURVE_NAME \
     -noout \
     -outform DER \
     -out "$PRIVATE_KEY_FILE"

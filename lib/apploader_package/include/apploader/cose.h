@@ -36,14 +36,19 @@ constexpr char COSE_CONTEXT_ENCRYPT[] = "Encrypt";
 constexpr char COSE_CONTEXT_ENC_RECIPIENT[] = "Enc_Recipient";
 
 // From "COSE Algorithms" registry
+// See: RFC9053 or https://www.iana.org/assignments/cose/cose.txt
 constexpr int COSE_ALG_A128GCM = 1;
 constexpr int COSE_ALG_ECDSA_256 = -7;
+constexpr int COSE_ALG_ECDSA_384 = -35;
 
 // Trusty-specific COSE constants
 constexpr int COSE_LABEL_TRUSTY = -65537;
 
-constexpr size_t kEcdsaValueSize = 32;
-constexpr size_t kEcdsaSignatureSize = 2 * kEcdsaValueSize;
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+constexpr int COSE_VAL_SIGN_ALG = COSE_ALG_ECDSA_384;
+#else
+constexpr int COSE_VAL_SIGN_ALG = COSE_ALG_ECDSA_256;
+#endif
 
 constexpr size_t kAesGcmIvSize = 12;
 constexpr size_t kAesGcmTagSize = 16;
@@ -234,3 +239,9 @@ bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& item,
                                         const uint8_t** outPackageStart,
                                         size_t* outPackageSize,
                                         DecryptFn decryptFn = DecryptFn());
+
+/**
+ * coseGetSigningDsa() - Get the name of the signing Digital Signature Algo.
+ * Returns: A pointer to a static string describing the signing method.
+ */
+const char* coseGetSigningDsa(void);

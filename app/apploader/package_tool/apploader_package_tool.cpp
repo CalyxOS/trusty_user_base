@@ -81,6 +81,9 @@ static void print_usage_and_exit(const char* prog, int code) {
     fprintf(stderr,
             "\t-s, --strict          verify signature in strict mode\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "Build:\n");
+    fprintf(stderr, "  Signing: %s\n", coseGetSigningDsa());
+    fprintf(stderr, "\n");
     exit(code);
 }
 
@@ -228,7 +231,7 @@ static void sign_package(const char* output_path,
 
     cbor::VectorCborEncoder enc;
     enc.encodeMap([&](auto& enc) {
-        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_ALG_ECDSA_256);
+        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_VAL_SIGN_ALG);
         enc.encodeKeyValue(COSE_LABEL_TRUSTY, [&](auto& enc) {
             enc.encodeArray([&](auto& enc) {
                 enc.encodeTstr("TrustyApp");

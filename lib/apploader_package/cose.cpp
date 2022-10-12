@@ -45,7 +45,18 @@
     }
 #endif
 
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+#define APPLOADER_DSA_LENGTH SHA384_DIGEST_LENGTH
+#define APPLOADER_DSA_NID NID_secp384r1
+#else
+#define APPLOADER_DSA_LENGTH SHA256_DIGEST_LENGTH
+#define APPLOADER_DSA_NID NID_X9_62_prime256v1
+#endif
+
 static bool gSilenceErrors = false;
+
+constexpr size_t kEcdsaValueSize = APPLOADER_DSA_LENGTH;
+constexpr size_t kEcdsaSignatureSize = 2 * kEcdsaValueSize;
 
 bool coseSetSilenceErrors(bool value) {
     bool old = gSilenceErrors;
@@ -60,7 +71,7 @@ using ECDSA_SIG_Ptr =
 using EVP_CIPHER_CTX_Ptr =
         std::unique_ptr<EVP_CIPHER_CTX, std::function<void(EVP_CIPHER_CTX*)>>;
 
-using SHA256Digest = std::array<uint8_t, SHA256_DIGEST_LENGTH>;
+using SHADigest = std::array<uint8_t, kEcdsaValueSize>;
 
 static std::vector<uint8_t> coseBuildToBeSigned(
         const std::basic_string_view<uint8_t>& encodedProtectedHeaders,
@@ -88,23 +99,63 @@ static std::optional<std::vector<uint8_t>> getRandom(size_t numBytes) {
     return output;
 }
 
-static SHA256Digest sha256(const std::vector<uint8_t>& data) {
-    SHA256Digest ret;
-    SHA256_CTX ctx;
-    SHA256_Init(&ctx);
-    SHA256_Update(&ctx, data.data(), data.size());
-    SHA256_Final((unsigned char*)ret.data(), &ctx);
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+static SHADigest sha(
+        const std::vector<std::tuple<const void*, size_t>>& data_list) {
+    SHADigest ret;
+    SHA512_CTX ctx;  // Note that SHA384 functions use a SHA512 context
+
+    SHA384_Init(&ctx);
+
+    for (auto data : data_list) {
+        SHA384_Update(&ctx, std::get<0>(data), std::get<1>(data));
+    }
+
+    SHA384_Final((unsigned char*)ret.data(), &ctx);
+
     return ret;
+}
+#else
+static SHADigest sha(
+        const std::vector<std::tuple<const void*, size_t>>& data_list) {
+    SHADigest ret;
+    SHA256_CTX ctx;
+
+    SHA256_Init(&ctx);
+
+    for (auto data : data_list) {
+        SHA256_Update(&ctx, std::get<0>(data), std::get<1>(data));
+    }
+
+    SHA256_Final((unsigned char*)ret.data(), &ctx);
+
+    return ret;
+}
+#endif
+
+static SHADigest sha(const std::vector<uint8_t>& data) {
+    return sha({{data.data(), data.size()}});
 }
 
 static std::optional<std::vector<uint8_t>> signEcDsaDigest(
         const std::vector<uint8_t>& key,
-        const SHA256Digest& dataDigest) {
+        const SHADigest& dataDigest) {
     const unsigned char* k = key.data();
     auto ecKey =
             EC_KEY_Ptr(d2i_ECPrivateKey(nullptr, &k, key.size()), EC_KEY_free);
     if (!ecKey) {
         COSE_PRINT_ERROR("Error parsing EC private key\n");
+        return {};
+    }
+
+    if (EC_KEY_check_key(ecKey.get()) == 0) {
+        COSE_PRINT_ERROR("Error checking EC private key\n");
+        return {};
+    }
+
+    const EC_GROUP* ecGroup = EC_KEY_get0_group(ecKey.get());
+    if (EC_GROUP_get_curve_name(ecGroup) != APPLOADER_DSA_NID) {
+        COSE_PRINT_ERROR("Error checking EC group (not secp384r1)\n");
         return {};
     }
 
@@ -126,7 +177,7 @@ static std::optional<std::vector<uint8_t>> signEcDsaDigest(
 static std::optional<std::vector<uint8_t>> signEcDsa(
         const std::vector<uint8_t>& key,
         const std::vector<uint8_t>& data) {
-    return signEcDsaDigest(key, sha256(data));
+    return signEcDsaDigest(key, sha(data));
 }
 
 static bool ecdsaSignatureDerToCose(
@@ -275,7 +326,7 @@ bool coseIsSigned(CoseByteView data, size_t* signatureLength) {
     return false;
 }
 
-static bool checkEcDsaSignature(const SHA256Digest& digest,
+static bool checkEcDsaSignature(const SHADigest& digest,
                                 const uint8_t* signature,
                                 const uint8_t* publicKey,
                                 size_t publicKeySize) {
@@ -406,7 +457,7 @@ bool coseCheckEcDsaSignature(const std::vector<uint8_t>& signatureCoseSign1,
 
     std::vector<uint8_t> toBeSigned =
             coseBuildToBeSigned(encodedProtectedHeaders, signaturePayload);
-    if (!checkEcDsaSignature(sha256(toBeSigned), coseSignatureData,
+    if (!checkEcDsaSignature(sha(toBeSigned), coseSignatureData,
                              publicKey.data(), publicKey.size())) {
         COSE_PRINT_ERROR("Signature check failed\n");
         return false;
@@ -419,83 +470,132 @@ bool coseCheckEcDsaSignature(const std::vector<uint8_t>& signatureCoseSign1,
  * Strict signature verification code
  */
 static const uint8_t kSignatureHeader[] = {
-        // CBOR bytes
-        0xD2,
-        0x84,
-        0x54,
-        0xA2,
-        0x01,
-        // Algorithm identifier
-        0x26,
-        // CBOR bytes
-        0x3A,
+        /* clang-format off */
+    0xD2,       // 0xc0 = Tagged item | tag = 18 = COSE_TAG_SIGN1
+    0x84,       // 0x80 = Array       | len = 4
+
+    // Array item 1
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+    0x55,       // 0x20 = Byte string | len = 21
+#else
+    0x54,       // 0x20 = Byte string | len = 20
+#endif
+
+        0xA2,       // 0xa0 = Map         | items = 2
+
+        // Map entry 1: key, value
+        0x01,       // 0x0 = unsigned int | val = 1 = COSE_LABEL_ALG
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+        0x38,       // 0x2 = Negative int | additional = 24 (1 byte val)
+        0x22,       // Value = 34
+                    // == -1 - 34 = -35 = COSE_ALG_ECDSA_384
+#else
+        0x26,       // 0x2 = Negative int | value = 6
+                    // == -1 - 6 = -7 = COSE_ALG_ECDSA_256
+#endif
+        // Map entry 2: key, value
+        0x3A,       // 0x3 = Negative int | additional = 26 = next 4 bytes
+        0x00,       // 0x00010000 = 65536
+        0x01,       //              -1 - 65536 = -65535 = COSE_LABEL_TRUSTY
         0x00,
-        0x01,
         0x00,
-        0x00,
-        0x82,
-        0x69,
-        // "TrustyApp"
-        0x54,
-        0x72,
-        0x75,
-        0x73,
-        0x74,
-        0x79,
-        0x41,
-        0x70,
-        0x70,
-        // Version
-        0x01,
-        // CBOR bytes
-        0xA1,
-        0x04,
-        0x41,
+
+        0x82,       // 0x80 = Array       | len = 2
+            0x69,       // 0x30 = Text string | len = 9
+            0x54,       // T
+            0x72,       // r
+            0x75,       // u
+            0x73,       // s
+            0x74,       // t
+            0x79,       // y
+            0x41,       // A
+            0x70,       // p
+            0x70,       // p
+            // Version
+            0x01,       // 0x00 = Small value | value = 1 = APPLOADER_SIGNATURE_FORMAT_VERSION_CURRENT
+
+    // Array Item 2
+    0xA1,       // 0xa = Map          | items = 1
+    0x04,       // 0x0 = unsigned int | value = 4 = COSE_LABEL_KID
+    0x41,       // 0x4 = byte string  | len = 1
+    /* Next octet is the key Id */
+
+        /* clang-format on */
 };
-static const uint8_t kSignatureHeaderPart2[] = {0xF6, 0x58, 0x40};
+
+static const uint8_t kSignatureHeaderPart2[] = {
+        /* clang-format off */
+    0xF6,       // 0x7 = simple value | value = 22 = null
+    0x58,       // 0x2 = bytes string | additional = 24 = next 1 byte
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+    0x60        // length = 96
+#else
+    0x40        // length = 64
+#endif
+        /* clang-format on */
+};
+
 static const uint8_t kSignature1Header[] = {
-        // CBOR bytes
-        0x84,
-        0x6A,
-        // "Signature1"
-        0x53,
-        0x69,
-        0x67,
-        0x6E,
-        0x61,
-        0x74,
-        0x75,
-        0x72,
-        0x65,
-        0x31,
-        // CBOR bytes
-        0x54,
-        0xA2,
-        0x01,
-        // Algorithm identifier
-        0x26,
-        // CBOR bytes
-        0x3A,
+        /* clang-format off */
+    0x84,       // 0x8 = array       | length = 4
+
+    // Array item 1
+    0x6A,       // 0x6 = text string | length = 10
+        0x53,       // S
+        0x69,       // i
+        0x67,       // g
+        0x6E,       // n
+        0x61,       // a
+        0x74,       // t
+        0x75,       // u
+        0x72,       // r
+        0x65,       // e
+        0x31,       // 1
+
+    // Array item 2
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+    0x55,       // 0x20 = Byte string | len = 21
+#else
+    0x54,       // 0x20 = Byte string | len = 20
+#endif
+        0xA2,       // 0xa0 = Map         | items = 2
+
+        // Map entry 1: key, value
+        0x01,       // 0x0 = unsigned int | val = 1 = COSE_LABEL_ALG
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+        0x38,       // 0x2 = Negative int | additional = 24 (1 byte val)
+        0x22,       // Value = 34
+                    // == -1 - 34 = -35 = COSE_ALG_ECDSA_384
+#else
+        0x26,       // 0x2 = Negative int | value = 6
+                    // == -1 - 6 = -7 = COSE_ALG_ECDSA_256
+#endif
+        // Map entry 2: key, value
+        0x3A,       // 0x3 = Negative int | additional = 26 = next 4 bytes
+        0x00,       // 0x00010000 = 65536
+        0x01,       //              -1 - 65536 = -65535 = COSE_LABEL_TRUSTY
         0x00,
-        0x01,
         0x00,
-        0x00,
-        0x82,
-        0x69,
-        // "TrustyApp"
-        0x54,
-        0x72,
-        0x75,
-        0x73,
-        0x74,
-        0x79,
-        0x41,
-        0x70,
-        0x70,
-        // Version
-        0x01,
-        // CBOR bytes
-        0x40,
+
+        0x82,       // 0x8 = Array       | len = 2
+                0x69,       // 0x30 = Text string | len = 9
+                0x54,       // T
+                0x72,       // r
+                0x75,       // u
+                0x73,       // s
+                0x74,       // t
+                0x79,       // y
+                0x41,       // A
+                0x70,       // p
+                0x70,       // p
+                // Version
+                0x01,       // 0x00 = Small value | value = 1
+                            //    = APPLOADER_SIGNATURE_FORMAT_VERSION_CURRENT
+
+    // Array item 3
+    0x40,       // 0x4 = byte string    | len = 0
+
+        /* clang-format on */
 };
 
 /*
@@ -549,13 +649,9 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
     cbor::encodeBstrHeader(payloadSize, kMaxPayloadSizeHeaderSize,
                            payloadSizeHeader);
 
-    SHA256Digest digest;
-    SHA256_CTX ctx;
-    SHA256_Init(&ctx);
-    SHA256_Update(&ctx, kSignature1Header, sizeof(kSignature1Header));
-    SHA256_Update(&ctx, payloadSizeHeader, payloadSizeHeaderSize);
-    SHA256_Update(&ctx, packageStart + kPayloadOffset, payloadSize);
-    SHA256_Final(digest.data(), &ctx);
+    SHADigest digest = sha({{kSignature1Header, sizeof(kSignature1Header)},
+                            {payloadSizeHeader, payloadSizeHeaderSize},
+                            {packageStart + kPayloadOffset, payloadSize}});
 
     if (!checkEcDsaSignature(digest, packageStart + kSignatureOffset,
                              publicKey.get(), publicKeySize)) {
@@ -1347,4 +1443,12 @@ bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
     }
 
     return true;
+}
+
+const char* coseGetSigningDsa(void) {
+#ifdef APPLOADER_PACKAGE_SIGN_P384
+    return "ECDA P-384 + SHA-384 signatures";
+#else
+    return "ECDA P-256 + SHA-256 signatures";
+#endif
 }

@@ -31,4 +31,9 @@ MODULE_LIBRARY_DEPS := \
 	trusty/user/base/lib/hwaes \
 	trusty/user/base/lib/hwkey \
 
+# Select app package signing variant
+ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_SIGN_P384)))
+MODULE_COMPILEFLAGS += -DAPPLOADER_PACKAGE_SIGN_P384
+endif
+
 include make/library.mk
