@@ -346,7 +346,14 @@ TEST(CborTest, ViewsAndVectors) {
                  "requested view of buffer from encoder in invalid state");
 }
 
+#if __clang_major__ < 15
 TEST(CborTest, EncodeArrayOfFakeBstrOverflows) {
+#else
+// Newer clang compilers, e.g. clang-r458507 15.0.1, have ASAN that
+// can detect stack overview in enc.encodeBstr(fake).
+// So this test will fail at that point with newer compilers.
+TEST(CborTest, EncodeArrayOfFakeBstrOverflows) __attribute__((no_sanitize("address"))) {
+#endif
     cbor::VectorCborEncoder enc;
     const std::basic_string_view<uint8_t> fake = {
             nullptr, std::numeric_limits<size_t>::max()};
