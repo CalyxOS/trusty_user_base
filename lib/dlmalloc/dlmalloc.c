@@ -530,6 +530,8 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define DLMALLOC_EXPORT extern __attribute__((__weak__))
 #endif
 
+#include <lk/compiler.h>
+
 #ifndef WIN32
 #ifdef _WIN32
 #define WIN32 1
@@ -4003,7 +4005,7 @@ static void add_segment(mstate m, char* tbase, size_t tsize, flag_t mmapped) {
   msegmentptr ss = (msegmentptr)(chunk2mem(sp));
   mchunkptr tnext = chunk_plus_offset(sp, ssize);
   mchunkptr p = tnext;
-  int nfences = 0;
+  __UNUSED int nfences = 0;
 
   /* reset top to new space */
   init_top(m, (mchunkptr)tbase, tsize - TOP_FOOT_SIZE);
@@ -5405,7 +5407,7 @@ struct mallinfo dlmallinfo(void) {
 #endif /* NO_MALLINFO */
 
 #if !NO_MALLOC_STATS
-void dlmalloc_stats() {
+void dlmalloc_stats(void) {
   internal_malloc_stats(gm);
 }
 #endif /* NO_MALLOC_STATS */

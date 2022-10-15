@@ -73,7 +73,7 @@ __NO_INLINE static float crasher_float_func(float arg) {
  */
 handle_t global_chan;
 void* volatile global_pc;
-__NO_INLINE static void crasher_void() {
+__NO_INLINE static void crasher_void(void) {
     TLOG("crasher_not_entry_func ran, logging from crasher_void\n");
     /*
      * We suppress sending a tipc message in the case where global_pc is
@@ -113,7 +113,7 @@ __NO_INLINE static void crasher_void() {
  * get_pc from the beginning of crasher_not_entry_func in order to
  * obtain a natural entry point partway through crasher_not_entry_func.
  */
-__NO_INLINE static void* get_pc() {
+__NO_INLINE static void* get_pc(void) {
     return __builtin_extract_return_addr(__builtin_return_address(0));
 }
 
@@ -146,7 +146,7 @@ __NO_INLINE static int crasher_not_entry_func(int arg) {
  * it from CFI.
  */
 __NO_INLINE static void __attribute__((no_sanitize("cfi-icall")))
-crasher_call_exclude_float_func() {
+crasher_call_exclude_float_func(void) {
     TLOG("crasher_call_exclude_float_func ran, calling crasher_float_func\n");
     ((int_func)crasher_float_func)(0);
 }
@@ -158,7 +158,7 @@ crasher_call_exclude_float_func() {
  * partway.
  */
 __NO_INLINE static void __attribute__((no_sanitize("cfi-icall")))
-crasher_call_exclude_not_entry_func() {
+crasher_call_exclude_not_entry_func(void) {
     TLOG("crasher_call_exclude_not_entry_func ran, entering crasher_not_entry_func partway\n");
     /*
      * Because global_pc is global, we reset it before each test to make sure
