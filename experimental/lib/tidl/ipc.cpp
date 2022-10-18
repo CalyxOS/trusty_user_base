@@ -103,7 +103,7 @@ int send(handle_t chan,
             },
     };
     ipc_msg_t msg = {
-            .num_iov = countof(iovs),
+            .num_iov = static_cast<uint32_t>(countof(iovs)),
             .iov = iovs,
             .num_handles = num_handles,
             .handles = handles,
@@ -141,7 +141,7 @@ int recv(handle_t chan,
                 },
         };
         ipc_msg_t msg = {
-                .num_iov = countof(iovs),
+                .num_iov = static_cast<uint32_t>(countof(iovs)),
                 .iov = iovs,
                 .num_handles = num_handles,
                 .handles = handles,
@@ -177,7 +177,7 @@ int send(handle_t chan,
             },
     };
     ipc_msg_t msg = {
-            .num_iov = countof(iovs),
+            .num_iov = static_cast<uint32_t>(countof(iovs)),
             .iov = iovs,
             .num_handles = num_handles,
             .handles = handles,
@@ -221,7 +221,7 @@ int recv(handle_t chan,
                 },
         };
         ipc_msg_t msg = {
-                .num_iov = countof(iovs),
+                .num_iov = static_cast<uint32_t>(countof(iovs)),
                 .iov = iovs,
                 .num_handles = num_handles,
                 .handles = handles,
