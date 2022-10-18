@@ -56,7 +56,7 @@ static bool in_sancov = false;
 
 #define SANCOV_FINISH in_sancov = false;
 
-static size_t header_len() {
+static size_t header_len(void) {
     return sizeof(struct coverage_record_header) + /* COV_START */
            sizeof(struct coverage_record_header) + /* COV_8BIT_COUNTERS */
            sizeof(struct coverage_record_header) + /* COV_INSTR_PCS */
