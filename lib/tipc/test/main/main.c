@@ -206,6 +206,42 @@ TEST(ipc, set_cookie_negative) {
     }
 }
 
+/*
+ *  Duplicate handle unittest
+ */
+TEST(ipc, dup_negative) {
+    int rc;
+
+    /* duplicating an invalid (negative value) handle. */
+    rc = dup(INVALID_IPC_HANDLE);
+    EXPECT_EQ(ERR_BAD_HANDLE, rc, "duplicating invalid handle");
+
+    /*
+     *   call dup on an invalid (out of range) handle
+     *
+     *   check handling of the following cases:
+     *     - handle is on the upper boundary of valid handle range
+     *     - handle is above of the upper boundary of valid handle range
+     *     - handle is below of valid handle range
+     *
+     *   in all cases, the expected result is ERR_BAD_HANDLE error.
+     */
+    rc = dup(handle_base + MAX_USER_HANDLES);
+    EXPECT_EQ(ERR_BAD_HANDLE, rc, "duplicating invalid handle");
+
+    rc = dup(handle_base + MAX_USER_HANDLES + 1);
+    EXPECT_EQ(ERR_BAD_HANDLE, rc, "duplicating invalid handle");
+
+    rc = dup(handle_base - 1);
+    EXPECT_EQ(ERR_BAD_HANDLE, rc, "duplicating invalid handle");
+
+    /* duplicating non-existing handle that is in valid range. */
+    for (unsigned int i = first_free_handle_index; i < MAX_USER_HANDLES; i++) {
+        rc = dup(handle_base + i);
+        EXPECT_EQ(ERR_NOT_FOUND, rc, "duplicating invalid handle");
+    }
+}
+
 /****************************************************************************/
 
 /*
@@ -1441,9 +1477,13 @@ abort_test:
 TEST(ipc, hset_add_self) {
     int rc;
     handle_t hset1;
+    handle_t hset1_dup;
 
     hset1 = handle_set_create();
     EXPECT_GE_ZERO((int)hset1, "create handle set1");
+
+    hset1_dup = dup(hset1);
+    EXPECT_GE_ZERO((int)hset1_dup, "duplicate handle set1");
 
     ABORT_IF_NOT_OK(abort_test);
 
@@ -1457,8 +1497,14 @@ TEST(ipc, hset_add_self) {
     rc = handle_set_ctrl(hset1, HSET_ADD, &evt);
     EXPECT_EQ(ERR_INVALID_ARGS, rc, "hset add self");
 
+    /* add handle to handle set */
+    evt.handle = hset1_dup;
+    rc = handle_set_ctrl(hset1, HSET_ADD, &evt);
+    EXPECT_EQ(ERR_INVALID_ARGS, rc, "hset add duplicate of self");
+
 abort_test:
     close(hset1);
+    close(hset1_dup);
 }
 
 TEST(ipc, hset_add_loop) {
@@ -1508,12 +1554,16 @@ TEST(ipc, hset_add_duplicate) {
     int rc;
     handle_t hset1;
     handle_t hset2;
+    handle_t hset2_dup;
 
     hset1 = handle_set_create();
     EXPECT_GE_ZERO((int)hset1, "create handle set1");
 
     hset2 = handle_set_create();
     EXPECT_GE_ZERO((int)hset2, "create handle set2");
+
+    hset2_dup = dup(hset2);
+    EXPECT_GE_ZERO((int)hset2_dup, "duplicate handle set2");
 
     ABORT_IF_NOT_OK(abort_test);
 
@@ -1531,9 +1581,15 @@ TEST(ipc, hset_add_duplicate) {
     rc = handle_set_ctrl(hset1, HSET_ADD, &evt);
     EXPECT_EQ(ERR_ALREADY_EXISTS, rc, "add hset2 to hset1");
 
+    /* add duplicate of hset2 to hset1 */
+    evt.handle = hset2_dup;
+    rc = handle_set_ctrl(hset1, HSET_ADD, &evt);
+    EXPECT_EQ(0, rc, "add hset2 duplicate to hset1");
+
 abort_test:
     close(hset1);
     close(hset2);
+    close(hset2_dup);
 }
 
 TEST(ipc, hset_wait_on_empty_set) {
@@ -1584,15 +1640,120 @@ TEST(ipc, hset_wait_on_non_empty_set) {
 
     /* wait with zero timeout on hset1 */
     rc = wait(hset1, &evt, 0);
-    EXPECT_EQ(ERR_TIMED_OUT, rc, "wait on empty hset");
+    EXPECT_EQ(ERR_TIMED_OUT, rc, "wait on non-empty hset");
 
     /* wait with non-zero timeout on hset1 */
     rc = wait(hset1, &evt, 100);
-    EXPECT_EQ(ERR_TIMED_OUT, rc, "wait on empty hset");
+    EXPECT_EQ(ERR_TIMED_OUT, rc, "wait on non-empty hset");
 
 abort_test:
     close(hset1);
     close(hset2);
+}
+
+TEST(ipc, hset_wait_on_duplicate_in_set) {
+    int rc;
+    handle_t hset1;
+    handle_t hset2;
+    handle_t hset2_dup;
+
+    hset1 = handle_set_create();
+    EXPECT_GE_ZERO((int)hset1, "create handle set1");
+
+    hset2 = handle_set_create();
+    EXPECT_GE_ZERO((int)hset2, "create handle set2");
+
+    hset2_dup = dup(hset2);
+    EXPECT_GE_ZERO((int)hset2_dup, "duplicate handle set2");
+
+    ABORT_IF_NOT_OK(abort_test);
+
+    uevent_t evt = {
+            .handle = hset2,
+            .event = ~0U,
+            .cookie = NULL,
+    };
+
+    /* add hset2 to hset1 */
+    rc = handle_set_ctrl(hset1, HSET_ADD, &evt);
+    EXPECT_EQ(NO_ERROR, rc, "add hset2 to hset1");
+
+    /* add hset2_dup to hset1 */
+    evt.handle = hset2_dup;
+    rc = handle_set_ctrl(hset1, HSET_ADD, &evt);
+    EXPECT_EQ(NO_ERROR, rc, "add hset2_dup to hset1");
+
+    /* wait with zero timeout on hset1 */
+    rc = wait(hset1, &evt, 0);
+    EXPECT_EQ(ERR_TIMED_OUT, rc, "wait on non-empty hset");
+
+    /* wait with non-zero timeout on hset1 */
+    rc = wait(hset1, &evt, 100);
+    EXPECT_EQ(ERR_TIMED_OUT, rc, "wait on non-empty hset");
+
+    /* remove handle from handle set */
+    evt.handle = hset2;
+    rc = handle_set_ctrl(hset1, HSET_DEL, &evt);
+    EXPECT_EQ(NO_ERROR, rc, "hset del");
+
+    /* wait with zero timeout on hset1 */
+    rc = wait(hset1, &evt, 0);
+    EXPECT_EQ(ERR_TIMED_OUT, rc, "wait on non-empty hset");
+
+    /* wait with non-zero timeout on hset1 */
+    rc = wait(hset1, &evt, 100);
+    EXPECT_EQ(ERR_TIMED_OUT, rc, "wait on non-empty hset");
+
+    /* remove duplicate from handle set */
+    evt.handle = hset2_dup;
+    rc = handle_set_ctrl(hset1, HSET_DEL, &evt);
+    EXPECT_EQ(NO_ERROR, rc, "hset del");
+
+    /* wait with zero timeout */
+    rc = wait(hset1, &evt, 0);
+    EXPECT_EQ(ERR_NOT_FOUND, rc, "wait on empty hset");
+
+    /* wait with non-zero timeout */
+    rc = wait(hset1, &evt, 100);
+    EXPECT_EQ(ERR_NOT_FOUND, rc, "wait on empty hset");
+
+abort_test:
+    close(hset1);
+    close(hset2);
+    close(hset2_dup);
+}
+
+TEST(ipc, dup_no_resources) {
+    int rc;
+    handle_t hsets[MAX_USER_HANDLES];
+
+    /* create maximum number of handle sets */
+    for (unsigned int i = first_free_handle_index; i < MAX_USER_HANDLES; i++) {
+        hsets[i] = handle_set_create();
+        EXPECT_GE_ZERO((int)hsets[i], "create handle set");
+    }
+
+    rc = dup(hsets[first_free_handle_index]);
+    EXPECT_EQ(ERR_NO_RESOURCES, rc, "no more handles");
+
+    /* free 1 handle so we have room and repeat test */
+    rc = close(hsets[first_free_handle_index]);
+    EXPECT_EQ(NO_ERROR, rc, "close one set");
+    hsets[first_free_handle_index] = INVALID_IPC_HANDLE;
+
+    /* the only free handle here should be first_free_handle_index */
+    rc = dup(hsets[first_free_handle_index + 1]);
+    EXPECT_EQ(handle_base + first_free_handle_index, rc);
+    close(rc);
+
+    /* close them all */
+    for (unsigned int i = first_free_handle_index + 1; i < MAX_USER_HANDLES;
+         i++) {
+        /* close a valid set */
+        rc = close(hsets[i]);
+        EXPECT_EQ(NO_ERROR, rc, "close set");
+        hsets[i] = INVALID_IPC_HANDLE;
+    }
 }
 
 /*
@@ -2514,6 +2675,27 @@ TEST(ipc, tipc_send_recv_hdr_payload) {
 
     rc = close(h);
     EXPECT_EQ(0, rc, "close tipc_connect");
+}
+
+/****************************************************************************/
+
+TEST(ipc, dup_is_different) {
+    handle_t hset1;
+    handle_t hset1_dup;
+
+    hset1 = handle_set_create();
+    EXPECT_GE_ZERO((int)hset1, "create handle set1");
+
+    hset1_dup = dup(hset1);
+    EXPECT_GE_ZERO((int)hset1_dup, "duplicate handle set1");
+
+    ABORT_IF_NOT_OK(abort_test);
+
+    EXPECT_NE(hset1, hset1_dup, "duplicate is different");
+
+abort_test:
+    close(hset1);
+    close(hset1_dup);
 }
 
 /****************************************************************************/
