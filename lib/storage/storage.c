@@ -70,7 +70,7 @@ static ssize_t check_response(struct storage_msg* msg, ssize_t res) {
         return ERR_IO;
     }
 
-    TLOGI("cmd 0x%x: server returned %u\n", msg->cmd, msg->result);
+    /* TLOGI("cmd 0x%x: server returned %u\n", msg->cmd, msg->result); */
 
     switch (msg->result) {
     case STORAGE_NO_ERROR:
