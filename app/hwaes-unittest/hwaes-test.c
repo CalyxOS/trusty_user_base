@@ -73,11 +73,13 @@ struct test_vector {
 
 /*
  * Test vectors are from boringssl cipher_tests.txt which are in turn taken from
- * the GCM spec.
+ * the GCM spec at
+ * http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-spec.pdf
  *
  * We are intentionally not testing non-standard IV lengths because we don't
  * support this (yet).
  */
+/* AES 128 GCM */
 static const uint8_t gcm_test1_key[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                         0x00, 0x00, 0x00, 0x00};
@@ -142,106 +144,94 @@ static const uint8_t gcm_test3_tag[] = {0x5b, 0xc9, 0x4f, 0xbc, 0x32, 0x21,
                                         0xa5, 0xdb, 0x94, 0xfa, 0xe9, 0x5a,
                                         0xe7, 0x12, 0x1a, 0x47};
 
+/* AES 256 GCM */
+static const uint8_t gcm_test4_key[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t gcm_test4_iv[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t gcm_test4_plaintext[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t gcm_test4_ciphertext[] = {
+        0xce, 0xa7, 0x40, 0x3d, 0x4d, 0x60, 0x6b, 0x6e,
+        0x07, 0x4e, 0xc5, 0xd3, 0xba, 0xf3, 0x9d, 0x18};
+static const uint8_t gcm_test4_aad[] = {};
+static const uint8_t gcm_test4_tag[] = {0xd0, 0xd1, 0xc8, 0xa7, 0x99, 0x99,
+                                        0x6b, 0xf0, 0x26, 0x5b, 0x98, 0xb5,
+                                        0xd4, 0x8a, 0xb9, 0x19};
+
+static const uint8_t gcm_test5_key[] = {
+        0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c, 0x6d, 0x6a, 0x8f,
+        0x94, 0x67, 0x30, 0x83, 0x08, 0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65,
+        0x73, 0x1c, 0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08};
+static const uint8_t gcm_test5_iv[] = {0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce,
+                                       0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
+static const uint8_t gcm_test5_plaintext[] = {
+        0xd9, 0x31, 0x32, 0x25, 0xf8, 0x84, 0x06, 0xe5, 0xa5, 0x59, 0x09,
+        0xc5, 0xaf, 0xf5, 0x26, 0x9a, 0x86, 0xa7, 0xa9, 0x53, 0x15, 0x34,
+        0xf7, 0xda, 0x2e, 0x4c, 0x30, 0x3d, 0x8a, 0x31, 0x8a, 0x72, 0x1c,
+        0x3c, 0x0c, 0x95, 0x95, 0x68, 0x09, 0x53, 0x2f, 0xcf, 0x0e, 0x24,
+        0x49, 0xa6, 0xb5, 0x25, 0xb1, 0x6a, 0xed, 0xf5, 0xaa, 0x0d, 0xe6,
+        0x57, 0xba, 0x63, 0x7b, 0x39, 0x1a, 0xaf, 0xd2, 0x55};
+static const uint8_t gcm_test5_ciphertext[] = {
+        0x52, 0x2d, 0xc1, 0xf0, 0x99, 0x56, 0x7d, 0x07, 0xf4, 0x7f, 0x37,
+        0xa3, 0x2a, 0x84, 0x42, 0x7d, 0x64, 0x3a, 0x8c, 0xdc, 0xbf, 0xe5,
+        0xc0, 0xc9, 0x75, 0x98, 0xa2, 0xbd, 0x25, 0x55, 0xd1, 0xaa, 0x8c,
+        0xb0, 0x8e, 0x48, 0x59, 0x0d, 0xbb, 0x3d, 0xa7, 0xb0, 0x8b, 0x10,
+        0x56, 0x82, 0x88, 0x38, 0xc5, 0xf6, 0x1e, 0x63, 0x93, 0xba, 0x7a,
+        0x0a, 0xbc, 0xc9, 0xf6, 0x62, 0x89, 0x80, 0x15, 0xad};
+static const uint8_t gcm_test5_aad[] = {};
+static const uint8_t gcm_test5_tag[] = {0xb0, 0x94, 0xda, 0xc5, 0xd9, 0x34,
+                                        0x71, 0xbd, 0xec, 0x1a, 0x50, 0x22,
+                                        0x70, 0xe3, 0xcc, 0x6c};
+
+static const uint8_t gcm_test6_key[] = {
+        0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c, 0x6d, 0x6a, 0x8f,
+        0x94, 0x67, 0x30, 0x83, 0x08, 0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65,
+        0x73, 0x1c, 0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08};
+static const uint8_t gcm_test6_iv[] = {0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce,
+                                       0xdb, 0xad, 0xde, 0xca, 0xf8, 0x88};
+static const uint8_t gcm_test6_plaintext[] = {
+        0xd9, 0x31, 0x32, 0x25, 0xf8, 0x84, 0x06, 0xe5, 0xa5, 0x59, 0x09, 0xc5,
+        0xaf, 0xf5, 0x26, 0x9a, 0x86, 0xa7, 0xa9, 0x53, 0x15, 0x34, 0xf7, 0xda,
+        0x2e, 0x4c, 0x30, 0x3d, 0x8a, 0x31, 0x8a, 0x72, 0x1c, 0x3c, 0x0c, 0x95,
+        0x95, 0x68, 0x09, 0x53, 0x2f, 0xcf, 0x0e, 0x24, 0x49, 0xa6, 0xb5, 0x25,
+        0xb1, 0x6a, 0xed, 0xf5, 0xaa, 0x0d, 0xe6, 0x57, 0xba, 0x63, 0x7b, 0x39};
+static const uint8_t gcm_test6_ciphertext[] = {
+        0x52, 0x2d, 0xc1, 0xf0, 0x99, 0x56, 0x7d, 0x07, 0xf4, 0x7f, 0x37, 0xa3,
+        0x2a, 0x84, 0x42, 0x7d, 0x64, 0x3a, 0x8c, 0xdc, 0xbf, 0xe5, 0xc0, 0xc9,
+        0x75, 0x98, 0xa2, 0xbd, 0x25, 0x55, 0xd1, 0xaa, 0x8c, 0xb0, 0x8e, 0x48,
+        0x59, 0x0d, 0xbb, 0x3d, 0xa7, 0xb0, 0x8b, 0x10, 0x56, 0x82, 0x88, 0x38,
+        0xc5, 0xf6, 0x1e, 0x63, 0x93, 0xba, 0x7a, 0x0a, 0xbc, 0xc9, 0xf6, 0x62};
+static const uint8_t gcm_test6_aad[] = {
+        0xfe, 0xed, 0xfa, 0xce, 0xde, 0xad, 0xbe, 0xef, 0xfe, 0xed,
+        0xfa, 0xce, 0xde, 0xad, 0xbe, 0xef, 0xab, 0xad, 0xda, 0xd2};
+static const uint8_t gcm_test6_tag[] = {0x76, 0xfc, 0x6e, 0xce, 0x0f, 0x4e,
+                                        0x17, 0x68, 0xcd, 0xdf, 0x88, 0x53,
+                                        0xbb, 0x2d, 0x55, 0x1b};
+
+/* clang-format off */
+#define TV_DATA(name_, field_)                                                 \
+    .field_ = {.data_ptr = &name_##_##field_, .len = sizeof(name_##_##field_)}
+
+#define TV(mode_, name_)                                                       \
+    {                                                                          \
+        .mode = mode_,                                                         \
+        TV_DATA(name_, key),                                                   \
+        TV_DATA(name_, iv),                                                    \
+        TV_DATA(name_, aad),                                                   \
+        TV_DATA(name_, tag),                                                   \
+        TV_DATA(name_, ciphertext),                                            \
+        TV_DATA(name_, plaintext)                                              \
+    }
+/* clang-format on */
+
 static const struct test_vector vectors[] = {
-        {
-                .mode = HWAES_GCM_MODE,
-                .key =
-                        {
-                                .data_ptr = &gcm_test1_key,
-                                .len = sizeof(gcm_test1_key),
-                        },
-                .iv =
-                        {
-                                .data_ptr = &gcm_test1_iv,
-                                .len = sizeof(gcm_test1_iv),
-                        },
-                .aad =
-                        {
-                                .data_ptr = &gcm_test1_aad,
-                                .len = sizeof(gcm_test1_aad),
-                        },
-                .tag =
-                        {
-                                .data_ptr = &gcm_test1_tag,
-                                .len = sizeof(gcm_test1_tag),
-                        },
-                .ciphertext =
-                        {
-                                .data_ptr = &gcm_test1_ciphertext,
-                                .len = sizeof(gcm_test1_ciphertext),
-                        },
-                .plaintext =
-                        {
-                                .data_ptr = &gcm_test1_plaintext,
-                                .len = sizeof(gcm_test1_plaintext),
-                        },
-        },
-        {
-                .mode = HWAES_GCM_MODE,
-                .key =
-                        {
-                                .data_ptr = &gcm_test2_key,
-                                .len = sizeof(gcm_test2_key),
-                        },
-                .iv =
-                        {
-                                .data_ptr = &gcm_test2_iv,
-                                .len = sizeof(gcm_test2_iv),
-                        },
-                .aad =
-                        {
-                                .data_ptr = &gcm_test2_aad,
-                                .len = sizeof(gcm_test2_aad),
-                        },
-                .tag =
-                        {
-                                .data_ptr = &gcm_test2_tag,
-                                .len = sizeof(gcm_test2_tag),
-                        },
-                .ciphertext =
-                        {
-                                .data_ptr = &gcm_test2_ciphertext,
-                                .len = sizeof(gcm_test2_ciphertext),
-                        },
-                .plaintext =
-                        {
-                                .data_ptr = &gcm_test2_plaintext,
-                                .len = sizeof(gcm_test2_plaintext),
-                        },
-        },
-        {
-                .mode = HWAES_GCM_MODE,
-                .key =
-                        {
-                                .data_ptr = &gcm_test3_key,
-                                .len = sizeof(gcm_test3_key),
-                        },
-                .iv =
-                        {
-                                .data_ptr = &gcm_test3_iv,
-                                .len = sizeof(gcm_test3_iv),
-                        },
-                .aad =
-                        {
-                                .data_ptr = &gcm_test3_aad,
-                                .len = sizeof(gcm_test3_aad),
-                        },
-                .tag =
-                        {
-                                .data_ptr = &gcm_test3_tag,
-                                .len = sizeof(gcm_test3_tag),
-                        },
-                .ciphertext =
-                        {
-                                .data_ptr = &gcm_test3_ciphertext,
-                                .len = sizeof(gcm_test3_ciphertext),
-                        },
-                .plaintext =
-                        {
-                                .data_ptr = &gcm_test3_plaintext,
-                                .len = sizeof(gcm_test3_plaintext),
-                        },
-        },
+        TV(HWAES_GCM_MODE, gcm_test1), TV(HWAES_GCM_MODE, gcm_test2),
+        TV(HWAES_GCM_MODE, gcm_test3), TV(HWAES_GCM_MODE, gcm_test4),
+        TV(HWAES_GCM_MODE, gcm_test5), TV(HWAES_GCM_MODE, gcm_test6),
 };
 
 static void parse_vector(const struct test_vector* vector,
@@ -724,12 +714,12 @@ TEST_F(hwaes, EncryptVectors) {
 
         rc = memcmp(_state->shm_base, vector->ciphertext.data_ptr,
                     vector->ciphertext.len);
-        EXPECT_EQ(0, rc, "wrong encryption result");
+        EXPECT_EQ(0, rc, "wrong ciphertext result");
 
         if (vector->tag.len > 0) {
             rc = memcmp((uint8_t*)_state->shm_base + vector->ciphertext.len,
                         vector->tag.data_ptr, vector->tag.len);
-            EXPECT_EQ(0, rc, "wrong encryption result");
+            EXPECT_EQ(0, rc, "wrong encryption tag result");
         }
     }
 
