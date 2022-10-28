@@ -21,6 +21,9 @@ MODULE_SRCS := system/keymint/common/src/lib.rs
 
 MODULE_CRATE_NAME := kmr_common
 
+MODULE_RUSTFLAGS += \
+	--allow rustdoc::broken-intra-doc-links \
+
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/host/enumn-rust \
 	trusty/user/base/host/keymint-rust/derive \
