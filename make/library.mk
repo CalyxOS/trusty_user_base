@@ -86,6 +86,23 @@ ifeq ($(call TOBOOL,$(TRUSTY_NEW_MODULE_SYSTEM)),false)
 $(info Building kernel library: $(MODULE))
 
 GLOBAL_INCLUDES += $(MODULE_EXPORT_INCLUDES)
+GLOBAL_COMPILEFLAGS += $(MODULE_EXPORT_COMPILEFLAGS)
+
+ifneq ($(MODULE_EXPORT_CONSTANTS),)
+$(error MODULE_EXPORT_CONSTANTS is not supported by library.mk for use in the kernel)
+endif
+ifneq ($(MODULE_EXPORT_CFLAGS),)
+$(error MODULE_EXPORT_CFLAGS is not supported by library.mk for use in the kernel)
+endif
+ifneq ($(MODULE_EXPORT_CPPFLAGS),)
+$(error MODULE_EXPORT_CPPFLAGS is not supported by library.mk for use in the kernel)
+endif
+ifneq ($(MODULE_EXPORT_ASMFLAGS),)
+$(error MODULE_EXPORT_ASMFLAGS is not supported by library.mk for use in the kernel)
+endif
+ifneq ($(MODULE_EXPORT_LDFLAGS),)
+$(error MODULE_EXPORT_LDFLAGS is not supported by library.mk for use in the kernel)
+endif
 
 # Building for the kernel, turn off independent library build and fall back to
 # lk module system.
