@@ -22,11 +22,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/auxv.h>
+
 #include <trusty/string.h>
-#include <trusty/time.h>
 #include <trusty/uuid.h>
+
+#if defined(TRUSTY_USERSPACE)
+#include <sys/auxv.h>
+#include <trusty/time.h>
 #include <trusty_unittest.h>
+#else
+#include <lib/trusty/uuid.h>
+#include <lib/unittest/unittest.h>
+
+#include <lk/trusty_unittest.h>
+#endif
+
 #include <unistd.h>
 
 #define CHECK_ERRNO(e)       \
@@ -143,6 +153,7 @@ TEST_F(libc, strcmp_test) {
 test_abort:;
 }
 
+#if defined(TRUSTY_USERSPACE)
 #define MSEC 1000000ULL
 
 /*
@@ -193,6 +204,7 @@ TEST_F(libc, localtime) {
 
 test_abort:;
 }
+#endif
 
 TEST_F(libc, snprintf_test) {
     char buffer[16];
@@ -224,6 +236,7 @@ TEST_F(libc, print_test) {
 test_abort:;
 }
 
+#if defined(TRUSTY_USERSPACE)
 TEST_F(libc, print_float_test) {
     /*
      * %f should be valid and not cause an error, even if floating point
@@ -234,6 +247,7 @@ TEST_F(libc, print_float_test) {
 
 test_abort:;
 }
+#endif
 
 TEST_F(libc, print_errno_test) {
     /*
@@ -262,6 +276,7 @@ __attribute__((__noinline__)) uintptr_t frame_ptr(void) {
     return (uintptr_t)__builtin_frame_address(0);
 }
 
+#if defined(TRUSTY_USERSPACE)
 TEST_F(libc, stack_alignment) {
     /*
      * On all the platforms we support, the frame pointer should be aligned to 2
@@ -309,6 +324,7 @@ TEST_F(libc, shadow_call_stack) {
 test_abort:;
 }
 #endif /* __has_feature(shadow_call_stack) */
+#endif
 
 #define SCNPRINTF_TEST_BUF_LEN 8
 TEST_F(libc, scnprintf) {
@@ -390,6 +406,7 @@ TEST_F(libc, uuid_to_str) {
     EXPECT_EQ(0, strncmp(expected_str, result_str, UUID_STR_SIZE));
 }
 
+#if defined(TRUSTY_USERSPACE)
 /*
  * We're linking a prebuilt libgcc / compiler_rt provided by the toolchain.
  * It wasn't designed for Trusty, so does it actually work? If we set things up
@@ -415,6 +432,7 @@ extern float __trunctfsf2(long double a);
 TEST_F(libc, float_builtins) {
     EXPECT_EQ(123, (int)__trunctfsf2(__extendsftf2(123.0f)));
 }
+#endif
 #endif
 
 /*
@@ -453,6 +471,7 @@ test_abort:;
 
 #endif
 
+#if defined(TRUSTY_USERSPACE)
 TEST_F(libc, sbrk) {
     /* Allocating and releasing a small range should succeed */
     const ssize_t brk_test_size = 64;
@@ -469,6 +488,7 @@ TEST_F(libc, sbrk) {
 test_abort:
     CLEAR_ERRNO();
 }
+#endif
 
 TEST_F(libc, SnprintfLargePointerTest) {
     char buffer[BUFFER_SIZE];
@@ -839,4 +859,8 @@ TEST_F(libc, UnsignedOverflowMacros) {
     }
 }
 
+#if defined(TRUSTY_USERSPACE)
 PORT_TEST(libc, "com.android.libctest");
+#else
+PORT_TEST(libc, "com.android.kernel.libctest");
+#endif
