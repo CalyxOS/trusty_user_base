@@ -48,6 +48,10 @@ MODULE_LIBRARY_DEPS += \
 
 MODULE_EXPORT_INCLUDES += $(AIDL_HEADER_DIR)
 
+# Ensure that all auto-generated code, including headers, is
+# emitted before downstream dependencies
+MODULE_EXPORT_SRCDEPS += $(MODULE_SRCS)
+
 # Build the AIDL module into a library
 include make/library.mk
 
