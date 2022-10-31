@@ -42,6 +42,7 @@ $(TRUSTY_SDK_DIR)/make/trusty_sdk.mk: trusty/user/base/sdk/make/trusty_sdk.mk
 	$(NOECHO)echo 'TRUSTY_APP_ALIGNMENT := $(TRUSTY_APP_ALIGNMENT)' >> $@.tmp
 	$(NOECHO)echo 'TRUSTY_APP_MEMBASE := $(TRUSTY_APP_MEMBASE)' >> $@.tmp
 	$(NOECHO)echo 'TRUSTY_APP_SYMTAB_ENABLED := $(TRUSTY_APP_SYMTAB_ENABLED)' >> $@.tmp
+	$(NOECHO)echo 'TRUSTY_APP_LIBGCC := $$(SDK_SYSROOT_DIR)/usr/lib/$(LIBCLANG_RT)' >> $@.tmp
 	$(NOECHO)echo 'SCS_ENABLED := $(SCS_ENABLED)' >> $@.tmp
 	$(NOECHO)echo 'STANDARD_ARCH_NAME := $(STANDARD_ARCH_NAME)' >> $@.tmp
 
