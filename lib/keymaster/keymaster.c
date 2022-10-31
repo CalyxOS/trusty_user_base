@@ -171,7 +171,7 @@ int keymaster_get_auth_token_key(keymaster_session_t session,
      * key is 32 bytes. We know that from KM code.
      */
     if (size != AUTH_TOKEN_KEY_LEN) {
-        TLOGE("%s: auth token key wrong length: %zu, expected %d", __func__,
+        TLOGE("%s: auth token key wrong length: %zu, expected %d\n", __func__,
               size, AUTH_TOKEN_KEY_LEN);
         rc = ERR_BAD_LEN;
         goto err_bad_read;
@@ -183,7 +183,7 @@ int keymaster_get_auth_token_key(keymaster_session_t session,
 
 err_bad_read:
     free(key_buf);
-    TLOGE("%s: failed read_msg (%ld)", __func__, rc);
+    TLOGE("%s: failed read_msg (%ld)\n", __func__, rc);
     return rc;
 }
 
