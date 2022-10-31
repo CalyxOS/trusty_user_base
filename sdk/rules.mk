@@ -81,8 +81,9 @@ ALL_SDK_INCLUDES += EXTRA_includes
 $(TRUSTY_SDK_DIR)/tools/manifest_compiler.py: trusty/user/base/tools/manifest_compiler.py
 	@$(MKDIR)
 	$(NOECHO)rm -f $@.tmp
-	$(NOECHO)echo -e '#!/usr/bin/env python3\n"""' > $@.tmp
+	$(NOECHO)printf '#!/usr/bin/env python3\n"""' > $@.tmp
 	$(NOECHO)tail -n +8 $^ >> $@.tmp
+	$(NOECHO)chmod +x $@.tmp
+	$(NOECHO)$(BUILDTOOLS_BINDIR)/py3-cmd $@.tmp --help > /dev/null
 	$(call TESTANDREPLACEFILE,$@.tmp,$@)
-	$(NOECHO)chmod +x $@
 ALL_SDK_EXTRA_FILES += $(TRUSTY_SDK_DIR)/tools/manifest_compiler.py
