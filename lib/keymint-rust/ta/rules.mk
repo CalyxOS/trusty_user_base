@@ -21,6 +21,9 @@ MODULE_SRCS := system/keymint/ta/src/lib.rs
 
 MODULE_CRATE_NAME := kmr_ta
 
+MODULE_RUSTFLAGS += \
+	--allow rustdoc::broken-intra-doc-links \
+
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/ciborium-rust \
 	trusty/user/base/lib/ciborium-io-rust \
