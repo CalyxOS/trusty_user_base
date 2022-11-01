@@ -36,4 +36,9 @@ ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_SIGN_P384)))
 MODULE_COMPILEFLAGS += -DAPPLOADER_PACKAGE_SIGN_P384
 endif
 
+# Select app package cipher variant
+ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_CIPHER_A256)))
+MODULE_COMPILEFLAGS += -DAPPLOADER_PACKAGE_CIPHER_A256
+endif
+
 include make/library.mk

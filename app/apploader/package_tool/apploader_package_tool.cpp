@@ -77,11 +77,19 @@ static void print_usage_and_exit(const char* prog, int code) {
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "\t-h, --help            prints this message and exit\n");
     fprintf(stderr,
-            "\t-m, --mode            mode; one of: build, sign, verify, encrypt\n");
+            "\t-m, --mode            mode; one of: build, sign, verify, encrypt, decrypt, info\n");
     fprintf(stderr,
             "\t-s, --strict          verify signature in strict mode\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "Exit Code:\n");
+    fprintf(stderr, "  0 on success, otherwise a non-zero error code.\n");
+    fprintf(stderr,
+            "\n"
+            "  For info mode, it is considered an error if a package manifest requires\n"
+            "  app encryption, but the package is not encrypted.\n");
+    fprintf(stderr, "\n");
     fprintf(stderr, "Build:\n");
+    fprintf(stderr, "  Cipher:  %s\n", coseGetCipherAlg());
     fprintf(stderr, "  Signing: %s\n", coseGetSigningDsa());
     fprintf(stderr, "\n");
     exit(code);
@@ -629,21 +637,21 @@ static void encrypt_package(const char* output_path,
     auto pkg_info = parse_package(input, true);
 
     auto key = string_to_vector(read_entire_file(key_path));
-    if (key.size() != kAes128GcmKeySize) {
-        fprintf(stderr, "Wrong AES-128-GCM key size: %zu\n", key.size());
+    if (key.size() != kAesGcmKeySize) {
+        fprintf(stderr, "Wrong AES-GCM key size: %zu\n", key.size());
         exit(EXIT_FAILURE);
     }
 
     cbor::VectorCborEncoder enc;
     enc.encodeMap([&](auto& enc) {
-        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_ALG_A128GCM);
+        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_VAL_CIPHER_ALG);
         enc.encodeKeyValue(COSE_LABEL_TRUSTY, "TrustyApp");
     });
 
     auto encodedProtectedHeaders = enc.intoVec();
     auto cose_encrypt =
-            coseEncryptAes128GcmKeyWrap(key, key_id, pkg_info.elf_item, {},
-                                        encodedProtectedHeaders, {}, false);
+            coseEncryptAesGcmKeyWrap(key, key_id, pkg_info.elf_item, {},
+                                     encodedProtectedHeaders, {}, false);
     if (!cose_encrypt) {
         fprintf(stderr, "Failed to encrypt ELF file\n");
         exit(EXIT_FAILURE);
@@ -676,8 +684,9 @@ static void decrypt_package(const char* output_path,
     auto pkg_info = parse_package(input, true);
 
     auto key = string_to_vector(read_entire_file(key_path));
-    if (key.size() != kAes128GcmKeySize) {
-        fprintf(stderr, "Wrong AES-128-GCM key size: %zu\n", key.size());
+    if (key.size() != kAesGcmKeySize) {
+        fprintf(stderr, "Wrong AES-GCM key size: %zu, expected %zu\n",
+                key.size(), kAesGcmKeySize);
         exit(EXIT_FAILURE);
     }
 
@@ -694,9 +703,8 @@ static void decrypt_package(const char* output_path,
 
     const uint8_t* package_start;
     size_t package_size;
-    if (!coseDecryptAes128GcmKeyWrapInPlace(pkg_info.elf_item, get_key, {},
-                                            false, &package_start,
-                                            &package_size)) {
+    if (!coseDecryptAesGcmKeyWrapInPlace(pkg_info.elf_item, get_key, {}, false,
+                                         &package_start, &package_size)) {
         fprintf(stderr, "Failed to decrypt ELF file\n");
         exit(EXIT_FAILURE);
     }
@@ -726,6 +734,8 @@ static void print_package_info(const char* input_path) {
     // key ids, and we don't want them to print any errors
     // (which they do since we pass them invalid keys)
     bool oldSilenceErrors = coseSetSilenceErrors(true);
+
+    printf("File: %s\n", input_path);
 
     auto input = read_entire_file(input_path);
     size_t signature_length = 0;
@@ -782,9 +792,8 @@ static void print_package_info(const char* input_path) {
 
         const uint8_t* package_start;
         size_t package_size;
-        coseDecryptAes128GcmKeyWrapInPlace(pkg_info.elf_item, print_key_id, {},
-                                           false, &package_start,
-                                           &package_size);
+        coseDecryptAesGcmKeyWrapInPlace(pkg_info.elf_item, print_key_id, {},
+                                        false, &package_start, &package_size);
     } else {
         if (manifest_extracts.requires_encryption) {
             printf("Encrypted: NO, REQUIRED\n");

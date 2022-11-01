@@ -53,6 +53,12 @@
 #define APPLOADER_DSA_NID NID_X9_62_prime256v1
 #endif
 
+#ifdef APPLOADER_PACKAGE_CIPHER_A256
+#define EVP_aes_trusty_gcm() EVP_aes_256_gcm()
+#else
+#define EVP_aes_trusty_gcm() EVP_aes_128_gcm()
+#endif
+
 static bool gSilenceErrors = false;
 
 constexpr size_t kEcdsaValueSize = APPLOADER_DSA_LENGTH;
@@ -682,14 +688,14 @@ static std::tuple<std::unique_ptr<uint8_t[]>, size_t> coseBuildGcmAad(
     return {enc.intoVec().arr(), enc.size()};
 }
 
-static std::optional<std::vector<uint8_t>> encryptAes128Gcm(
+static std::optional<std::vector<uint8_t>> encryptAesGcm(
         const std::vector<uint8_t>& key,
         const std::vector<uint8_t>& nonce,
         const CoseByteView& data,
         std::basic_string_view<uint8_t> additionalAuthenticatedData) {
-    if (key.size() != kAes128GcmKeySize) {
-        COSE_PRINT_ERROR("key is not kAes128GcmKeySize bytes, got %zu\n",
-                         key.size());
+    if (key.size() != kAesGcmKeySize) {
+        COSE_PRINT_ERROR("key is not kAesGcmKeySize (%zu) bytes, got %zu\n",
+                         kAesGcmKeySize, key.size());
         return {};
     }
     if (nonce.size() != kAesGcmIvSize) {
@@ -711,7 +717,7 @@ static std::optional<std::vector<uint8_t>> encryptAes128Gcm(
         return {};
     }
 
-    if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_gcm(), NULL, NULL, NULL) !=
+    if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_trusty_gcm(), NULL, NULL, NULL) !=
         1) {
         COSE_PRINT_ERROR("EVP_EncryptInit_ex: failed, error 0x%lx\n",
                          static_cast<unsigned long>(ERR_get_error()));
@@ -794,7 +800,7 @@ static std::optional<std::vector<uint8_t>> encryptAes128Gcm(
     return encryptedData;
 }
 
-static std::optional<std::vector<uint8_t>> coseEncryptAes128Gcm(
+static std::optional<std::vector<uint8_t>> coseEncryptAesGcm(
         const std::string_view context,
         const std::vector<uint8_t>& key,
         const CoseByteView& data,
@@ -830,7 +836,7 @@ static std::optional<std::vector<uint8_t>> coseEncryptAes128Gcm(
     std::basic_string_view gcmAadView{gcmAad.get(), gcmAadSize};
 
     std::optional<std::vector<uint8_t>> ciphertext =
-            encryptAes128Gcm(key, iv.value(), data, gcmAadView);
+            encryptAesGcm(key, iv.value(), data, gcmAadView);
     if (!ciphertext) {
         COSE_PRINT_ERROR("Error encrypting data\n");
         return {};
@@ -849,7 +855,7 @@ static std::optional<std::vector<uint8_t>> coseEncryptAes128Gcm(
     return enc.intoVec();
 }
 
-std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
+std::optional<std::vector<uint8_t>> coseEncryptAesGcmKeyWrap(
         const std::vector<uint8_t>& key,
         uint8_t keyId,
         const CoseByteView& data,
@@ -859,7 +865,7 @@ std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
         bool tagged) {
     /* Generate and encrypt the CEK */
     std::optional<std::vector<uint8_t>> contentEncryptionKey =
-            getRandom(kAes128GcmKeySize);
+            getRandom(kAesGcmKeySize);
     if (!contentEncryptionKey) {
         COSE_PRINT_ERROR("Error generating encryption key\n");
         return {};
@@ -868,7 +874,7 @@ std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
     cbor::VectorCborEncoder coseKeyEnc;
     coseKeyEnc.encodeMap([&](auto& enc) {
         enc.encodeKeyValue(COSE_LABEL_KEY_KTY, COSE_KEY_TYPE_SYMMETRIC);
-        enc.encodeKeyValue(COSE_LABEL_KEY_ALG, COSE_ALG_A128GCM);
+        enc.encodeKeyValue(COSE_LABEL_KEY_ALG, COSE_VAL_CIPHER_ALG);
         enc.encodeKeyValue(COSE_LABEL_KEY_SYMMETRIC_KEY, [&](auto& enc) {
             enc.encodeBstr(contentEncryptionKey.value());
         });
@@ -885,13 +891,13 @@ std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
 
     cbor::VectorCborEncoder encodedProtectedHeadersForEncKey;
     encodedProtectedHeadersForEncKey.encodeMap([&](auto& enc) {
-        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_ALG_A128GCM);
+        enc.encodeKeyValue(COSE_LABEL_ALG, COSE_VAL_CIPHER_ALG);
     });
 
-    auto encContentEncryptionKey = coseEncryptAes128Gcm(
-            COSE_CONTEXT_ENC_RECIPIENT, key, coseKeyByteView, {},
-            encodedProtectedHeadersForEncKey.intoVec(), keyUnprotectedHeaders,
-            {});
+    auto encContentEncryptionKey =
+            coseEncryptAesGcm(COSE_CONTEXT_ENC_RECIPIENT, key, coseKeyByteView,
+                              {}, encodedProtectedHeadersForEncKey.intoVec(),
+                              keyUnprotectedHeaders, {});
     if (!encContentEncryptionKey.has_value()) {
         COSE_PRINT_ERROR("Error wrapping encryption key\n");
         return {};
@@ -902,7 +908,7 @@ std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
             [&](auto& enc) { enc.copyBytes(encContentEncryptionKey.value()); });
     auto recipients = recipientsEnc.intoVec();
 
-    auto coseEncrypt = coseEncryptAes128Gcm(
+    auto coseEncrypt = coseEncryptAesGcm(
             COSE_CONTEXT_ENCRYPT, std::move(contentEncryptionKey.value()), data,
             externalAad, encodedProtectedHeaders, unprotectedHeaders,
             std::move(recipients));
@@ -921,7 +927,7 @@ std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
     }
 }
 
-static bool decryptAes128GcmInPlace(
+static bool decryptAesGcmInPlace(
         std::basic_string_view<uint8_t> key,
         std::basic_string_view<uint8_t> nonce,
         uint8_t* encryptedData,
@@ -935,9 +941,9 @@ static bool decryptAes128GcmInPlace(
         COSE_PRINT_ERROR("encryptedData too small\n");
         return false;
     }
-    if (key.size() != kAes128GcmKeySize) {
-        COSE_PRINT_ERROR("key is not kAes128GcmKeySize bytes, got %zu\n",
-                         key.size());
+    if (key.size() != kAesGcmKeySize) {
+        COSE_PRINT_ERROR("key is not kAesGcmKeySize (%zu) bytes, got %zu\n",
+                         kAesGcmKeySize, key.size());
         return {};
     }
     if (nonce.size() != kAesGcmIvSize) {
@@ -961,7 +967,7 @@ static bool decryptAes128GcmInPlace(
         return false;
     }
 
-    if (EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_gcm(), NULL, NULL, NULL) !=
+    if (EVP_DecryptInit_ex(ctx.get(), EVP_aes_trusty_gcm(), NULL, NULL, NULL) !=
         1) {
         COSE_PRINT_ERROR("EVP_DecryptInit_ex: failed, error 0x%lx\n",
                          static_cast<unsigned long>(ERR_get_error()));
@@ -1044,14 +1050,13 @@ static bool decryptAes128GcmInPlace(
     return true;
 }
 
-static bool coseDecryptAes128GcmInPlace(
-        const std::string_view context,
-        const CoseByteView& item,
-        const std::basic_string_view<uint8_t> key,
-        const std::vector<uint8_t>& externalAad,
-        const uint8_t** outPlaintextStart,
-        size_t* outPlaintextSize,
-        DecryptFn keyDecryptFn) {
+static bool coseDecryptAesGcmInPlace(const std::string_view context,
+                                     const CoseByteView& item,
+                                     const std::basic_string_view<uint8_t> key,
+                                     const std::vector<uint8_t>& externalAad,
+                                     const uint8_t** outPlaintextStart,
+                                     size_t* outPlaintextSize,
+                                     DecryptFn keyDecryptFn) {
     assert(outPlaintextStart != nullptr);
     assert(outPlaintextSize != nullptr);
 
@@ -1110,7 +1115,7 @@ static bool coseDecryptAes128GcmInPlace(
                 return false;
             }
 
-            if (algVal != COSE_ALG_A128GCM) {
+            if (algVal != COSE_VAL_CIPHER_ALG) {
                 COSE_PRINT_ERROR("Invalid COSE algorithm, got %" PRId64 "\n",
                                  algVal);
                 return false;
@@ -1192,18 +1197,18 @@ static bool coseDecryptAes128GcmInPlace(
     return true;
 }
 
-bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
-                                        GetKeyFn keyFn,
-                                        const std::vector<uint8_t>& externalAad,
-                                        bool checkTag,
-                                        const uint8_t** outPackageStart,
-                                        size_t* outPackageSize,
-                                        DecryptFn keyDecryptFn) {
+bool coseDecryptAesGcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
+                                     GetKeyFn keyFn,
+                                     const std::vector<uint8_t>& externalAad,
+                                     bool checkTag,
+                                     const uint8_t** outPackageStart,
+                                     size_t* outPackageSize,
+                                     DecryptFn keyDecryptFn) {
     assert(outPackageStart != nullptr);
     assert(outPackageSize != nullptr);
 
     if (!keyDecryptFn) {
-        keyDecryptFn = &decryptAes128GcmInPlace;
+        keyDecryptFn = &decryptAesGcmInPlace;
     }
 
     struct CborIn in;
@@ -1349,9 +1354,9 @@ bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
 
     const uint8_t* coseKeyStart;
     size_t coseKeySize;
-    if (!coseDecryptAes128GcmInPlace(COSE_CONTEXT_ENC_RECIPIENT, recipient,
-                                     keyEncryptionKey, {}, &coseKeyStart,
-                                     &coseKeySize, keyDecryptFn)) {
+    if (!coseDecryptAesGcmInPlace(COSE_CONTEXT_ENC_RECIPIENT, recipient,
+                                  keyEncryptionKey, {}, &coseKeyStart,
+                                  &coseKeySize, keyDecryptFn)) {
         COSE_PRINT_ERROR("Failed to decrypt COSE_Key structure\n");
         return false;
     }
@@ -1392,7 +1397,7 @@ bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
                 COSE_PRINT_ERROR("Wrong CBOR type for kty field of COSE_Key\n");
                 return false;
             }
-            if (value != COSE_ALG_A128GCM) {
+            if (value != COSE_VAL_CIPHER_ALG) {
                 COSE_PRINT_ERROR("Invalid COSE_Key algorithm value: %" PRId64
                                  "\n",
                                  value);
@@ -1406,7 +1411,7 @@ bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
                 COSE_PRINT_ERROR("Wrong CBOR type for key field of COSE_Key\n");
                 return false;
             }
-            if (contentEncryptionKeySize != kAes128GcmKeySize) {
+            if (contentEncryptionKeySize != kAesGcmKeySize) {
                 COSE_PRINT_ERROR(
                         "Invalid content encryption key size, got %zu\n",
                         contentEncryptionKeySize);
@@ -1434,15 +1439,23 @@ bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
 
     const CoseByteView contentEncryptionKey = {contentEncryptionKeyStart,
                                                contentEncryptionKeySize};
-    if (!coseDecryptAes128GcmInPlace(COSE_CONTEXT_ENCRYPT, cose_encrypt,
-                                     contentEncryptionKey, externalAad,
-                                     outPackageStart, outPackageSize,
-                                     decryptAes128GcmInPlace)) {
+    if (!coseDecryptAesGcmInPlace(COSE_CONTEXT_ENCRYPT, cose_encrypt,
+                                  contentEncryptionKey, externalAad,
+                                  outPackageStart, outPackageSize,
+                                  decryptAesGcmInPlace)) {
         COSE_PRINT_ERROR("Failed to decrypt payload\n");
         return false;
     }
 
     return true;
+}
+
+const char* coseGetCipherAlg(void) {
+#ifdef APPLOADER_PACKAGE_CIPHER_A256
+    return "AES-GCM with 256-bit key, 128-bit tag";
+#else
+    return "AES-GCM with 128-bit key, 128-bit tag";
+#endif
 }
 
 const char* coseGetSigningDsa(void) {

@@ -38,11 +38,18 @@ constexpr char COSE_CONTEXT_ENC_RECIPIENT[] = "Enc_Recipient";
 // From "COSE Algorithms" registry
 // See: RFC9053 or https://www.iana.org/assignments/cose/cose.txt
 constexpr int COSE_ALG_A128GCM = 1;
+constexpr int COSE_ALG_A256GCM = 2;
 constexpr int COSE_ALG_ECDSA_256 = -7;
 constexpr int COSE_ALG_ECDSA_384 = -35;
 
 // Trusty-specific COSE constants
 constexpr int COSE_LABEL_TRUSTY = -65537;
+
+#ifdef APPLOADER_PACKAGE_CIPHER_A256
+constexpr int COSE_VAL_CIPHER_ALG = COSE_ALG_A256GCM;
+#else
+constexpr int COSE_VAL_CIPHER_ALG = COSE_ALG_A128GCM;
+#endif
 
 #ifdef APPLOADER_PACKAGE_SIGN_P384
 constexpr int COSE_VAL_SIGN_ALG = COSE_ALG_ECDSA_384;
@@ -52,8 +59,11 @@ constexpr int COSE_VAL_SIGN_ALG = COSE_ALG_ECDSA_256;
 
 constexpr size_t kAesGcmIvSize = 12;
 constexpr size_t kAesGcmTagSize = 16;
-constexpr size_t kAes128GcmKeySize = 16;
-
+#ifdef APPLOADER_PACKAGE_CIPHER_A256
+constexpr size_t kAesGcmKeySize = 32;
+#else
+constexpr size_t kAesGcmKeySize = 16;
+#endif
 constexpr size_t kCoseEncryptArrayElements = 4;
 
 using CoseByteView = std::basic_string_view<uint8_t>;
@@ -171,10 +181,10 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
                                size_t* outPackageSize);
 
 /**
- * coseEncryptAes128GcmKeyWrap() - Encrypt a block of data using AES-128-GCM
+ * coseEncryptAes128GcmKeyWrap() - Encrypt a block of data using AES-GCM
  *                                 and a randomly-generated wrapped CEK.
  * @key:
- *      Key encryption key (KEK), 16 bytes in size.
+ *      Key encryption key (KEK), 16 or 32 bytes in size.
  * @keyId:
  *      Key identifier for the KEK, an unsigned 1-byte integer.
  * @data:
@@ -192,9 +202,13 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
  *      ```COSE_Encrypt``` structure.
  *
  * This function generates a random key content encryption key (CEK) and wraps
- * it using AES-128-GCM, then encrypts a given block of data with AES-128-GCM
+ * it using AES-GCM, then encrypts a given block of data with AES-GCM
  * with the wrapped CEK and encodes both the data and CEK using the COSE
  * encoding from RFC 8152.
+ *
+ * The key length must be 128 or 256 depending on build-time configuration.
+ * The IV and Tag lengths are fixed (128-bit and 96-bits respectively, see
+ * ```kAesGcmIvSize``` and ```kAesGcmTagSize```).
  *
  * The caller may specify additional context-specific header values with the
  * @protectedHeaders and @unprotectedHeaders parameters.
@@ -202,7 +216,7 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
  * Return: A vector of bytes containing the encoded ```COSE_Encrypt``` structure
  *         if the encryption succeeds, or a nullopt otherwise.
  */
-std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
+std::optional<std::vector<uint8_t>> coseEncryptAesGcmKeyWrap(
         const std::vector<uint8_t>& key,
         uint8_t keyId,
         const CoseByteView& data,
@@ -212,8 +226,8 @@ std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
         bool tagged);
 
 /**
- * coseDecryptAes128GcmKeyWrapInPlace() - Decrypt a block of data containing a
- *                                        wrapped key using AES-128-GCM.
+ * coseDecryptAesGcmKeyWrapInPlace() - Decrypt a block of data containing a
+ *                                     wrapped key using AES-GCM.
  * @item:               CBOR item containing a ```COSE_Encrypt``` structure.
  * @keyFn:              Function to call with a key id that returns the key
  *                      encryption key (KEK) for that id.
@@ -224,21 +238,29 @@ std::optional<std::vector<uint8_t>> coseEncryptAes128GcmKeyWrap(
  * @outPackageSize:     The output argument where the size of the
  *                      payload will be stored. Must not be %NULL.
  *
- * This function decrypts a ciphertext encrypted with AES-128-GCM and encoded
+ * This function decrypts a ciphertext encrypted with AES-GCM and encoded
  * in a ```COSE_Encrypt0_Tagged``` structure. The function performs in-place
  * decryption and overwrites the ciphertext with the plaintext, and returns
  * the pointer and size of the plaintext in @outPackageStart and
  * @outPackageSize, respectively.
+ * The key length is 128 or 256 depending on build-time configuration.  The IV
+ * and Tag lengths are fixed (128-bit and 96-bits respectively).
  *
  * Returns: %true if the decryption succeeds, %false otherwise.
  */
-bool coseDecryptAes128GcmKeyWrapInPlace(const CoseByteView& item,
-                                        GetKeyFn keyFn,
-                                        const std::vector<uint8_t>& externalAad,
-                                        bool checkTag,
-                                        const uint8_t** outPackageStart,
-                                        size_t* outPackageSize,
-                                        DecryptFn decryptFn = DecryptFn());
+bool coseDecryptAesGcmKeyWrapInPlace(const CoseByteView& item,
+                                     GetKeyFn keyFn,
+                                     const std::vector<uint8_t>& externalAad,
+                                     bool checkTag,
+                                     const uint8_t** outPackageStart,
+                                     size_t* outPackageSize,
+                                     DecryptFn decryptFn = DecryptFn());
+
+/**
+ * coseGetCipherAlg - Get the name of the cipher for package encryption.
+ * Returns: A pointer to a static string describing the cipher.
+ */
+const char* coseGetCipherAlg(void);
 
 /**
  * coseGetSigningDsa() - Get the name of the signing Digital Signature Algo.

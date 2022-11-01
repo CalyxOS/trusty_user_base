@@ -48,6 +48,11 @@ ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_SIGN_P384)))
 HOST_FLAGS += -DAPPLOADER_PACKAGE_SIGN_P384
 endif
 
+# Select app package cipher variant
+ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_CIPHER_A256)))
+HOST_FLAGS += -DAPPLOADER_PACKAGE_CIPHER_A256
+endif
+
 HOST_LIBS := \
 	c++ \
 

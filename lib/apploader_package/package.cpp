@@ -104,7 +104,7 @@ static std::tuple<std::unique_ptr<uint8_t[]>, size_t> get_sign_key(
     return {std::move(result), static_cast<size_t>(*public_key_size_ptr)};
 }
 
-static bool hwaesDecryptAes128GcmInPlace(
+static bool hwaesDecryptAesGcmInPlace(
         std::basic_string_view<uint8_t> key,
         std::basic_string_view<uint8_t> nonce,
         uint8_t* encryptedData,
@@ -342,9 +342,9 @@ bool apploader_parse_package_metadata(
 
         const CoseByteView cose_encrypt = {cose_encrypt_start,
                                            cose_encrypt_size};
-        bool success = coseDecryptAes128GcmKeyWrapInPlace(
+        bool success = coseDecryptAesGcmKeyWrapInPlace(
                 cose_encrypt, get_encrypt_key_handle, {}, false, &elf_start,
-                &elf_size, hwaesDecryptAes128GcmInPlace);
+                &elf_size, hwaesDecryptAesGcmInPlace);
 
         hwkey_close(hwkey_session);
 
