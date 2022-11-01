@@ -35,6 +35,9 @@
 # 		binary
 # MANIFEST : App manifest JSON file
 # CONSTANTS : JSON files with constants used for both the manifest and C headers
+# CLANG_BINDIR : Location of the bin/ directory of the clang to use. (Must be the
+# 		same version used to compile the SDK.) Defaults to `toolchain/clang/bin`
+# 		inside the SDK.
 
 
 # Provide an error message if this makefile is run directly instead of included
@@ -52,7 +55,12 @@ TRUSTY_APP_BUILDDIR := $(BUILDDIR)
 SDK_DIR := $(LOCAL_DIR)/../../
 LOADABLE_APP_TOOL := $(SDK_DIR)/tools/apploader_package_tool
 SDK_SYSROOT_DIR := $(SDK_DIR)/sysroots/$(TRUSTY_APP_ARCH)/
+
+ifeq ($(CLANG_BINDIR),)
 CLANG_BINDIR := $(SDK_DIR)/toolchain/clang/bin/
+$(warning No $$CLANG_BINDIR provided; using the default: $(CLANG_BINDIR))
+endif
+
 ARCH_arm_TOOLCHAIN_PREFIX := $(CLANG_BINDIR)/llvm-
 ARCH_arm64_TOOLCHAIN_PREFIX := $(CLANG_BINDIR)/llvm-
 MANIFEST_COMPILER := $(SDK_DIR)/tools/manifest_compiler.py
