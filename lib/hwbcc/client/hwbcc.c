@@ -117,12 +117,14 @@ static int sign_data(handle_t chan,
     assert(cose_sign1_size);
 
     if (data_size > HWBCC_MAX_DATA_TO_SIGN_SIZE) {
-        TLOGE("Data exceeds HWBCC_MAX_DATA_TO_SIGN_SIZE limit.\n");
+        TLOGE("Data exceeds HWBCC_MAX_DATA_TO_SIGN_SIZE limit: %u > %u.\n",
+              data_size, HWBCC_MAX_DATA_TO_SIGN_SIZE);
         return ERR_BAD_LEN;
     }
 
     if (aad_size > HWBCC_MAX_AAD_SIZE) {
-        TLOGE("AAD exceeds HWBCC_MAX_AAD_SIZE limit.\n");
+        TLOGE("AAD exceeds HWBCC_MAX_AAD_SIZE limit: %zu > %u\n", aad_size,
+              HWBCC_MAX_AAD_SIZE);
         return ERR_BAD_LEN;
     }
 
