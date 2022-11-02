@@ -115,6 +115,8 @@ else  # TRUSTY_NEW_MODULE_SYSTEM is true
 ifeq ($(call TOBOOL,$(BUILD_AS_RUST_TEST_MODULE)),true)
 # Disable Rust tests on architectures that do not support Rust
 ifeq ($(call TOBOOL,$(ARCH_$(ARCH)_SUPPORTS_RUST)),true)
+# Allow a project to disable rust tests
+ifeq ($(call TOBOOL,$(TRUSTY_DISABLE_RUST_TESTS)),false)
 $(info Building $(MODULE) as a rust test service)
 MODULE := $(MODULE)-test
 MODULE_RUSTFLAGS += --test
@@ -130,6 +132,7 @@ TRUSTY_RUST_USER_TESTS += $(MODULE)
 
 include make/trusted_app.mk
 
+endif
 endif
 else # Not building rust test app
 
