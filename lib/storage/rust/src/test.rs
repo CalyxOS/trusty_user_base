@@ -4,14 +4,31 @@ use test::assert_eq;
 /// Tests that connecting to the service works.
 #[test]
 fn connect() {
-    let session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
     session.close();
+}
+
+/// Tests successfully connecting to a port when not waiting for the port to be
+/// available.
+#[test]
+fn connect_no_wait() {
+    let session = Session::new(Port::TamperDetectEarlyAccess, false).unwrap();
+    session.close();
+}
+
+/// Tests that `Session::new` will return an error instead of blocking when
+/// trying to connect to a port that doesn't exist if not waiting on the port to
+/// be available.
+#[test]
+fn connect_fail_no_wait() {
+    let result = Session::new(Port::TestPortNonExistent, false);
+    assert_eq!(Err(Error::Code(ErrorCode::NotFound)), result);
 }
 
 /// Tests that reading/writing to a file with the basic file access APIs works.
 #[test]
 fn read_write() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     let file_name = "read_write.txt";
     let file_contents = "Hello, world!";
@@ -32,7 +49,7 @@ fn read_write() {
 /// works both when increasing and decreasing a file's size.
 #[test]
 fn get_set_size() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     let file_name = "get_set_size.txt";
     let initial_contents = "Hello, world!";
@@ -66,7 +83,7 @@ fn get_set_size() {
 /// Tests that files can be renamed and deleted.
 #[test]
 fn rename_delete() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     let before_name = "before.txt";
     let after_name = "after.txt";
@@ -95,7 +112,7 @@ fn rename_delete() {
 /// Tests that a file that is open as a handle cannot be renamed.
 #[test]
 fn cannot_rename_open_file() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     // Clear any leftover files from a previous test run.
     remove_all(&mut session);
@@ -122,7 +139,7 @@ fn cannot_rename_open_file() {
 /// transaction is committed.
 #[test]
 fn multiple_files_in_transaction() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     let file_a = "file_a.txt";
     let file_b = "file_b.txt";
@@ -168,7 +185,7 @@ fn multiple_files_in_transaction() {
 /// transaction is discarded.
 #[test]
 fn discard_transaction() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     let file_name = "commit_transaction_on_drop.txt";
     let file_contents = "commit_transaction_on_drop";
@@ -199,7 +216,7 @@ fn discard_transaction() {
 /// Tests directory enumeration in an empty directory.
 #[test]
 fn list_empty_dir() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     // Reset the storage dir so that we can test listing files in an empty dir.
     remove_all(&mut session);
@@ -218,7 +235,7 @@ fn drop_session_while_listing() {
     // Open a session, start listing files, and then drop the `Session` object
     // while keeping the `DirIter` object alive.
     let mut dir_iter = {
-        let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+        let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
         session.list_files().unwrap()
     };
 
@@ -233,7 +250,7 @@ fn drop_session_while_listing() {
 /// states of files are reported correctly.
 #[test]
 fn list_during_transaction() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     // Clear any leftover files from a previous test run.
     remove_all(&mut session);

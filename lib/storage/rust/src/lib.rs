@@ -166,7 +166,7 @@ mod sys {
 /// The `Session` object manages the active connection to the storage service,
 /// and is used to communicate with the service. The connection is automatically
 /// closed when the `Session` object is dropped.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Session {
     raw: sys::storage_session_t,
 }
@@ -174,10 +174,17 @@ pub struct Session {
 impl Session {
     /// Opens a new connection to the storage service.
     ///
+    /// If `wait_for_port` is true and the port is not yet open for connections,
+    /// then this method will block until the port is open and a connection can be
+    /// established. Otherwise it will return an error if the connection cannot be
+    /// established immediately.
+    ///
     /// # Errors
     ///
-    /// Returns an error code if we fail to connect to the storage service.
-    pub fn new(port: Port) -> Result<Self, Error> {
+    /// * Returns an error code if we fail to connect to the storage service.
+    /// * If `wait_for_port` is false, returns an error code if the port is not
+    ///   listening for connections.
+    pub fn new(port: Port, wait_for_port: bool) -> Result<Self, Error> {
         use Port::*;
 
         // Convert the `port` enum to the corresponding C string expected by the C API.
@@ -186,20 +193,21 @@ impl Session {
             TamperDetectPersist => sys::STORAGE_CLIENT_TDP_PORT as *const u8,
             TamperDetectEarlyAccess => sys::STORAGE_CLIENT_TDEA_PORT as *const u8,
             TamperProof => sys::STORAGE_CLIENT_TP_PORT as *const u8,
+
+            #[cfg(test)]
+            TestPortNonExistent => b"com.android.trusty.storage.client.fake\0" as *const u8,
         };
 
-        let mut session = MaybeUninit::uninit();
+        let flags = if wait_for_port { trusty_sys::IPC_CONNECT_WAIT_FOR_PORT } else { 0 };
 
         // SAFETY: FFI call to underlying C API. Both inputs were constructed in this
         // function and so are guaranteed to be safe for this call.
-        Error::try_from_code(unsafe { sys::storage_open_session(session.as_mut_ptr(), port) })?;
+        let return_code = unsafe { trusty_sys::connect(port, flags) };
+        if return_code < 0 {
+            return Err(Error::Code(ErrorCode::from(return_code)));
+        }
 
-        // SAFETY: We've checked the error code returned by `storage_open_session`, so
-        // at this point we know that the session was successfully created and `session`
-        // was initialized.
-        let session = unsafe { session.assume_init() };
-
-        Ok(Self { raw: session })
+        Ok(Self { raw: return_code.try_into().unwrap() })
     }
 
     /// Drops the `Session` and closes the connection.
@@ -624,6 +632,9 @@ impl Error {
     ///     sys::some_ffi_call()
     /// })?;
     /// ```
+    ///
+    /// Note that only a value of 0 is considered success, and all other values are
+    /// treated as an error.
     fn try_from_code(code: c_int) -> Result<(), Self> {
         let code = code.into();
         if ErrorCode::is_err(code) {
@@ -715,6 +726,14 @@ pub enum Port {
     /// Note that non-secure code can prevent read and write operations from
     /// succeeding, but it cannot modify on-disk data.
     TamperProof,
+
+    // HACK: Fake port used to test how the library handles attempting to connect
+    // to a port that doesn't exist. All of the normal ports are active while
+    // running the test, so without this we don't have a way to specify an invalid
+    // port.
+    #[cfg(test)]
+    #[doc(hidden)]
+    TestPortNonExistent,
 }
 
 /// Configuration for how opening a file should be handled.

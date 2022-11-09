@@ -43,4 +43,7 @@ pub use types::*;
 pub const STDOUT_FILENO: u32 = 1;
 pub const STDERR_FILENO: u32 = 2;
 
-pub use sys::{dma_pmem, handle_t, iovec, ipc_msg, ipc_msg_info, uevent, uuid};
+pub use sys::{
+    dma_pmem, handle_t, iovec, ipc_msg, ipc_msg_info, uevent, uuid, IPC_CONNECT_ASYNC,
+    IPC_CONNECT_WAIT_FOR_PORT,
+};

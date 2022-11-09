@@ -38,7 +38,7 @@ MODULE_BINDGEN_ALLOW_VARS := \
 
 MODULE_BINDGEN_ALLOW_FUNCTIONS := \
 	storage_.* \
-	
+
 MODULE_BINDGEN_ALLOW_TYPES := \
 	storage_.* \
 
