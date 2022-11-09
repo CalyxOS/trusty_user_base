@@ -45,6 +45,60 @@ fn read_write() {
     assert_eq!(data, file_contents.as_bytes(), "Incorrect file contents returned");
 }
 
+/// Tests that trying to read a full file with a buffer that's too small returns
+/// an error.
+#[test]
+fn read_all_buf_too_small() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+
+    let file_name = "read_all_buf_too_small.txt";
+    let file_contents = "Hello, world!";
+
+    // Write the initial contents of the file.
+    session.write(file_name, file_contents.as_bytes()).unwrap();
+
+    // Try to read the contents of the file with a buffer that is not large enough
+    // to hold the full file.
+    let data = &mut [0; 5];
+    let result = session.read(file_name, data);
+
+    assert_eq!(Err(Error::Code(ErrorCode::NotEnoughBuffer)), result);
+}
+
+/// Tests `read_at`, verifying that it can partially read a file at different
+/// offsets, and that it does not read past the end of the file.
+#[test]
+fn read_at() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+
+    let file_name = "read_at.txt";
+    let file_contents = b"Hello, world!";
+
+    // Write the initial contents of the file.
+    session.write(file_name, file_contents).unwrap();
+
+    let mut file = session.open_file(file_name, OpenMode::Open).unwrap();
+
+    // Read 5 bytes of the file starting at the 4th byte.
+    let data = &mut [0; 5];
+    let result = session.read_at(&mut file, 3, data);
+
+    // Verify that the correct chunk of the file was read.
+    assert_eq!(Ok(&file_contents[3..8]), result);
+
+    // Read past the end of the file to verify that the buffer is only partially
+    // filled.
+    data.fill(0);
+    let result = session.read_at(&mut file, 10, data);
+
+    // Verify that the remaining portion of the file is returned.
+    assert_eq!(Ok(&file_contents[10..]), result);
+
+    // Verify that only a prefix of the buffer was overwritten.
+    let expected = &[file_contents[10], file_contents[11], file_contents[12], 0, 0][..];
+    assert_eq!(expected, data, "Data buffer was not overwritten in expected way");
+}
+
 /// Tests that file sizes are reported correctly, and that setting file size
 /// works both when increasing and decreasing a file's size.
 #[test]

@@ -327,28 +327,68 @@ impl Session {
         self.write_all(&mut file, buf)
     }
 
-    /// Reads the contents of `file` into `buf`.
+    /// Reads the entire contents of `file` into `buf`.
     ///
     /// Reads contents starting from the beginning of the file, regardless of the
-    /// current cursor position in `file`. Returns a slice that is the part of `buf`
-    /// containing the read data.
+    /// current cursor position in `file`. Returns a slice of `buf` containing the
+    /// read data.
+    ///
+    /// If you only want to read up to `buf.len()` bytes of the file, regardless of
+    /// how large the whole file is, use [`read_at`](Self::read_at) instead.
     ///
     /// # Errors
     ///
     /// This function will return an error in the following situations, but is not
     /// limited to just these cases:
     ///
-    /// * `buf` isn't large enough to contain the full contents of the file.
+    /// * [`ErrorCode::NotEnoughBuffer`] if `buf` isn't large enough to contain the
+    ///   full contents of the file.
     pub fn read_all<'buf>(
         &mut self,
         file: &SecureFile,
+        buf: &'buf mut [u8],
+    ) -> Result<&'buf [u8], Error> {
+        // Validate that `buf` is large enough to hold the full contents of the file
+        // since the underlying `read_at` call does not consider it an error if the
+        // buffer is smaller than the remaining file size.
+        let size = self.get_size(file)?;
+        if buf.len() < size {
+            return Err(Error::Code(ErrorCode::NotEnoughBuffer));
+        }
+
+        self.read_at(file, 0, buf)
+    }
+
+    /// Reads the content of `file` starting at the specified offset.
+    ///
+    /// Reads contents starting from the given `offset` in bytes from the start of
+    /// the file. Reads up to `buf.len()` bytes from the file and writes them into
+    /// `buf`. If there isn't enough data after `offset` to fill `buf`, then `buf`
+    /// will only be partially filled. Returns a slice of `buf` that contains the
+    /// read data.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error in the following situations, but is not
+    /// limited to just these cases:
+    ///
+    /// * `offset` is greater than the length of the file.
+    pub fn read_at<'buf>(
+        &mut self,
+        file: &SecureFile,
+        offset: usize,
         buf: &'buf mut [u8],
     ) -> Result<&'buf [u8], Error> {
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
         // point.
         let bytes_read = Error::try_from_size(unsafe {
-            sys::storage_read(file.raw, 0, buf.as_mut_ptr() as *mut c_void, buf.len())
+            sys::storage_read(
+                file.raw,
+                offset.try_into().unwrap(),
+                buf.as_mut_ptr() as *mut c_void,
+                buf.len(),
+            )
         })?;
 
         Ok(&buf[..bytes_read])
