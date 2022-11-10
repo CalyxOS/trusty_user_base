@@ -49,7 +49,7 @@ fn read_write() {
 /// an error.
 #[test]
 fn read_all_buf_too_small() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     let file_name = "read_all_buf_too_small.txt";
     let file_contents = "Hello, world!";
@@ -69,7 +69,7 @@ fn read_all_buf_too_small() {
 /// offsets, and that it does not read past the end of the file.
 #[test]
 fn read_at() {
-    let mut session = Session::new(Port::TamperDetectEarlyAccess).unwrap();
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
     let file_name = "read_at.txt";
     let file_contents = b"Hello, world!";
