@@ -34,7 +34,17 @@
     porttest("com.android.trusty.rust.hwbcc.test"),
     porttest("com.android.trusty.rust.hwwsk.test"),
     porttest("com.android.trusty.rust.storage.test"),
-    porttest("com.android.trusty.secure_fb.test").needs(android=True),
+    compositetest(
+        name="com.android.trusty.secure_fb.test-then-reboot",
+        sequence=[
+            porttest("com.android.trusty.secure_fb.test").needs(android=True),
+            # b/258539281: secure_fb.test generates a warning that taints the
+            # kernel so reboot the emulator before checking if the Linux kernel
+            # is tainted. Once we've resolved the tainting issue, we can remove
+            # this composite test and the reboot to speed up testing.
+            reboot(),
+        ]
+    ),
     porttest("com.android.trusty.smc.test"),
     porttest("com.android.uirq-unittest"),
 ]
