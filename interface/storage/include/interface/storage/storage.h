@@ -93,6 +93,7 @@ enum storage_cmd {
  *                              STORAGE_MSG_FLAG_PRE_COMMIT or
  *                              STORAGE_MSG_FLAG_POST_COMMIT was set for the
  *                              request.
+ * @STORAGE_ERR_NOT_ALLOWED     operation is not allowed in the current state
  */
 enum storage_err {
     STORAGE_NO_ERROR = 0,
@@ -104,6 +105,7 @@ enum storage_err {
     STORAGE_ERR_EXIST = 6,
     STORAGE_ERR_TRANSACT = 7,
     STORAGE_ERR_SYNC_FAILURE = 8,
+    STORAGE_ERR_NOT_ALLOWED = 9,
 };
 
 /**

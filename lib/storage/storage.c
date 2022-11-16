@@ -85,6 +85,9 @@ static ssize_t check_response(struct storage_msg* msg, ssize_t res) {
     case STORAGE_ERR_NOT_VALID:
         return ERR_NOT_VALID;
 
+    case STORAGE_ERR_NOT_ALLOWED:
+        return ERR_NOT_ALLOWED;
+
     case STORAGE_ERR_TRANSACT:
         return ERR_BUSY;
 
