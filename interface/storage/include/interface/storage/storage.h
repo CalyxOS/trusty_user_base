@@ -201,8 +201,16 @@ enum storage_file_list_flag {
  *                                          for STORAGE_MSG_FLAG_POST_COMMIT.
  * @STORAGE_MSG_FLAG_PRE_COMMIT_CHECKPOINT: if set, indicates that server needs
  *                                          to ensure that there is not a
- *                                          pending checkpoint for userdata
+ *                                          pending checkpoint for the
+ *                                          underlying userdata filesystem
  *                                          before processing this message.
+ * @STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT:   if set, update the current
+ *                                          checkpoint to the new state of
+ *                                          files modified by this
+ *                                          transaction. Only valid along with
+ *                                          @STORAGE_MSG_FLAG_TRANSACT_COMPLETE,
+ *                                          and only allowed when provisiong is
+ *                                          allowed by the system state service.
  */
 enum storage_msg_flag {
     STORAGE_MSG_FLAG_BATCH = 0x1,
@@ -210,6 +218,7 @@ enum storage_msg_flag {
     STORAGE_MSG_FLAG_POST_COMMIT = 0x4,
     STORAGE_MSG_FLAG_TRANSACT_COMPLETE = STORAGE_MSG_FLAG_POST_COMMIT,
     STORAGE_MSG_FLAG_PRE_COMMIT_CHECKPOINT = 0x8,
+    STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT = 0x10,
 };
 
 /*
