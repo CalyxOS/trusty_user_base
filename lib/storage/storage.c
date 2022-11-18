@@ -58,6 +58,13 @@ static inline uint32_t _to_msg_flags(uint32_t opflags) {
     if (opflags & STORAGE_OP_COMPLETE)
         msg_flags |= STORAGE_MSG_FLAG_TRANSACT_COMPLETE;
 
+    if (opflags & STORAGE_OP_CHECKPOINT) {
+        if ((msg_flags & STORAGE_MSG_FLAG_TRANSACT_COMPLETE) == 0) {
+            TLOGE("STORAGE_OP_CHECKPOINT only valid when committing a checkpoint\n");
+        }
+        msg_flags |= STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT;
+    }
+
     return msg_flags;
 }
 
@@ -605,6 +612,18 @@ int storage_end_transaction(storage_session_t session, bool complete) {
     struct storage_msg msg = {
             .cmd = STORAGE_END_TRANSACTION,
             .flags = complete ? STORAGE_MSG_FLAG_TRANSACT_COMPLETE : 0,
+    };
+    struct iovec iov = {&msg, sizeof(msg)};
+
+    ssize_t rc = send_reqv(session, &iov, 1, &iov, 1);
+    return (int)check_response(&msg, rc);
+}
+
+int storage_commit_checkpoint(storage_session_t session) {
+    struct storage_msg msg = {
+            .cmd = STORAGE_END_TRANSACTION,
+            .flags = STORAGE_MSG_FLAG_TRANSACT_COMPLETE |
+                     STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT,
     };
     struct iovec iov = {&msg, sizeof(msg)};
 

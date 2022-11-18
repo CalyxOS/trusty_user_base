@@ -38,9 +38,13 @@ struct storage_open_dir_state;
 
 /**
  * storage_ops_flags - storage related operation flags
- * @STORAGE_OP_COMPLETE: forces to commit current transaction
+ * @STORAGE_OP_COMPLETE:   forces to commit current transaction
+ * @STORAGE_OP_CHECKPOINT: checkpoint file-system state during transaction
+ *                         commit (only valid when committing a transaction and
+ *                         only allowed if provisioning is allowed)
  */
 #define STORAGE_OP_COMPLETE 0x1U
+#define STORAGE_OP_CHECKPOINT 0x2U
 
 /**
  * storage_open_session() - Opens a storage session.
@@ -236,5 +240,18 @@ int storage_get_file_size(file_handle_t handle, storage_off_t* size);
  * Return: 0 on success, negative error code on failure.
  */
 int storage_end_transaction(storage_session_t session, bool complete);
+
+/**
+ * storage_commit_checkpoint: Commit current transaction and add to checkpoint
+ * @session: the storage_session_t returned from a call to storage_open_session
+ *
+ * Commits the changes in the current transaction and updates the currently
+ * checkpointed state of all files modified by the transaction to their state
+ * after the current transaction commits. Checkpoints are only allowed to be
+ * made when provisioning is allowed.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int storage_commit_checkpoint(storage_session_t session);
 
 __END_CDECLS
