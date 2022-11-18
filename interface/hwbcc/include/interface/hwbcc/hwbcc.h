@@ -65,7 +65,7 @@ struct hwbcc_req_hdr {
 STATIC_ASSERT(sizeof(struct hwbcc_req_hdr) == 16);
 
 #define HWBCC_MAX_AAD_SIZE 512
-#define HWBCC_MAX_DATA_TO_SIGN_SIZE 104
+#define HWBCC_MAX_DATA_TO_SIGN_SIZE 2048
 #define HWBCC_MAX_ENCODED_KEY_SIZE HWBCC_MAX_DATA_TO_SIGN_SIZE
 #define HWBCC_MAC_KEY_SIZE 32
 
@@ -108,6 +108,6 @@ struct hwbcc_resp_hdr {
 };
 STATIC_ASSERT(sizeof(struct hwbcc_resp_hdr) == 12);
 
-#define HWBCC_MAX_RESP_PAYLOAD_SIZE 1024
+#define HWBCC_MAX_RESP_PAYLOAD_SIZE 3072
 
 __END_CDECLS
