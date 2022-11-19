@@ -93,13 +93,17 @@ static struct tipc_event_handler _datasink_chan_handler = {
 static void echo_handle_port(const uevent_t* ev);
 static void echo_handle_chan(const uevent_t* ev);
 
+struct echo_msg {
+    uint8_t msg_buf[MAX_PORT_BUF_SIZE];
+    size_t msg_len;
+    handle_t handles[IPC_MAX_MSG_HANDLES];
+    size_t handle_cnt;
+};
+
 typedef struct echo_chan_state {
     struct tipc_event_handler handler;
     unsigned int msg_max_num;
-    unsigned int msg_cnt;
-    unsigned int msg_next_r;
-    unsigned int msg_next_w;
-    struct ipc_msg_info msg_queue[0];
+    struct echo_msg echo_msgs[];
 } echo_chan_state_t;
 
 /* uuid service */
@@ -576,18 +580,60 @@ static void datasink_handle_port(const uevent_t* ev) {
 
 /******************************   echo service    **************************/
 
-static uint8_t echo_msg_buf[MAX_PORT_BUF_SIZE];
-
-static int _echo_handle_msg(const uevent_t* ev, int delay) {
+static int send_msg_wait(handle_t chan, ipc_msg_t* msg) {
     int rc;
-    struct iovec iov;
+    uevent_t ev;
+
+    while (true) {
+        rc = send_msg(chan, msg);
+
+        if (rc != ERR_NOT_ENOUGH_BUFFER) {
+            return rc;
+        }
+
+        while (true) {
+            rc = wait(chan, &ev, INFINITE_TIME);
+            if (rc < 0) {
+                return rc;
+            }
+
+            if (ev.event & IPC_HANDLE_POLL_HUP) {
+                /*
+                 * It is possible that ev.event & IPC_HANDLE_POLL_MSG is also
+                 * true which means the client sent a message and hung up on us.
+                 * There isn't anything the echo server can do with those, so we
+                 * simply log the occurrence.
+                 */
+                if (ev.event & IPC_HANDLE_POLL_MSG) {
+                    TLOGW("Client sent a message and hung up;"
+                          " message discarded.\n");
+                }
+
+                return ERR_CHANNEL_CLOSED;
+            }
+
+            if (ev.event & IPC_HANDLE_POLL_SEND_UNBLOCKED) {
+                break;
+            }
+
+            /* if ev.event & IPC_HANDLE_POLL_MSG is true, continue looping */
+        }
+    }
+
+    __UNREACHABLE;
+}
+
+static int echo_handle_msg(const uevent_t* ev) {
+    int rc;
+    ipc_msg_info_t msg_info;
     ipc_msg_t msg;
-    handle_t handles[8];
+    msg.num_iov = 1;
+    size_t msg_cnt = 0;
     echo_chan_state_t* st = containerof(ev->cookie, echo_chan_state_t, handler);
 
     /* get all messages */
-    while (st->msg_cnt != st->msg_max_num) {
-        rc = get_msg(ev->handle, &st->msg_queue[st->msg_next_w]);
+    while (msg_cnt < st->msg_max_num) {
+        rc = get_msg(ev->handle, &msg_info);
         if (rc == ERR_NO_MSG)
             break; /* no new messages */
 
@@ -596,71 +642,62 @@ static int _echo_handle_msg(const uevent_t* ev, int delay) {
             return rc;
         }
 
-        st->msg_cnt++;
-        st->msg_next_w++;
-        if (st->msg_next_w == st->msg_max_num)
-            st->msg_next_w = 0;
-    }
-
-    /* handle all messages in queue */
-    while (st->msg_cnt) {
-        /* init message structure */
-        iov.iov_base = echo_msg_buf;
-        iov.iov_len = sizeof(echo_msg_buf);
-        msg.num_iov = 1;
+        /* save handle count */
+        st->echo_msgs[msg_cnt].handle_cnt = msg_info.num_handles;
+        /* prepare message structure for read */
+        struct iovec iov = {
+                .iov_base = (void*)st->echo_msgs[msg_cnt].msg_buf,
+                .iov_len = MAX_PORT_BUF_SIZE,
+        };
         msg.iov = &iov;
-        msg.handles = handles;
-        msg.num_handles = st->msg_queue[st->msg_next_r].num_handles;
+        msg.handles = st->echo_msgs[msg_cnt].handles;
+        msg.num_handles = msg_info.num_handles;
 
         /* read msg content */
-        rc = read_msg(ev->handle, st->msg_queue[st->msg_next_r].id, 0, &msg);
+        rc = read_msg(ev->handle, msg_info.id, 0, &msg);
         if (rc < 0) {
             TLOGI("failed (%d) to read_msg for chan (%d)\n", rc, ev->handle);
             return rc;
         }
 
         /* update number of bytes received */
-        iov.iov_len = (size_t)rc;
-
-        /* optionally sleep a bit an send it back */
-        if (delay) {
-            trusty_nanosleep(0, 0, 1000);
-        }
-
-        /* and send it back */
-        rc = send_msg(ev->handle, &msg);
-
-        /* close all received handles */
-        for (unsigned int i = 0; i < msg.num_handles; i++) {
-            close(handles[i]);
-        }
-
-        if (rc == ERR_NOT_ENOUGH_BUFFER)
-            break;
-
-        if (rc < 0) {
-            TLOGI("failed (%d) to send_msg for chan (%d)\n", rc, ev->handle);
-            return rc;
-        }
+        st->echo_msgs[msg_cnt].msg_len = (size_t)rc;
 
         /* retire original message */
-        rc = put_msg(ev->handle, st->msg_queue[st->msg_next_r].id);
+        rc = put_msg(ev->handle, msg_info.id);
         if (rc != NO_ERROR) {
             TLOGI("failed (%d) to put_msg for chan (%d)\n", rc, ev->handle);
             return rc;
         }
 
-        /* advance queue */
-        st->msg_cnt--;
-        st->msg_next_r++;
-        if (st->msg_next_r == st->msg_max_num)
-            st->msg_next_r = 0;
+        msg_cnt++;
+    }
+
+    /* echo all messages received */
+    for (unsigned int i = 0; i < msg_cnt; i++) {
+        /* prepare message structure for send */
+        struct iovec iov = {
+                .iov_base = (void*)st->echo_msgs[i].msg_buf,
+                .iov_len = st->echo_msgs[i].msg_len,
+        };
+        msg.iov = &iov;
+        msg.handles = st->echo_msgs[i].handles;
+        msg.num_handles = st->echo_msgs[i].handle_cnt;
+
+        /* and send it back */
+        rc = send_msg_wait(ev->handle, &msg);
+
+        /* close all received handles */
+        for (unsigned int j = 0; j < msg.num_handles; j++) {
+            close(st->echo_msgs[i].handles[j]);
+        }
+
+        if (rc < 0) {
+            TLOGI("failed (%d) to send_msg for chan (%d)\n", rc, ev->handle);
+            return rc;
+        }
     }
     return NO_ERROR;
-}
-
-static int echo_handle_msg(const uevent_t* ev) {
-    return _echo_handle_msg(ev, false);
 }
 
 /*
@@ -714,7 +751,7 @@ static void echo_handle_port(const uevent_t* ev) {
         chan = (handle_t)rc;
 
         chan_st = calloc(1, sizeof(struct echo_chan_state) +
-                                    sizeof(ipc_msg_info_t) * srv->msg_num);
+                                    sizeof(struct echo_msg) * srv->msg_num);
         if (!chan_st) {
             TLOGI("failed (%d) to callocate state for chan %d\n", rc, chan);
             close(chan);
