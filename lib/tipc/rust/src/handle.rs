@@ -304,20 +304,19 @@ impl<'a> Serializer<'a> for BorrowingSerializer<'a> {
 #[cfg(test)]
 pub(crate) mod test {
     use super::Handle;
+    use crate::sys;
     use crate::TipcError;
     use test::expect_eq;
     use trusty_std::sync::Once;
     use trusty_sys::Error;
 
     // Expected limits: should be in sync with kernel settings
-    // TODO: Derive these from tipc/test/include/app/ipc_unittest/common.h when
-    // we have easier bindgen support
 
     /// First user handle ID
-    pub const USER_BASE_HANDLE: i32 = 1000;
+    pub const USER_BASE_HANDLE: i32 = sys::USER_BASE_HANDLE as i32;
 
     /// Maximum number of user handles
-    pub const MAX_USER_HANDLES: i32 = 64;
+    pub const MAX_USER_HANDLES: i32 = sys::MAX_USER_HANDLES as i32;
 
     const INVALID_IPC_HANDLE: Handle = Handle(-1);
 

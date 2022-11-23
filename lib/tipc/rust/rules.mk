@@ -21,6 +21,9 @@ MODULE_SRCS := $(LOCAL_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := tipc
 
+MODULE_INCLUDES += \
+	trusty/user/base/lib/tipc/test/include \
+
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libc-trusty \
 	trusty/user/base/lib/log-rust \
@@ -34,6 +37,8 @@ MODULE_BINDGEN_ALLOW_VARS := \
 	HSET_.* \
 	IPC_.* \
 	INFINITE_TIME \
+	MAX_USER_HANDLES \
+	USER_BASE_HANDLE \
 
 MODULE_BINDGEN_SRC_HEADER := $(LOCAL_DIR)/bindings.h
 
