@@ -23,7 +23,12 @@
 #include <type_traits>
 #include <vector>
 
+#if defined(TRUSTY_USERSPACE)
 #include <trusty_unittest.h>
+#else
+#include <lib/unittest/unittest.h>
+#include <lk/trusty_unittest.h>
+#endif
 
 int global_count;
 
@@ -336,4 +341,8 @@ TEST_F(libcxx, is_base_of_v) {
     EXPECT_EQ(false, (std::is_base_of_v<Stranger, Child>));
 }
 
+#if defined(TRUSTY_USERSPACE)
 PORT_TEST(libcxx, "com.android.libcxxtest");
+#else
+PORT_TEST(libcxx, "com.android.kernel.libcxxtest");
+#endif
