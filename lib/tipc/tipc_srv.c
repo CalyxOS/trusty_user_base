@@ -294,6 +294,11 @@ int tipc_add_service(struct tipc_hset* hset,
         return ERR_INVALID_ARGS;
     }
 
+    if (IS_ERR(hset)) {
+        TLOGE("invalid handle set (%d)\n", PTR_ERR(hset));
+        return ERR_INVALID_ARGS;
+    }
+
     /* allocate new service */
     srv = calloc(1,
                  sizeof(struct tipc_srv) + sizeof(struct port_ctx) * num_ports);

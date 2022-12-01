@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include <assert.h>
+#include <lk/err_ptr.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <uapi/err.h>
@@ -189,7 +190,7 @@ void tipc_handle_chan_errors(const struct uevent* ev) {
 int tipc_hset_init(struct tipc_hset* hset) {
     int rc;
 
-    assert(hset);
+    assert(hset && !IS_ERR(hset));
 
     hset->handle = INVALID_IPC_HANDLE;
 
@@ -233,7 +234,7 @@ int tipc_hset_add_entry(struct tipc_hset* hset,
             .cookie = (void*)evt_handler,
     };
 
-    if (!hset || !evt_handler)
+    if (!hset || !evt_handler || IS_ERR(hset))
         return ERR_INVALID_ARGS;
 
     assert(evt_handler->proc);
@@ -255,7 +256,7 @@ int tipc_hset_mod_entry(struct tipc_hset* hset,
             .cookie = (void*)evt_handler,
     };
 
-    if (!hset || !evt_handler)
+    if (!hset || !evt_handler || IS_ERR(hset))
         return ERR_INVALID_ARGS;
 
     assert(evt_handler->proc);
@@ -274,7 +275,7 @@ int tipc_hset_remove_entry(struct tipc_hset* hset, handle_t h) {
             .cookie = NULL,
     };
 
-    if (!hset)
+    if (!hset || IS_ERR(hset))
         return ERR_INVALID_ARGS;
 
     /* detach entry */
@@ -285,7 +286,7 @@ int tipc_handle_event(struct tipc_hset* hset, uint32_t timeout) {
     int rc;
     struct uevent evt = UEVENT_INITIAL_VALUE(evt);
 
-    if (!hset)
+    if (!hset || IS_ERR(hset))
         return ERR_INVALID_ARGS;
 
     /* wait for next event up to specified time */
