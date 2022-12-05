@@ -144,7 +144,7 @@ use trusty_std::alloc::TryAllocFrom;
 use trusty_std::ffi::{CString, TryNewError};
 use trusty_std::string::{FromUtf8Error, String};
 use trusty_std::vec::Vec;
-use trusty_sys::{c_int, c_long};
+use trusty_sys::c_long;
 
 #[cfg(test)]
 mod test;
@@ -202,12 +202,9 @@ impl Session {
 
         // SAFETY: FFI call to underlying C API. Both inputs were constructed in this
         // function and so are guaranteed to be safe for this call.
-        let return_code = unsafe { trusty_sys::connect(port, flags) };
-        if return_code < 0 {
-            return Err(Error::Code(ErrorCode::from(return_code)));
-        }
+        let handle = Error::check_non_negative(unsafe { trusty_sys::connect(port, flags) })?;
 
-        Ok(Self { raw: return_code.try_into().unwrap() })
+        Ok(Self { raw: handle.try_into().unwrap() })
     }
 
     /// Drops the `Session` and closes the connection.
@@ -277,7 +274,7 @@ impl Session {
 
         // SAFETY: FFI call to underlying C API. Both inputs were constructed in this
         // function and so are guaranteed to be safe for this call.
-        Error::try_from_code(unsafe {
+        Error::check_return_code(unsafe {
             sys::storage_open_file(self.raw, file.as_mut_ptr(), name.as_ptr(), flags, ops_flags)
         })?;
 
@@ -382,7 +379,7 @@ impl Session {
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
         // point.
-        let bytes_read = Error::try_from_size(unsafe {
+        let bytes_read = Error::check_size(unsafe {
             sys::storage_read(
                 file.raw,
                 offset.try_into().unwrap(),
@@ -421,7 +418,7 @@ impl Session {
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
         // point.
-        Error::try_from_code(unsafe { sys::storage_set_file_size(file.raw, 0, 0) })?;
+        Error::check_return_code(unsafe { sys::storage_set_file_size(file.raw, 0, 0) })?;
 
         // Convert `complete` into the corresponding flag value.
         let ops_flags = if complete { sys::STORAGE_OP_COMPLETE } else { 0 };
@@ -430,7 +427,7 @@ impl Session {
         // truncate and write operations are applied immediately as a transaction.
         //
         // SAFETY: FFI call to the underlying C API. Invariants are same as noted above.
-        let bytes_written = Error::try_from_size(unsafe {
+        let bytes_written = Error::check_size(unsafe {
             sys::storage_write(file.raw, 0, buf.as_ptr() as *const c_void, buf.len(), ops_flags)
         })?;
 
@@ -453,7 +450,7 @@ impl Session {
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
         // point.
-        Error::try_from_code(unsafe { sys::storage_get_file_size(file.raw, &mut size) })?;
+        Error::check_return_code(unsafe { sys::storage_get_file_size(file.raw, &mut size) })?;
 
         Ok(size as usize)
     }
@@ -486,7 +483,7 @@ impl Session {
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
         // point.
-        Error::try_from_code(unsafe {
+        Error::check_return_code(unsafe {
             sys::storage_set_file_size(file.raw, size as u64, ops_flags)
         })
     }
@@ -523,7 +520,7 @@ impl Session {
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
         // point.
-        Error::try_from_code(unsafe {
+        Error::check_return_code(unsafe {
             sys::storage_move_file(
                 self.raw,
                 0,
@@ -564,7 +561,7 @@ impl Session {
         // SAFETY: FFI call to underlying C API. The raw file handle is guaranteed to be
         // valid until the `SecureFile` object is dropped, and so is valid at this
         // point.
-        Error::try_from_code(unsafe {
+        Error::check_return_code(unsafe {
             sys::storage_delete_file(self.raw, name.as_ptr(), ops_flags)
         })
     }
@@ -662,7 +659,7 @@ pub enum Error {
 }
 
 impl Error {
-    /// Checks an error code and converts it to an `Error` if necessary.
+    /// Checks a return code and converts it to an `Error` if necessary.
     ///
     /// Returns a `Result` so that this method can be used with `?` in order to
     /// quickly propagate errors returned from the storage service, e.g.:
@@ -674,8 +671,11 @@ impl Error {
     /// ```
     ///
     /// Note that only a value of 0 is considered success, and all other values are
-    /// treated as an error.
-    fn try_from_code(code: c_int) -> Result<(), Self> {
+    /// treated as an error. If positive values should not be considered errors, use
+    /// [`check_non_negative`](Self::check_non_negative). If the return code
+    /// represents a length or index that you want to handle as a `usize`, use
+    /// [`check_size`](Self::check_size).
+    fn check_return_code(code: impl Into<c_long>) -> Result<(), Self> {
         let code = code.into();
         if ErrorCode::is_err(code) {
             return Err(Error::Code(ErrorCode::from(code)));
@@ -684,27 +684,54 @@ impl Error {
         Ok(())
     }
 
-    /// Checks an error code and converts it to an `Error` if necessary.
+    /// Checks a return code where positive values do not represent an error.
+    ///
+    /// This helper is for use with FFI functions that return a signed value where
+    /// negative values indicate an error but positive values have some non-error
+    /// meaning, e.g. a function that returns a handle value on success. The
+    /// original value is returned in the success case to allow calling code to
+    /// easily continue using it:
+    ///
+    /// ```
+    /// let handle = Error::check_non_negative(unsafe {
+    ///     sys::some_ffi_call()
+    /// })?;
+    ///
+    /// println!("Handle value: {}", handle);
+    /// ```
+    ///
+    /// For cases where the return value specifically represents a length or index
+    /// value that you then want to use in Rust code as a `usize`, use
+    /// [`check_size`](Self::check_size) instead.
+    fn check_non_negative<T: Into<c_long> + Copy>(code: T) -> Result<T, Self> {
+        let long_code = code.into();
+
+        // NOTE: We directly check `code < 0` here instead of using `is_err` because
+        // `is_err` will also treat positive values as errors, whereas in this case
+        // positive values are the success case.
+        if long_code < 0 {
+            Err(Error::Code(ErrorCode::from(long_code)))
+        } else {
+            Ok(code)
+        }
+    }
+
+    /// Checks a return code that may also represent a length or index value.
     ///
     /// This helper is for use with FFI functions that return a size value that may
-    /// also be negative to indicate an error, i.e. when reading or writing a file's
+    /// be negative to indicate an error, i.e. when reading or writing a file's
     /// contents. If `size` does not encode an error, it is converted to a `usize`
     /// for further use in Rust code.
     ///
     /// ```
-    /// let len = Error::try_from_code(unsafe {
+    /// let len = Error::check_size(unsafe {
     ///     sys::some_ffi_call()
     /// })?;
     ///
-    /// println!("Byte written: {}", len);
+    /// println!("Bytes written: {}", len);
     /// ```
-    fn try_from_size(size: isize) -> Result<usize, Self> {
-        // NOTE: We directly check `size < 0` here instead of using `is_err` because
-        // `is_err` will also treat positive values as errors, whereas in this case
-        // positive values are the success case.
-        if size < 0 {
-            return Err(Error::Code(ErrorCode::from(size as c_long)));
-        }
+    fn check_size(size: isize) -> Result<usize, Self> {
+        Self::check_non_negative(size as c_long)?;
 
         // We've confirmed that `size` is not negative, so it's safe to cast it to
         // a `usize`.
@@ -849,7 +876,7 @@ impl DirIter {
 
         // SAFETY: FFI call to underlying C API. The raw session handle is
         // guaranteed to be valid until the `Session` object is dropped.
-        Error::try_from_code(unsafe {
+        Error::check_return_code(unsafe {
             sys::storage_open_dir(session.raw, ptr::null(), &mut dir_ptr)
         })?;
 
@@ -875,7 +902,7 @@ impl DirIter {
         // SAFETY: FFI call to underlying C API. The raw session handle is guaranteed to
         // be valid while the `Session` object is alive, and the raw dir iter pointer is
         // likewise guaranteed to be valid while the `DirIter` object is alive.
-        let bytes_read = Error::try_from_size(unsafe {
+        let bytes_read = Error::check_size(unsafe {
             let code = sys::storage_read_dir(
                 self.session,
                 self.raw,

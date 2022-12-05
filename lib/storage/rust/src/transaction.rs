@@ -34,7 +34,7 @@ impl Transaction<'_> {
         // SAFETY: FFI call to underlying C API. The raw session handle is guaranteed to
         // be valid until the `Session` object is dropped, and so is valid at this
         // point.
-        let result = Error::try_from_code(unsafe {
+        let result = Error::check_return_code(unsafe {
             sys::storage_end_transaction(self.session.raw, complete)
         });
 
