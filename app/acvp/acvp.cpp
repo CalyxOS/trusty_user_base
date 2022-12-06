@@ -165,6 +165,8 @@ public:
         return arg_buffer_;
     }
 
+    size_t arg_buffer_size() const { return arg_buffer_size_; }
+
     ~TrustyAcvpTool();
 
 private:
@@ -386,9 +388,14 @@ static int AcvpOnMessage(const struct tipc_port* port,
 
     uint32_t cur_offset = 0;
     for (uint32_t i = 0; i < request->num_args; ++i) {
+        uint32_t end;
+        if (__builtin_add_overflow(cur_offset, request->lengths[i], &end) ||
+            end > tool->arg_buffer_size()) {
+            return ERR_INVALID_ARGS;
+        }
         args[i] = bssl::Span<const uint8_t>(tool->arg_buffer() + cur_offset,
                                             request->lengths[i]);
-        cur_offset += request->lengths[i];
+        cur_offset = end;
     }
 
     auto handler = bssl::acvp::FindHandler(bssl::Span(args, request->num_args));
