@@ -99,6 +99,46 @@ fn read_at() {
     assert_eq!(expected, data, "Data buffer was not overwritten in expected way");
 }
 
+#[test]
+fn write_at() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
+
+    let file_name = "write_at.txt";
+    let file_contents = "Hello, world!";
+
+    // Write the initial contents of the file.
+    let mut file = session.open_file(file_name, OpenMode::Create).unwrap();
+    session.write_all(&mut file, file_contents.as_bytes()).unwrap();
+
+    // Overwrite a portion of the file.
+    let result = session.write_at(&mut file, 7, b"Trusty");
+    assert_eq!(Ok(()), result);
+
+    // Verify that the contents are as expected.
+    let data = &mut [0; 32];
+    let result = session.read_all(&file, data);
+    let expected = b"Hello, Trusty".as_slice();
+    assert_eq!(Ok(expected), result, "Incorrect bytes read");
+
+    // Use `write_at` in a transaction.
+    let mut transaction = session.begin_transaction();
+    assert_eq!(Ok(()), transaction.write_at(&mut file, 7, b"C"));
+    assert_eq!(Ok(()), transaction.commit());
+
+    let result = session.read_all(&file, data);
+    let expected = b"Hello, Crusty".as_slice();
+    assert_eq!(Ok(expected), result);
+
+    // Verify that attempting to write past the end of the file succeeds and expands
+    // the file to fit the new data.
+    let result = session.write_at(&mut file, 7, b"too long data");
+    assert_eq!(Ok(()), result, "Writing past end of file failed");
+
+    let result = session.read_all(&file, data);
+    let expected = b"Hello, too long data".as_slice();
+    assert_eq!(Ok(expected), result);
+}
+
 /// Tests that file sizes are reported correctly, and that setting file size
 /// works both when increasing and decreasing a file's size.
 #[test]

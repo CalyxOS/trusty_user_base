@@ -68,7 +68,21 @@ impl Transaction<'_> {
     /// file, regardless of the current cursor position in `file`. The file is then
     /// truncated to fit the length of `buf` if the previous size was larger.
     pub fn write_all(&mut self, file: &mut SecureFile, buf: &[u8]) -> Result<(), Error> {
-        self.session.write_impl(file, buf, false)
+        self.session.write_all_impl(file, buf, false)
+    }
+
+    /// Writes to a file starting at the specified offset.
+    ///
+    /// Writes the contents of `buf` to the file starting at `offset` bytes from
+    /// the beginning of the file. If the file is not already long enough to fit
+    /// the new data, it will be extended automatically to fit.
+    pub fn write_at(
+        &mut self,
+        file: &mut SecureFile,
+        offset: usize,
+        buf: &[u8],
+    ) -> Result<(), Error> {
+        self.session.write_at_impl(file, offset, buf, false)
     }
 
     /// Truncates or extends the underlying file, updating the size of the file to

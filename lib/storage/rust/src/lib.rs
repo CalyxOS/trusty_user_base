@@ -400,13 +400,13 @@ impl Session {
     /// This operation implicitly creates its own transaction, so the file contents
     /// are guaranteed to be written to disk if it completes successfully.
     pub fn write_all(&mut self, file: &mut SecureFile, buf: &[u8]) -> Result<(), Error> {
-        self.write_impl(file, buf, true)
+        self.write_all_impl(file, buf, true)
     }
 
     // NOTE: We split the implementation of `write_all` to a separate method in
     // order to hide the `complete` argument. See the comment on `open_file_impl`
     // for additional context.
-    fn write_impl(
+    fn write_all_impl(
         &mut self,
         file: &mut SecureFile,
         buf: &[u8],
@@ -420,15 +420,51 @@ impl Session {
         // point.
         Error::check_return_code(unsafe { sys::storage_set_file_size(file.raw, 0, 0) })?;
 
+        self.write_at_impl(file, 0, buf, complete)
+    }
+
+    /// Writes to a file starting at the specified offset.
+    ///
+    /// Writes the contents of `buf` to the file starting at `offset` bytes from
+    /// the beginning of the file. If the file is not already long enough to fit
+    /// the new data, it will be extended automatically to fit.
+    ///
+    /// This operation implicitly creates its own transaction, so the file
+    /// contents are guaranteed to be written to disk if it completes
+    /// successfully.
+    pub fn write_at(
+        &mut self,
+        file: &mut SecureFile,
+        offset: usize,
+        buf: &[u8],
+    ) -> Result<(), Error> {
+        self.write_at_impl(file, offset, buf, true)
+    }
+
+    // NOTE: We split the implementation of `write_at` to a separate method in
+    // order to hide the `complete` argument. See the comment on `open_file_impl`
+    // for additional context.
+    fn write_at_impl(
+        &mut self,
+        file: &mut SecureFile,
+        offset: usize,
+        buf: &[u8],
+        complete: bool,
+    ) -> Result<(), Error> {
         // Convert `complete` into the corresponding flag value.
         let ops_flags = if complete { sys::STORAGE_OP_COMPLETE } else { 0 };
 
-        // Write to the file at offset 0, specifying `STORAGE_OP_COMPLETE` so that the
-        // truncate and write operations are applied immediately as a transaction.
+        // Write to the file at `offset`.
         //
         // SAFETY: FFI call to the underlying C API. Invariants are same as noted above.
         let bytes_written = Error::check_size(unsafe {
-            sys::storage_write(file.raw, 0, buf.as_ptr() as *const c_void, buf.len(), ops_flags)
+            sys::storage_write(
+                file.raw,
+                offset.try_into().unwrap(),
+                buf.as_ptr() as *const c_void,
+                buf.len(),
+                ops_flags,
+            )
         })?;
 
         // Verify our assumption that the entire write will always succeed.
