@@ -275,6 +275,37 @@ fn multiple_files_in_transaction() {
     );
 }
 
+/// Tests that file contents can be read while using a `Transaction`.
+#[test]
+fn read_in_transaction() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
+
+    let file_name = "read_in_transaction.txt";
+    let file_contents = "Hello, world!";
+
+    // Write the initial contents of the file.
+    let mut file = session.open_file(file_name, OpenMode::Create).unwrap();
+    session.write_all(&mut file, file_contents.as_bytes()).unwrap();
+
+    // Overwrite a portion of the file in a transaction.
+    let mut transaction = session.begin_transaction();
+    let result = transaction.write_at(&mut file, 7, b"Trusty");
+    assert_eq!(Ok(()), result);
+
+    // Verify that the contents are as expected.
+    let data = &mut [0; 32];
+    let result = transaction.read_all(&file, data);
+    let expected = b"Hello, Trusty".as_slice();
+    assert_eq!(Ok(expected), result, "Incorrect bytes read");
+
+    // Change the contents of the file then verify that we can get the updated length.
+    let long_contents = b"Now for a much much longer file";
+    assert_eq!(Ok(()), transaction.write_all(&mut file, long_contents));
+    assert_eq!(Ok(long_contents.len()), transaction.get_size(&file));
+
+    transaction.discard().unwrap();
+}
+
 /// Tests that pending changes in a transaction are not committed if the
 /// transaction is discarded.
 #[test]

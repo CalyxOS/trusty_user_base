@@ -63,6 +63,53 @@ impl Transaction<'_> {
         self.session.open_file_impl(name, mode, false)
     }
 
+    /// Reads the entire contents of `file` into `buf`.
+    ///
+    /// Reads contents starting from the beginning of the file, regardless of the
+    /// current cursor position in `file`. Returns a slice of `buf` containing the
+    /// read data.
+    ///
+    /// If you only want to read up to `buf.len()` bytes of the file, regardless of
+    /// how large the whole file is, use [`read_at`](Self::read_at) instead.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error in the following situations, but is not
+    /// limited to just these cases:
+    ///
+    /// * [`crate::ErrorCode::NotEnoughBuffer`] if `buf` isn't large enough to contain the
+    ///   full contents of the file.
+    pub fn read_all<'buf>(
+        &mut self,
+        file: &SecureFile,
+        buf: &'buf mut [u8],
+    ) -> Result<&'buf [u8], Error> {
+        self.session.read_all(file, buf)
+    }
+
+    /// Reads the content of `file` starting at the specified offset.
+    ///
+    /// Reads contents starting from the given `offset` in bytes from the start of
+    /// the file. Reads up to `buf.len()` bytes from the file and writes them into
+    /// `buf`. If there isn't enough data after `offset` to fill `buf`, then `buf`
+    /// will only be partially filled. Returns a slice of `buf` that contains the
+    /// read data.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error in the following situations, but is not
+    /// limited to just these cases:
+    ///
+    /// * `offset` is greater than the length of the file.
+    pub fn read_at<'buf>(
+        &mut self,
+        file: &SecureFile,
+        offset: usize,
+        buf: &'buf mut [u8],
+    ) -> Result<&'buf [u8], Error> {
+        self.session.read_at(file, offset, buf)
+    }
+
     /// Overwrites `file` with the contents of `buf`.
     ///
     /// Writes the contents of `buf` to the file starting from the beginning of the
@@ -84,6 +131,11 @@ impl Transaction<'_> {
         buf: &[u8],
     ) -> Result<(), Error> {
         self.session.write_at_impl(file, offset, buf, false)
+    }
+
+    /// Returns the size of the file in bytes.
+    pub fn get_size(&mut self, file: &SecureFile) -> Result<usize, Error> {
+        self.session.get_size(file)
     }
 
     /// Truncates or extends the underlying file, updating the size of the file to
