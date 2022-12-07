@@ -38,7 +38,8 @@ impl Transaction<'_> {
             sys::storage_end_transaction(self.session.raw, complete)
         });
 
-        // Make sure `self` doesn't get dropped since the `Drop` impl panics.
+        // Make sure `self` doesn't get dropped since the `Drop` impl also ends the
+        // transaction.
         core::mem::forget(self);
 
         result
@@ -142,9 +143,10 @@ impl Transaction<'_> {
 
 impl Drop for Transaction<'_> {
     fn drop(&mut self) {
-        panic!(
-            "Transaction was dropped without being finalized, make sure to call `commit` or \
-            `discard` to finalize the transaction",
-        );
+        // SAFETY: FFI call to underlying C API. The raw session handle is guaranteed to
+        // be valid until the `Session` object is dropped, and so is valid at this
+        // point.
+        Error::check_return_code(unsafe { sys::storage_end_transaction(self.session.raw, false) })
+            .expect("Error occurred while dropping an unfinished `Transaction`");
     }
 }

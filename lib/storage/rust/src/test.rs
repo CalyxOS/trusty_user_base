@@ -281,8 +281,8 @@ fn multiple_files_in_transaction() {
 fn discard_transaction() {
     let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
 
-    let file_name = "commit_transaction_on_drop.txt";
-    let file_contents = "commit_transaction_on_drop";
+    let file_name = "discard_transaction.txt";
+    let file_contents = "discard_transaction";
     let mut buf = [0; 32];
 
     // Clear any leftover files from a previous test run.
@@ -297,6 +297,36 @@ fn discard_transaction() {
         transaction.write_all(&mut file, file_contents.as_bytes()).unwrap();
 
         transaction.discard().unwrap();
+    }
+
+    // Verify that the file was never created or written to.
+    assert_eq!(
+        Err(Error::Code(ErrorCode::NotFound)),
+        session.read(file_name, &mut buf),
+        "Unexpected result when renaming open file",
+    );
+}
+
+/// Tests that pending changes in a transaction are not committed if the
+/// transaction is discarded.
+#[test]
+fn drop_transaction() {
+    let mut session = Session::new(Port::TamperDetectEarlyAccess, true).unwrap();
+
+    let file_name = "discard_transaction_on_drop.txt";
+    let file_contents = "discard_transaction_on_drop";
+    let mut buf = [0; 32];
+
+    // Clear any leftover files from a previous test run.
+    remove_all(&mut session);
+
+    // Begin to make changes in a transaction, then drop it without explicitly
+    // committing or discarding it. This should discard any pending changes.
+    {
+        let mut transaction = session.begin_transaction();
+
+        let mut file = transaction.open_file(file_name, OpenMode::CreateExclusive).unwrap();
+        transaction.write_all(&mut file, file_contents.as_bytes()).unwrap();
     }
 
     // Verify that the file was never created or written to.
