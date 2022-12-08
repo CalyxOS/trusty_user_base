@@ -105,6 +105,11 @@ import os.path
 import struct
 import sys
 
+assert (sys.version_info.major, sys.version_info.minor) >= (3, 6), (
+        # pylint: disable-next=consider-using-f-string
+        "Python 3.6 or newer is required; found {}. Did you forget to set PY3?"
+        .format(sys.version))
+
 # Manifest properties
 UUID = "uuid"
 MIN_HEAP = "min_heap"

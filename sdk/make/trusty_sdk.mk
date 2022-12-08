@@ -38,6 +38,9 @@
 # CLANG_BINDIR : Location of the bin/ directory of the clang to use. (Must be the
 # 		same version used to compile the SDK.) Defaults to `toolchain/clang/bin`
 # 		inside the SDK.
+# PY3 : Path to the Python 3 interpreter to use. Defaults to the `python3` found
+#       in $PATH. If the installed `python3` is older than the one Trusty used to
+#       build the SDK, some scripts used in the build process may fail.
 
 
 # Provide an error message if this makefile is run directly instead of included
@@ -59,6 +62,11 @@ SDK_SYSROOT_DIR := $(SDK_DIR)/sysroots/$(TRUSTY_APP_ARCH)/
 ifeq ($(CLANG_BINDIR),)
 CLANG_BINDIR := $(SDK_DIR)/toolchain/clang/bin/
 $(warning No $$CLANG_BINDIR provided; using the default: $(CLANG_BINDIR))
+endif
+
+ifeq ($(PY3),)
+PY3 := $(shell which python3)
+$(warning No $$PY3 provided; using python3 from $$PATH: $(PY3))
 endif
 
 ARCH_arm_TOOLCHAIN_PREFIX := $(CLANG_BINDIR)/llvm-

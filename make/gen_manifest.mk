@@ -18,6 +18,8 @@
 #
 # args:
 # MODULE : module name (required)
+# PY3 : Path of the Python 3 interpreter to use to run the manifest compiler
+#       script.
 # MODULE_CONSTANTS : JSON files with constants used for both the manifest and C
 # 		headers (optional) (CONSTANTS is a deprecated equivalent to
 # 		MODULE_CONSTANTS)
@@ -66,12 +68,13 @@ else
 $(TRUSTY_APP_MANIFEST_BIN): DEFAULT_USER_SHADOW_STACK_SIZE :=
 endif
 $(TRUSTY_APP_MANIFEST_BIN): MANIFEST_COMPILER := $(MANIFEST_COMPILER)
+$(TRUSTY_APP_MANIFEST_BIN): PY3 := $(PY3)
 $(TRUSTY_APP_MANIFEST_BIN): CONFIG_CONSTANTS := $(MODULE_CONSTANTS)
 $(TRUSTY_APP_MANIFEST_BIN): HEADER_DIR := $(CONSTANTS_HEADER_DIR)
 $(TRUSTY_APP_MANIFEST_BIN): $(MANIFEST) $(MANIFEST_COMPILER) $(MODULE_CONSTANTS)
 	@$(MKDIR)
 	@echo compiling $< to $@
-	$(MANIFEST_COMPILER) -i $< -o $@ $(addprefix -c,$(CONFIG_CONSTANTS)) --header-dir $(HEADER_DIR) \
+	$(PY3) $(MANIFEST_COMPILER) -i $< -o $@ $(addprefix -c,$(CONFIG_CONSTANTS)) --header-dir $(HEADER_DIR) \
 	$(TRUSTY_APP_ENABLE_SCS) $(DEFAULT_USER_SHADOW_STACK_SIZE)
 
 # We need the constants headers to be generated before the sources are compiled
@@ -83,12 +86,13 @@ ifneq ($(strip $(MODULE_CONSTANTS)),)
 
 # generate shared constants headers if only constants and no manifest provided
 $(CONSTANTS_HEADER_DIR): MANIFEST_COMPILER := $(MANIFEST_COMPILER)
+$(CONSTANTS_HEADER_DIR): PY3 := $(PY3)
 $(CONSTANTS_HEADER_DIR): CONFIG_CONSTANTS := $(MODULE_CONSTANTS)
 $(CONSTANTS_HEADER_DIR): HEADER_DIR := $(CONSTANTS_HEADER_DIR)
 $(CONSTANTS_HEADER_DIR): $(MANIFEST_COMPILER) $(MODULE_CONSTANTS)
 	@$(MKDIR)
 	@echo compiling constants for $(MODULE)
-	$(MANIFEST_COMPILER) $(addprefix -c,$(CONFIG_CONSTANTS)) --header-dir $(HEADER_DIR)
+	$(PY3) $(MANIFEST_COMPILER) $(addprefix -c,$(CONFIG_CONSTANTS)) --header-dir $(HEADER_DIR)
 
 MODULE_SRCDEPS += $(CONSTANTS_HEADER_DIR)
 
