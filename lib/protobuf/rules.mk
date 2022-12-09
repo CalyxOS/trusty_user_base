@@ -21,9 +21,9 @@ PROTOBUF := external/protobuf/src
 MODULE_SRCS := \
 	$(PROTOBUF)/google/protobuf/any_lite.cc \
 	$(PROTOBUF)/google/protobuf/arena.cc \
+	$(PROTOBUF)/google/protobuf/arenastring.cc \
 	$(PROTOBUF)/google/protobuf/extension_set.cc \
 	$(PROTOBUF)/google/protobuf/generated_enum_util.cc \
-	$(PROTOBUF)/google/protobuf/generated_message_table_driven_lite.cc \
 	$(PROTOBUF)/google/protobuf/generated_message_util.cc \
 	$(PROTOBUF)/google/protobuf/implicit_weak_message.cc \
 	$(PROTOBUF)/google/protobuf/io/coded_stream.cc \
@@ -35,6 +35,7 @@ MODULE_SRCS := \
 	$(PROTOBUF)/google/protobuf/message_lite.cc \
 	$(PROTOBUF)/google/protobuf/parse_context.cc \
 	$(PROTOBUF)/google/protobuf/repeated_field.cc \
+	$(PROTOBUF)/google/protobuf/repeated_ptr_field.cc \
 	$(PROTOBUF)/google/protobuf/stubs/bytestream.cc \
 	$(PROTOBUF)/google/protobuf/stubs/common.cc \
 	$(PROTOBUF)/google/protobuf/stubs/int128.cc \
