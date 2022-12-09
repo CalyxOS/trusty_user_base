@@ -70,6 +70,41 @@ impl TryFrom<u32> for SystemStateFlag {
     }
 }
 
+/// Possible values for SystemStateFlag::ProvisioningAllowed flag.
+#[repr(u64)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ProvisioningAllowedFlagValues {
+    /// Indicates that provisoning is not currently allowed.
+    ProvisioningNotAllowed = system_state_flag_provisioning_allowed_SYSTEM_STATE_FLAG_PROVISIONING_ALLOWED_VALUE_NOT_ALLOWED as u64,
+
+    /// Indicates that provisoning is currently allowed.
+    ProvisioningAllowed = system_state_flag_provisioning_allowed_SYSTEM_STATE_FLAG_PROVISIONING_ALLOWED_VALUE_ALLOWED as u64,
+
+    /// Indicates that provisoning is currently allowed if the client is in a boot stage.
+    ///
+    /// For backward compatibility. Not recommended for new systems.
+    ProvisioningAllowedAtBoot = system_state_flag_provisioning_allowed_SYSTEM_STATE_FLAG_PROVISIONING_ALLOWED_VALUE_ALLOWED_AT_BOOT as u64,
+}
+
+impl TryFrom<u64> for ProvisioningAllowedFlagValues {
+    type Error = TipcError;
+
+    fn try_from(value: u64) -> Result<ProvisioningAllowedFlagValues, Self::Error> {
+        match value as system_state_flag {
+            sys::system_state_flag_provisioning_allowed_SYSTEM_STATE_FLAG_PROVISIONING_ALLOWED_VALUE_NOT_ALLOWED => {
+                Ok(ProvisioningAllowedFlagValues::ProvisioningNotAllowed)
+            }
+            sys::system_state_flag_provisioning_allowed_SYSTEM_STATE_FLAG_PROVISIONING_ALLOWED_VALUE_ALLOWED => {
+                Ok(ProvisioningAllowedFlagValues::ProvisioningAllowed)
+            }
+            sys::system_state_flag_provisioning_allowed_SYSTEM_STATE_FLAG_PROVISIONING_ALLOWED_VALUE_ALLOWED_AT_BOOT => {
+                Ok(ProvisioningAllowedFlagValues::ProvisioningAllowedAtBoot)
+            }
+            _ => Err(TipcError::InvalidData),
+        }
+    }
+}
+
 /// Connection to the system state service
 pub struct SystemState(Handle);
 
