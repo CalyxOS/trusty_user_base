@@ -218,7 +218,7 @@ fn cannot_rename_open_file() {
 
     // Verify that renaming the file fails while the handle is open.
     assert_eq!(
-        Err(Error::Code(ErrorCode::NotFound)),
+        Err(Error::Code(ErrorCode::NotAllowed)),
         session.rename(file_name, "different_file.txt"),
         "Unexpected result when renaming open file",
     );
