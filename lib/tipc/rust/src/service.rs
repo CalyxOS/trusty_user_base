@@ -375,6 +375,9 @@ impl<S: Service> Dispatcher for SingleDispatcher<S> {
 /// relevant service based on the connection port. Services must implement the
 /// [`Service`] trait. An instance of this dispatcher must have a single const
 /// usize parameter specifying how many ports the dispatcher will handle.
+/// This macro has limited lifetime support. A single lifetime can be
+/// used for the ServiceDispatcher enum and the included services (see the
+/// supported definition in the Examples section).
 ///
 /// # Examples
 /// ```
@@ -395,9 +398,19 @@ impl<S: Service> Dispatcher for SingleDispatcher<S> {
 /// let cfg = PortCfg::new(&"com.android.trusty.test_port2).unwrap();
 /// dispatcher.add_service(Rc::new(Service2), cfg).expect("Could not add service 2");
 /// ```
+///
+/// ## defining a dispatcher with multiple lifetimes
+/// ```
+/// service_dispatcher! {
+///     enum ServiceDispatcher<'a> {
+///         Service1<'a>,
+///         Service2<'a>,
+///     }
+/// }
+/// ```
 #[macro_export]
 macro_rules! service_dispatcher {
-    (enum $name:ident {$($service:ident),+ $(,)*}) => {
+    (enum $name:ident $(<$elt: lifetime>)? {$($service:ident $(<$slt: lifetime>)? ),+ $(,)*}) => {
         /// Dispatcher that routes incoming messages to the correct server based on what
         /// port the message was sent to.
         ///
@@ -405,14 +418,14 @@ macro_rules! service_dispatcher {
         /// message formats for the same [`Manager`]. By using this dispatcher,
         /// different servers can be bound to different ports using the same event loop
         /// in the manager.
-        struct $name<const PORT_COUNT: usize> {
+        struct $name<$($elt,)? const PORT_COUNT: usize> {
             // ports and services should always be kept in sync, i.e. the
             // service at index `i` services port `i`.
             ports: Vec<PortCfg>,
-            services: Vec<ServiceKind>,
+            services: Vec<ServiceKind$(<$elt>)?>,
         }
 
-        impl<const PORT_COUNT: usize> $name<PORT_COUNT> {
+        impl<$($elt,)? const PORT_COUNT: usize> $name<$($elt,)? PORT_COUNT> {
             fn new() -> core::result::Result<Self, alloc::collections::TryReserveError> {
                 use trusty_std::alloc::FallibleVec;
                 Ok(Self {
@@ -422,7 +435,7 @@ macro_rules! service_dispatcher {
             }
 
             fn add_service<T>(&mut self, service: Rc<T>, port: PortCfg) -> Result<()>
-            where ServiceKind: From<Rc<T>> {
+            where ServiceKind$(<$elt>)? : From<Rc<T>> {
                 if self.ports.len() >= PORT_COUNT || self.services.len() >= PORT_COUNT {
                     return Err(TipcError::OutOfBounds);
                 }
@@ -435,24 +448,24 @@ macro_rules! service_dispatcher {
             }
         }
 
-        enum ServiceKind {
-            $($service(Rc<$service>)),+
+        enum ServiceKind$(<$elt>)? {
+            $($service(Rc<$service$(<$slt>)?>)),+
         }
 
         $(
-            impl From<Rc<$service>> for ServiceKind {
-                fn from(service: Rc<$service>) -> Self {
+            impl$(<$slt>)? From<Rc<$service$(<$slt>)?>> for ServiceKind$(<$slt>)? {
+                fn from(service: Rc<$service$(<$slt>)?>) -> Self {
                     ServiceKind::$service(service)
                 }
             }
         )+
 
-        enum ConnectionKind {
-            $($service(<$service as $crate::Service>::Connection)),+
+        enum ConnectionKind$(<$elt>)?  {
+            $($service(<$service$(<$slt>)? as $crate::Service>::Connection)),+
         }
 
-        impl<const PORT_COUNT: usize> $crate::service::Dispatcher for $name<PORT_COUNT> {
-            type Connection = (usize, ConnectionKind);
+        impl<$($elt,)? const PORT_COUNT: usize> $crate::service::Dispatcher for $name<$($elt,)? PORT_COUNT> {
+            type Connection = (usize, ConnectionKind$(<$elt>)?);
 
             fn on_connect(
                 &self,
@@ -1006,6 +1019,99 @@ mod test {
         let path2 = format!("{}.port.{}", SRV_PATH_BASE, "testService2");
         let cfg = PortCfg::new(&path2).unwrap();
         dispatcher.add_service(Rc::new(Service2), cfg).expect("Could not add service 2");
+
+        let buffer = [0u8; 4096];
+        Manager::<_, _, 2, 4>::new_with_dispatcher(dispatcher, buffer)
+            .expect("Could not create service manager");
+    }
+}
+
+#[cfg(test)]
+mod multiservice_with_lifetimes_tests {
+    use super::*;
+    use core::marker::PhantomData;
+    use trusty_std::alloc::FallibleVec;
+
+    const SRV_PATH_BASE: &str = "com.android.ipc-unittest-lifetimes";
+
+    struct Service1<'a> {
+        phantom: PhantomData<&'a u32>,
+    }
+
+    impl<'a> Service for Service1<'a> {
+        type Connection = ();
+        type Message = ();
+
+        fn on_connect(
+            &self,
+            _port: &PortCfg,
+            _handle: &Handle,
+            _peer: &Uuid,
+        ) -> Result<Option<Self::Connection>> {
+            Ok(Some(()))
+        }
+
+        fn on_message(
+            &self,
+            _connection: &Self::Connection,
+            handle: &Handle,
+            _msg: Self::Message,
+        ) -> Result<bool> {
+            handle.send(&2i32)?;
+            Ok(true)
+        }
+    }
+
+    struct Service2<'a> {
+        phantom: PhantomData<&'a u32>,
+    }
+
+    impl<'a> Service for Service2<'a> {
+        type Connection = ();
+        type Message = ();
+
+        fn on_connect(
+            &self,
+            _port: &PortCfg,
+            _handle: &Handle,
+            _peer: &Uuid,
+        ) -> Result<Option<Self::Connection>> {
+            Ok(Some(()))
+        }
+
+        fn on_message(
+            &self,
+            _connection: &Self::Connection,
+            handle: &Handle,
+            _msg: Self::Message,
+        ) -> Result<bool> {
+            handle.send(&2i32)?;
+            Ok(true)
+        }
+    }
+
+    service_dispatcher! {
+        enum TestServiceLifetimeDispatcher<'a> {
+            Service1<'a>,
+            Service2<'a>,
+        }
+    }
+
+    #[test]
+    fn manager_creation() {
+        let mut dispatcher = TestServiceLifetimeDispatcher::<2>::new().unwrap();
+
+        let path1 = format!("{}.port.{}", SRV_PATH_BASE, "testService1");
+        let cfg = PortCfg::new(&path1).unwrap();
+        dispatcher
+            .add_service(Rc::new(Service1 { phantom: PhantomData }), cfg)
+            .expect("Could not add service 1");
+
+        let path2 = format!("{}.port.{}", SRV_PATH_BASE, "testService2");
+        let cfg = PortCfg::new(&path2).unwrap();
+        dispatcher
+            .add_service(Rc::new(Service2 { phantom: PhantomData }), cfg)
+            .expect("Could not add service 2");
 
         let buffer = [0u8; 4096];
         Manager::<_, _, 2, 4>::new_with_dispatcher(dispatcher, buffer)
