@@ -76,4 +76,19 @@ int keymaster_sign_auth_token(keymaster_session_t session,
 int keymaster_validate_auth_token(keymaster_session_t session,
                                   hw_auth_token_t* token);
 
+/**
+ * keymaster_get_device_ids() - Return non-unique device IDs (product,
+ *                              manufacturer, etc).
+ * @session: An open keymaster_session_t.
+ * @info_buffer_p: A CBOR map to be populated with the canonicalized device
+ *                 info that a caller needs in order to be spec compliant with
+ *                 the IRemotelyProvisionedComponent HAL. Ownership of this
+ *                 pointer is transferred to the caller and must be
+ *                 deallocated with a call to free().
+ * @size_p: Set to the allocated size of info_buffer_p.
+ * @return: NO_ERROR on success.
+ */
+int keymaster_get_device_info(keymaster_session_t session,
+                              uint8_t** info_buffer_p,
+                              uint32_t* size_p);
 __END_CDECLS

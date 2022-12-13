@@ -27,6 +27,7 @@
 #define KM_STOP_BIT 2U
 #define KM_REQ_SHIFT 2U
 #define KM_GET_AUTH_TOKEN_KEY (0U << KM_REQ_SHIFT)
+#define KM_GET_DEVICE_INFO (1U << KM_REQ_SHIFT)
 
 /**
  * keymaster_message - Serial header for communicating with KM server

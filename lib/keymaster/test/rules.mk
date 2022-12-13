@@ -24,6 +24,7 @@ MODULE_SRCS += \
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libc-trusty \
 	trusty/user/base/lib/keymaster \
-	trusty/user/base/lib/unittest
+	trusty/user/base/lib/unittest \
+	external/open-dice
 
 include make/trusted_app.mk

@@ -22,6 +22,8 @@
 #include <trusty/time.h>
 #include <trusty_unittest.h>
 
+#include <dice/cbor_reader.h>
+
 #include <lib/keymaster/keymaster.h>
 #include <uapi/err.h>
 
@@ -58,6 +60,28 @@ TEST_F(keymaster, get_key) {
 
 test_abort:
     free(key_buf);
+}
+
+TEST_F(keymaster, get_ids) {
+    uint8_t* id_buf = NULL;
+    uint32_t id_buf_size;
+
+    int ret =
+            keymaster_get_device_info(_state->km_handle, &id_buf, &id_buf_size);
+    ASSERT_EQ(ret, NO_ERROR);
+    ASSERT_NE(id_buf, NULL);
+    ASSERT_GT(id_buf_size, 0);
+
+    struct CborIn in;
+    CborInInit(id_buf, id_buf_size, &in);
+    size_t val;
+    ASSERT_EQ(CBOR_READ_RESULT_OK, CborReadMap(&in, &val));
+    // Assert that there is at least one pair. Further verification
+    // is hard to do due to lack of device IDs on the QEMU test platform.
+    ASSERT_GT(val, 0);
+
+test_abort:
+    free(id_buf);
 }
 
 static uint64_t calculate_checksum(void* bytes, size_t len) {

@@ -25,6 +25,7 @@ MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include \
 MODULE_LIBRARY_DEPS := \
 	trusty/user/base/lib/libc-trusty \
 	external/boringssl \
+	external/open-dice \
 
 MODULE_LIBRARY_EXPORTED_DEPS := \
 	trusty/user/base/interface/keymaster \

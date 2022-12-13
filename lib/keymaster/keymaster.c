@@ -20,6 +20,7 @@
 #include <trusty_ipc.h>
 #include <uapi/err.h>
 
+#include <dice/cbor_reader.h>
 #include <interface/keymaster/keymaster.h>
 #include <lib/keymaster/keymaster.h>
 
@@ -115,14 +116,15 @@ void keymaster_close(keymaster_session_t session) {
     close(session);
 }
 
-int keymaster_get_auth_token_key(keymaster_session_t session,
-                                 uint8_t** key_buf_p,
-                                 uint32_t* size_p) {
-    if (size_p == NULL || key_buf_p == NULL) {
+int keymaster_send_command(keymaster_session_t session,
+                           uint8_t command,
+                           uint8_t** data_buf_p,
+                           uint32_t* size_p) {
+    if (size_p == NULL || data_buf_p == NULL) {
         return ERR_NOT_VALID;
     }
 
-    long rc = send_req(session, KM_GET_AUTH_TOKEN_KEY);
+    long rc = send_req(session, command);
     if (rc < 0) {
         TLOGE("%s: failed (%ld) to send req\n", __func__, rc);
         return rc;
@@ -136,20 +138,20 @@ int keymaster_get_auth_token_key(keymaster_session_t session,
     }
 
     if (inf.len <= sizeof(struct keymaster_message)) {
-        TLOGE("%s: invalid auth token len (%zu)\n", __func__, inf.len);
+        TLOGE("%s: invalid response len (%zu)\n", __func__, inf.len);
         put_msg(session, inf.id);
         return ERR_NOT_FOUND;
     }
 
     size_t size = inf.len - sizeof(struct keymaster_message);
-    uint8_t* key_buf = malloc(size);
-    if (key_buf == NULL) {
+    uint8_t* data_buf = malloc(size);
+    if (data_buf == NULL) {
         TLOGE("%s: out of memory (%zu)\n", __func__, inf.len);
         put_msg(session, inf.id);
         return ERR_NO_MEMORY;
     }
 
-    rc = read_response(session, inf.id, KM_GET_AUTH_TOKEN_KEY, key_buf, size);
+    rc = read_response(session, inf.id, command, data_buf, size);
     if (rc < 0) {
         goto err_bad_read;
     }
@@ -163,6 +165,21 @@ int keymaster_get_auth_token_key(keymaster_session_t session,
         goto err_bad_read;
     }
 
+    *size_p = (uint32_t)size;
+    *data_buf_p = data_buf;
+    return NO_ERROR;
+
+err_bad_read:
+    free(data_buf);
+    TLOGE("%s: failed read_msg (%ld)\n", __func__, rc);
+    return rc;
+}
+
+int keymaster_get_auth_token_key(keymaster_session_t session,
+                                 uint8_t** key_buf_p,
+                                 uint32_t* size_p) {
+    long rc = keymaster_send_command(session, KM_GET_AUTH_TOKEN_KEY, key_buf_p,
+                                     size_p);
     /*
      * TODO: Return message of this API contains an error if one happened and a
      * key on success. It may be impossible to distinguish the two if they are
@@ -170,20 +187,52 @@ int keymaster_get_auth_token_key(keymaster_session_t session,
      * return message. However, that changes the ABI. So, just assume that the
      * key is 32 bytes. We know that from KM code.
      */
-    if (size != AUTH_TOKEN_KEY_LEN) {
-        TLOGE("%s: auth token key wrong length: %zu, expected %d\n", __func__,
-              size, AUTH_TOKEN_KEY_LEN);
+    if (rc == NO_ERROR && *size_p != AUTH_TOKEN_KEY_LEN) {
+        TLOGE("%s: auth token key wrong length: %u, expected %d\n", __func__,
+              *size_p, AUTH_TOKEN_KEY_LEN);
         rc = ERR_BAD_LEN;
-        goto err_bad_read;
+        free(*key_buf_p);
+        *key_buf_p = NULL;
     }
+    return rc;
+}
 
-    *size_p = (uint32_t)size;
-    *key_buf_p = key_buf;
-    return NO_ERROR;
+int keymaster_get_device_info(keymaster_session_t session,
+                              uint8_t** info_buffer_p,
+                              uint32_t* size_p) {
+    long rc = keymaster_send_command(session, KM_GET_DEVICE_INFO, info_buffer_p,
+                                     size_p);
+    /*
+     * TODO: Return message of this API contains an error if one happened and a
+     * key on success. It may be impossible to distinguish the two if they are
+     * the same size. A proper fix would require changing the layout of the
+     * return message. However, that changes the ABI. So, attempt to parse the
+     * message as a valid CBOR map with non-zero entries. If this fails, it's
+     * an error.
+     */
+    if (rc == NO_ERROR) {
+        struct CborIn in;
+        CborInInit(*info_buffer_p, *size_p, &in);
+        size_t pair_count;
+        if (*size_p == 0 ||
+            CborReadMap(&in, &pair_count) != CBOR_READ_RESULT_OK) {
+            TLOGE("%s: device info byte stream is not valid CBOR or a map.\n",
+                  __func__);
+            goto err_bad_cbor;
+        }
+        // Each entry would require at least two bytes.
+        if (*size_p < pair_count * 2) {
+            TLOGE("%s: Device info is malformed. Size is %u, expected > %zu\n",
+                  __func__, *size_p, pair_count * 2);
+            goto err_bad_cbor;
+        }
+    }
+    return rc;
 
-err_bad_read:
-    free(key_buf);
-    TLOGE("%s: failed read_msg (%ld)\n", __func__, rc);
+err_bad_cbor:
+    rc = ERR_FAULT;
+    free(*info_buffer_p);
+    *info_buffer_p = NULL;
     return rc;
 }
 
