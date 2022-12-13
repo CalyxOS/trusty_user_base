@@ -434,7 +434,7 @@ macro_rules! service_dispatcher {
                 })
             }
 
-            fn add_service<T>(&mut self, service: Rc<T>, port: PortCfg) -> Result<()>
+            fn add_service<T>(&mut self, service: Rc<T>, port: PortCfg) -> $crate::Result<()>
             where ServiceKind$(<$elt>)? : From<Rc<T>> {
                 if self.ports.len() >= PORT_COUNT || self.services.len() >= PORT_COUNT {
                     return Err(TipcError::OutOfBounds);
@@ -464,7 +464,7 @@ macro_rules! service_dispatcher {
             $($service(<$service$(<$slt>)? as $crate::Service>::Connection)),+
         }
 
-        impl<$($elt,)? const PORT_COUNT: usize> $crate::service::Dispatcher for $name<$($elt,)? PORT_COUNT> {
+        impl<$($elt,)? const PORT_COUNT: usize> $crate::Dispatcher for $name<$($elt,)? PORT_COUNT> {
             type Connection = (usize, ConnectionKind$(<$elt>)?);
 
             fn on_connect(
@@ -472,7 +472,7 @@ macro_rules! service_dispatcher {
                 port: &PortCfg,
                 handle: &Handle,
                 peer: &Uuid,
-            ) -> Result<Option<Self::Connection>> {
+            ) -> $crate::Result<Option<Self::Connection>> {
                 let port_idx = self.ports.iter().position(|cfg| cfg == port)
                                                 .ok_or(TipcError::InvalidPort)?;
 
@@ -490,7 +490,7 @@ macro_rules! service_dispatcher {
                 handle: &Handle,
                 msg: &[u8],
                 msg_handles: &[Handle],
-            ) -> Result<bool> {
+            ) -> $crate::Result<bool> {
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
                         let msg = <$service as $crate::Service>::Message::deserialize(msg, msg_handles).map_err(|e| {
