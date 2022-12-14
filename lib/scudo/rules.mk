@@ -22,7 +22,6 @@ SCUDO_DIR := external/scudo
 MODULE_INCLUDES += \
 	$(SCUDO_DIR)/standalone \
 	$(SCUDO_DIR)/standalone/include \
-	$(LOCAL_DIR)/include \
 
 # These C/C++ flags are copied from the Android.bp build rules for Scudo.
 MODULE_CFLAGS += \
@@ -57,5 +56,13 @@ MODULE_SRCS += \
 	$(SCUDO_DIR)/standalone/trusty.cpp \
 	$(SCUDO_DIR)/standalone/wrappers_c.cpp \
 	$(SCUDO_DIR)/standalone/wrappers_cpp.cpp \
+
+# Add dependency on syscall-stubs
+MODULE_LIBRARY_DEPS += trusty/user/base/lib/syscall-stubs
+
+# Add src dependency on syscall header to ensure it is generated before we try
+# to build
+include trusty/user/base/lib/syscall-stubs/common-inc.mk
+MODULE_SRCDEPS += $(SYSCALL_H)
 
 include make/library.mk
