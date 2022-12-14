@@ -17,7 +17,12 @@
 #pragma once
 
 #include <errno.h>
+#include <lk/compiler.h>
 #include <uapi/err.h>
+
+__BEGIN_CDECLS
 
 int lk_err_to_errno(int lk_err);
 int errno_to_lk_err(int err);
+
+__END_CDECLS
