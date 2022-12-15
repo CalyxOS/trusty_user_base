@@ -72,7 +72,7 @@ int main(void) {
     }
 
     android::sp<DeviceTree> test_srv = android::sp<DeviceTree>::make(
-            static_cast<unsigned char*>(const_cast<void*>(dtb)));
+            static_cast<unsigned char*>(const_cast<void*>(dtb)), dtb_size);
     if (!test_srv) {
         TLOGE("Failed to create DeviceTree server\n");
         return EXIT_FAILURE;
