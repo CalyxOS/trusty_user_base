@@ -88,7 +88,12 @@ pub trait Deserialize: Sized {
     /// handles.
     ///
     /// The resulting value must be a copy of the data, if needed.
-    fn deserialize(bytes: &[u8], handles: &[Handle]) -> Result<Self, Self::Error>;
+    ///
+    /// The list of received handles is passed as a `&mut [Option<Handle>]` so
+    /// that you can use [`Option::take`] to take ownership of the handles. As
+    /// such, all values in `handles` will be `Some` when `deserialize` is
+    /// called.
+    fn deserialize(bytes: &[u8], handles: &mut [Option<Handle>]) -> Result<Self, Self::Error>;
 }
 
 impl Deserialize for () {
@@ -96,7 +101,7 @@ impl Deserialize for () {
 
     const MAX_SERIALIZED_SIZE: usize = 0;
 
-    fn deserialize(_bytes: &[u8], _handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(_bytes: &[u8], _handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         Ok(())
     }
 }

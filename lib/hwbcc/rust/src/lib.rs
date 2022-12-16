@@ -156,7 +156,7 @@ impl Deserialize for HwBccResponse {
     type Error = HwBccError;
     const MAX_SERIALIZED_SIZE: usize = HWBCC_MAX_RESP_PAYLOAD_SIZE as usize;
 
-    fn deserialize(bytes: &[u8], handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(bytes: &[u8], handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         if handles.len() != 0 {
             for handle in handles {
                 log::error!("unexpected handle: {:?}", handle);

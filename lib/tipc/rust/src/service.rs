@@ -301,7 +301,7 @@ pub trait Dispatcher {
         connection: &Self::Connection,
         handle: &Handle,
         msg: &[u8],
-        msg_handles: &[Handle],
+        msg_handles: &mut [Option<Handle>],
     ) -> Result<bool>;
 
     /// Called when the client closes a connection.
@@ -345,7 +345,7 @@ impl<S: Service> Dispatcher for SingleDispatcher<S> {
         connection: &Self::Connection,
         handle: &Handle,
         msg: &[u8],
-        msg_handles: &[Handle],
+        msg_handles: &mut [Option<Handle>],
     ) -> Result<bool> {
         let msg = S::Message::deserialize(msg, msg_handles).map_err(|e| {
             error!("Could not parse message: {:?}", e);
@@ -489,7 +489,7 @@ macro_rules! service_dispatcher {
                 connection: &Self::Connection,
                 handle: &Handle,
                 msg: &[u8],
-                msg_handles: &[Handle],
+                msg_handles: &mut [Option<Handle>],
             ) -> $crate::Result<bool> {
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
@@ -740,14 +740,14 @@ impl<
     }
 
     fn handle_message(&mut self, handle: &Handle, data: &D::Connection) -> Result<bool> {
-        let mut handles: [Handle; MAX_MSG_HANDLES] = Default::default();
+        let mut handles: [Option<Handle>; MAX_MSG_HANDLES] = Default::default();
         let (byte_count, handle_count) =
             handle.recv_vectored(&mut [self.buffer.as_mut()], &mut handles)?;
         self.dispatcher.on_message(
             data,
             handle,
             &self.buffer.as_ref()[..byte_count],
-            &handles[..handle_count],
+            &mut handles[..handle_count],
         )
     }
 
@@ -943,7 +943,7 @@ mod test {
 
         fn deserialize(
             bytes: &[u8],
-            _handles: &[Handle],
+            _handles: &mut [Option<Handle>],
         ) -> core::result::Result<Self, Self::Error> {
             Ok(i32::from_ne_bytes(bytes[0..4].try_into().map_err(|_| TipcError::OutOfBounds)?))
         }

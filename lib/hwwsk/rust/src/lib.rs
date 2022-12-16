@@ -83,7 +83,7 @@ impl Deserialize for HwWskReq {
     type Error = HwWskError;
     const MAX_SERIALIZED_SIZE: usize = HWWSK_MAX_MSG_SIZE as usize;
 
-    fn deserialize(bytes: &[u8], handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(bytes: &[u8], handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         let header_size = mem::size_of::<hwwsk_req_hdr>();
         if bytes.len() < header_size {
             log::error!("response too small");
@@ -143,7 +143,7 @@ impl Deserialize for GenerateKeyReq {
     type Error = HwWskError;
     const MAX_SERIALIZED_SIZE: usize = HWWSK_MAX_MSG_SIZE as usize;
 
-    fn deserialize(bytes: &[u8], _handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(bytes: &[u8], _handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         let header_size = mem::size_of::<hwwsk_generate_key_req>();
         if bytes.len() < header_size {
             log::error!("response too small");
@@ -182,7 +182,7 @@ impl Deserialize for ExportKeyReq {
     type Error = HwWskError;
     const MAX_SERIALIZED_SIZE: usize = HWWSK_MAX_MSG_SIZE as usize;
 
-    fn deserialize(bytes: &[u8], _handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(bytes: &[u8], _handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         Ok(Self { key_blob: Vec::try_alloc_from(bytes)? })
     }
 }
@@ -218,7 +218,7 @@ impl Deserialize for HwWskResponse {
     type Error = HwWskError;
     const MAX_SERIALIZED_SIZE: usize = HWWSK_MAX_MSG_SIZE as usize;
 
-    fn deserialize(bytes: &[u8], _handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(bytes: &[u8], _handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         // response must at least contain cmd and status
         let header_size = mem::size_of::<u32>() * 2;
         if bytes.len() < header_size {

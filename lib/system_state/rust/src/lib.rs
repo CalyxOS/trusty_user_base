@@ -179,7 +179,7 @@ impl Deserialize for Response {
     const MAX_SERIALIZED_SIZE: usize =
         mem::size_of::<system_state_resp>() + mem::size_of::<system_state_get_flag_resp>();
 
-    fn deserialize(bytes: &[u8], _handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(bytes: &[u8], _handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         if bytes.len() < mem::size_of::<system_state_resp>() {
             return Err(TipcError::NotEnoughBuffer);
         }

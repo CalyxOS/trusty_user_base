@@ -584,7 +584,7 @@ struct HwkeyResponse {
 impl Deserialize for HwkeyResponse {
     type Error = HwkeyError;
     const MAX_SERIALIZED_SIZE: usize = HWKEY_MAX_MSG_SIZE as usize;
-    fn deserialize(bytes: &[u8], _handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(bytes: &[u8], _handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         let header_size = mem::size_of::<hwkey_msg>();
         if bytes.len() < header_size {
             log::error!("response too small to be valid");
@@ -621,7 +621,7 @@ impl Deserialize for HwkeyDeriveVersionedResponse {
 
     const MAX_SERIALIZED_SIZE: usize = HWKEY_MAX_MSG_SIZE as usize;
 
-    fn deserialize(bytes: &[u8], _handles: &[Handle]) -> Result<Self, Self::Error> {
+    fn deserialize(bytes: &[u8], _handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         let header_size = mem::size_of::<hwkey_derive_versioned_msg>();
         if bytes.len() < header_size {
             log::error!("response too small to be valid");

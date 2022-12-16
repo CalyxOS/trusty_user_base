@@ -103,9 +103,10 @@ impl Handle {
     /// TODO: Support a timeout for the wait.
     pub fn recv<T: Deserialize>(&self, buffer: &mut [u8]) -> Result<T, T::Error> {
         let _ = self.wait(None)?;
-        let mut handles: [Handle; MAX_MSG_HANDLES] = Default::default();
+        let mut handles: [Option<Handle>; MAX_MSG_HANDLES] = Default::default();
         let (byte_count, handle_count) = self.recv_vectored(&mut [buffer], &mut handles)?;
-        T::deserialize(&buffer[..byte_count], &handles[..handle_count])
+
+        T::deserialize(&buffer[..byte_count], &mut handles[..handle_count])
     }
 
     /// Receive raw bytes and handles into slices of buffers and handles.
@@ -116,9 +117,11 @@ impl Handle {
     pub(crate) fn recv_vectored(
         &self,
         buffers: &mut [&mut [u8]],
-        handles: &mut [Handle],
+        handles: &mut [Option<Handle>],
     ) -> crate::Result<(usize, usize)> {
-        self.get_msg(|msg_info| {
+        let mut raw_handles = [-1; MAX_MSG_HANDLES];
+
+        let (buf_len, handles_len) = self.get_msg(|msg_info| {
             if msg_info.len > buffers.iter().map(|b| b.len()).sum() {
                 return Err(TipcError::NotEnoughBuffer);
             }
@@ -134,8 +137,8 @@ impl Handle {
                 num_iov: iovs.len().try_into()?,
                 iov: iovs.as_mut_ptr(),
 
-                num_handles: handles.len().try_into()?,
-                handles: handles.as_ptr() as *mut i32,
+                num_handles: raw_handles.len().try_into()?,
+                handles: raw_handles.as_mut_ptr() as *mut i32,
             };
 
             // SAFETY: syscall, pointer is initialized with valid data and
@@ -152,7 +155,14 @@ impl Handle {
             } else {
                 Ok((rc.try_into()?, msg_info.num_handles.try_into()?))
             }
-        })
+        })?;
+
+        // Convert the raw handles list into a list of `Option<Handle>`.
+        for (index, raw_handle) in raw_handles[..handles_len].into_iter().enumerate() {
+            handles[index] = Some(Handle(*raw_handle));
+        }
+
+        Ok((buf_len, handles_len))
     }
 
     /// Send a set of buffers and file/memref handles.
@@ -263,12 +273,6 @@ impl Handle {
         } else {
             ret
         }
-    }
-}
-
-impl Default for Handle {
-    fn default() -> Self {
-        Self(-1)
     }
 }
 
