@@ -189,10 +189,10 @@ impl Deserialize for ExportKeyReq {
 
 /// Response from hwwsk service.
 pub struct HwWskResponse {
-    /// Status of command result.
-    status: u32,
     /// Sent command, acknowledged by service if successful.
     cmd: u32,
+    /// Status of command result.
+    status: u32,
     /// Response data.
     payload: Vec<u8>,
 }
@@ -206,8 +206,8 @@ impl<'s> Serialize<'s> for HwWskResponse {
         //  All serialized attributes are trivial types with
         //  corresponding C representations
         unsafe {
-            serializer.serialize_as_bytes(&self.status)?;
             serializer.serialize_as_bytes(&self.cmd)?;
+            serializer.serialize_as_bytes(&self.status)?;
         }
 
         serializer.serialize_bytes(&self.payload)
@@ -225,8 +225,8 @@ impl Deserialize for HwWskResponse {
             log::error!("response too small");
             return Err(HwWskError::BadLen);
         }
-        let (status_bytes, rest) = bytes.split_at(mem::size_of::<u32>());
-        let (cmd_bytes, payload_bytes) = rest.split_at(mem::size_of::<u32>());
+        let (cmd_bytes, rest) = bytes.split_at(mem::size_of::<u32>());
+        let (status_bytes, payload_bytes) = rest.split_at(mem::size_of::<u32>());
 
         let status = u32::from_ne_bytes(status_bytes.try_into()?);
         let cmd = u32::from_ne_bytes(cmd_bytes.try_into()?);
