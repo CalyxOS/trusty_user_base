@@ -247,6 +247,28 @@ static int scudo_on_message(const struct tipc_port* port,
         break;
     }
 
+    case SCUDO_ALLOC_BENCHMARK: {
+        TLOGI("alloc benchmark\n");
+        char* arr = reinterpret_cast<char*>(malloc(1500000));
+        touch(arr);
+        free(arr);
+        for (int i = 0; i < 1000; i++) {
+            uint num_allocs = rand() % 40 + 1;
+            char** arr2 = reinterpret_cast<char**>(
+                    malloc(sizeof(char*) * num_allocs));
+            for (uint j = 0; j < num_allocs; j++) {
+                uint num_allocs_2 = rand() % 64 + 1;
+                arr2[j] = reinterpret_cast<char*>(malloc(num_allocs_2));
+                touch(arr2[j]);
+            }
+            for (uint j = 0; j < num_allocs; j++) {
+                free(arr2[j]);
+            }
+            free(arr2);
+        }
+        break;
+    }
+
     default:
         TLOGE("Bad command: %d\n", msg.cmd);
         msg.cmd = SCUDO_BAD_CMD;
