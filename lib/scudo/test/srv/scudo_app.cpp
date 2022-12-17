@@ -22,8 +22,11 @@
 #include <lk/err_ptr.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <trusty/memref.h>
 #include <trusty_log.h>
 #include <uapi/err.h>
+#include <uapi/mm.h>
 
 #include <scudo_app.h>
 #include <scudo_consts.h>
@@ -82,12 +85,56 @@ static void touch_and_print(char* arr, const char fill_char) {
     TLOG("arr = %s\n", arr);
 }
 
+static void* retagged(void* taggedptr) {
+    uint64_t tagged = reinterpret_cast<uint64_t>(taggedptr);
+    uint64_t tag = tagged & 0x0f00000000000000;
+    uint64_t untagged = tagged & 0x00ffffffffffffff;
+    uint64_t newtag = (tag + 0x0100000000000000) & 0x0f00000000000000;
+    ;
+    return reinterpret_cast<void*>(newtag | untagged);
+}
+
+int recv_memref_msg(handle_t chan,
+                    size_t min_sz,
+                    void* buf,
+                    size_t buf_sz,
+                    int* memref) {
+    int rc;
+    ipc_msg_info_t msg_inf;
+
+    rc = get_msg(chan, &msg_inf);
+    if (rc)
+        return rc;
+
+    if (msg_inf.len < min_sz || msg_inf.len > buf_sz ||
+        msg_inf.num_handles > 1) {
+        /* unexpected msg size: buffer too small or too big */
+        rc = ERR_BAD_LEN;
+    } else {
+        struct iovec iov = {
+                .iov_base = buf,
+                .iov_len = buf_sz,
+        };
+        ipc_msg_t msg = {
+                .num_iov = 1,
+                .iov = &iov,
+                .num_handles = msg_inf.num_handles,
+                .handles = msg_inf.num_handles ? memref : NULL,
+        };
+        rc = read_msg(chan, msg_inf.id, 0, &msg);
+    }
+
+    put_msg(chan, msg_inf.id);
+    return rc;
+}
+
 static int scudo_on_message(const struct tipc_port* port,
                             handle_t chan,
                             void* ctx) {
     struct scudo_msg msg;
+    int memref = -1;
 
-    int ret = tipc_recv1(chan, sizeof(msg), &msg, sizeof(msg));
+    int ret = recv_memref_msg(chan, sizeof(msg), &msg, sizeof(msg), &memref);
     if (ret < 0 || ret != sizeof(msg)) {
         TLOGE("Failed to receive message (%d)\n", ret);
         return ret;
@@ -244,6 +291,99 @@ static int scudo_on_message(const struct tipc_port* port,
         char* arr = reinterpret_cast<char*>(malloc(1500000));
         touch(arr);
         free(arr);
+        break;
+    }
+
+    case SCUDO_TAGGED_MEMREF: {
+        TLOGI("tagged memref (%d)\n", memref);
+        volatile char* mapped = (volatile char*)mmap(
+                0, 4096,
+                MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE | MMAP_FLAG_PROT_MTE,
+                0, memref, 0);
+        if (mapped != MAP_FAILED) {
+            TLOGI("Tagged memref should have failed\n");
+            msg.cmd = SCUDO_TEST_FAIL;
+            close(memref);
+            break;
+        }
+        mapped = (volatile char*)mmap(
+                0, 4096, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE, 0, memref,
+                0);
+        if (mapped == MAP_FAILED) {
+            TLOGI("Untagged mapping failed\n");
+            msg.cmd = SCUDO_TEST_FAIL;
+            close(memref);
+            break;
+        }
+        *mapped = 0x77;
+        close(memref);
+        break;
+    }
+
+    case SCUDO_UNTAGGED_MEMREF: {
+        TLOGI("untagged memref (%d)\n", memref);
+        volatile char* mapped = (volatile char*)mmap(
+                0, 4096, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE, 0, memref,
+                0);
+
+        if (!mapped || *mapped != 0x33) {
+            TLOGI("no map or bad data in memref %p: %0x\n", mapped,
+                  mapped ? *mapped : 0);
+            msg.cmd = SCUDO_TEST_FAIL;
+            close(memref);
+            break;
+        }
+        *mapped = 0x77;
+        close(memref);
+        break;
+    }
+
+    case SCUDO_MEMTAG_MISMATCHED_READ: {
+        void* mem = malloc(64);
+        char* arr = reinterpret_cast<char*>(mem);
+        *arr = 0x33;
+        volatile char* retagged_arr =
+                3 + reinterpret_cast<char*>(retagged(mem));
+        TLOGI("mismatched tag read %016lx %016lx\n", (uint64_t)arr,
+              (uint64_t)retagged_arr);
+        *arr = *retagged_arr;
+        TLOGI("should not be here\n");
+        free(mem);
+        break;
+    }
+
+    case SCUDO_MEMTAG_MISMATCHED_WRITE: {
+        void* mem = malloc(64);
+        char* arr = reinterpret_cast<char*>(mem);
+        *arr = 0x44;
+        volatile char* retagged_arr = reinterpret_cast<char*>(retagged(mem));
+        TLOGI("mismatched tag write %016lx %016lx\n", (uint64_t)arr,
+              (uint64_t)retagged_arr);
+        *retagged_arr = *arr;
+        TLOGI("should not be here\n");
+        free(mem);
+        break;
+    }
+
+    case SCUDO_MEMTAG_READ_AFTER_FREE: {
+        void* mem = malloc(64);
+        memset(mem, 64, 0xaa);
+        char* arr = reinterpret_cast<char*>(mem);
+        free(mem);
+        TLOGI("read after free %016lx\n", (uint64_t)arr);
+        touch(arr);  // this reads before writing
+        TLOGI("should not be here\n");
+        break;
+    }
+
+    case SCUDO_MEMTAG_WRITE_AFTER_FREE: {
+        void* mem = malloc(64);
+        memset(mem, 64, 0xbb);
+        char* arr = reinterpret_cast<char*>(mem);
+        free(mem);
+        TLOGI("write after free %016lx\n", (uint64_t)arr);
+        *arr = 1;
+        TLOGI("should not be here\n");
         break;
     }
 
