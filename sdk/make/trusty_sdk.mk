@@ -56,8 +56,8 @@ LOCAL_DIR := $(patsubst %/,%,$(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_L
 TRUSTY_APP_ARCH := $(notdir $(LOCAL_DIR))
 TRUSTY_APP_BUILDDIR := $(BUILDDIR)
 SDK_DIR := $(LOCAL_DIR)/../../
-LOADABLE_APP_TOOL := $(SDK_DIR)/tools/apploader_package_tool
 SDK_SYSROOT_DIR := $(SDK_DIR)/sysroots/$(TRUSTY_APP_ARCH)/
+LOADABLE_APP_TOOL := $(SDK_SYSROOT_DIR)/tools/apploader_package_tool
 
 ifeq ($(CLANG_BINDIR),)
 CLANG_BINDIR := $(SDK_DIR)/toolchain/clang/bin/
@@ -71,7 +71,7 @@ endif
 
 ARCH_arm_TOOLCHAIN_PREFIX := $(CLANG_BINDIR)/llvm-
 ARCH_arm64_TOOLCHAIN_PREFIX := $(CLANG_BINDIR)/llvm-
-MANIFEST_COMPILER := $(SDK_DIR)/tools/manifest_compiler.py
+MANIFEST_COMPILER := $(SDK_SYSROOT_DIR)/tools/manifest_compiler.py
 
 # Use the Trusty toolchain compiler and linker
 CC := $(CLANG_BINDIR)/clang
@@ -95,7 +95,7 @@ APPLOADER_SIGN_KEY_ID := $(TRUSTY_APP_SIGN_KEY_ID)
 APPLOADER_SIGN_PRIVATE_KEY_$(TRUSTY_APP_SIGN_KEY_ID)_FILE := $(TRUSTY_APP_SIGN_PRIVATE_KEY_FILE)
 else
 APPLOADER_SIGN_KEY_ID := 0
-APPLOADER_SIGN_PRIVATE_KEY_0_FILE := $(SDK_DIR)/tools/apploader_sign_test_private_key_0.der
+APPLOADER_SIGN_PRIVATE_KEY_0_FILE := $(SDK_SYSROOT_DIR)/tools/apploader_sign_test_private_key_0.der
 endif
 
 # Define macros from macros.mk needed by trusted_app.mk
