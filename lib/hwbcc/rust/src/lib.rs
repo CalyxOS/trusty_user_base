@@ -49,6 +49,9 @@ use trusty_std::alloc::{TryAllocFrom, Vec};
 use trusty_std::ffi::CStr;
 use trusty_sys::{c_long, Error};
 
+// Constant defined in trusty/user/base/interface/hwbcc/include/interface/hwbcc
+pub const HWBCC_MAX_RESP_PAYLOAD_LENGTH: usize = HWBCC_MAX_RESP_PAYLOAD_SIZE as usize;
+
 #[derive(Copy, Clone)]
 #[repr(u32)]
 enum BccCmd {
@@ -154,7 +157,7 @@ struct HwBccResponse {
 
 impl Deserialize for HwBccResponse {
     type Error = HwBccError;
-    const MAX_SERIALIZED_SIZE: usize = HWBCC_MAX_RESP_PAYLOAD_SIZE as usize;
+    const MAX_SERIALIZED_SIZE: usize = HWBCC_MAX_RESP_PAYLOAD_LENGTH;
 
     fn deserialize(bytes: &[u8], handles: &mut [Option<Handle>]) -> Result<Self, Self::Error> {
         if handles.len() != 0 {
@@ -267,8 +270,8 @@ pub struct DataResult<'a> {
 /// # Examples
 ///
 /// ```
-/// let cose_sign1_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
-/// let bcc_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+/// let cose_sign1_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+/// let bcc_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
 ///
 /// let DataResult { cose_sign1, bcc } = get_protected_data(
 ///     HwBccMode::Test,
@@ -309,7 +312,7 @@ pub fn get_protected_data<'a>(
         SignDataMsg::new(BccMsgHeader { cmd, test_mode, context: 0 }, cose_algorithm, data, aad);
     session.send(&req)?;
 
-    let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+    let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
     let response = recv_resp(&session, cmd, res_buf)?;
     let cose_sign1 = read_payload(response, cose_sign1)?;
 
@@ -344,7 +347,7 @@ pub struct DiceArtifacts<'a> {
 /// # Examples
 ///
 /// ```
-/// let dice_artifacts_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+/// let dice_artifacts_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
 /// let DiceArtifacts { artifacts } =
 ///     get_dice_artifacts(0, dice_artifacts_buf).expect("could not get protected data");
 /// ```
@@ -364,7 +367,7 @@ pub fn get_dice_artifacts<'a>(
     let cmd = BccCmd::GetDiceArtifacts;
     session.send(&BccMsgHeader { cmd, test_mode: HwBccMode::Release, context })?;
 
-    let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+    let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
     let response = recv_resp(&session, cmd, res_buf)?;
     let artifacts = read_payload(response, artifacts)?;
 
@@ -383,7 +386,7 @@ pub fn get_dice_artifacts<'a>(
 /// ns_deprivilege().expect("could not execute ns deprivilege");
 ///
 /// // assuming non-secure client
-/// let dice_artifacts_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+/// let dice_artifacts_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
 /// let err =
 ///     get_dice_artifacts(0, dice_artifacts_buf).expect_err("non-secure client has access to hwbcc services");
 /// ```
@@ -395,8 +398,90 @@ pub fn ns_deprivilege() -> Result<(), HwBccError> {
     let cmd = BccCmd::NsDeprivilege;
     session.send(&BccMsgHeader { cmd, test_mode: HwBccMode::Release, context: 0 })?;
 
-    let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+    let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
     recv_resp(&session, cmd, res_buf)?;
 
     Ok(())
+}
+
+/// Retrieves Boot certificate chain (BCC).
+/// Clients may request test values using `test_mode`.
+///
+/// # Examples
+///
+/// ```
+/// let mut cose_sign1_buf = [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+///
+/// let bcc = get_bcc (
+///     HwBccMode::Test,
+///     &mut bcc_buf,
+/// )
+/// .expect("could not get bcc");
+/// ```
+pub fn get_bcc<'a>(test_mode: HwBccMode, bcc: &'a mut [u8]) -> Result<&'a [u8], HwBccError> {
+    if bcc.is_empty() {
+        log::error!("bcc buffer must not be empty");
+        return Err(HwBccError::BadLen);
+    }
+
+    let port = CStr::from_bytes_with_nul(HWBCC_PORT).expect("HWBCC_PORT was not null terminated");
+    let session = Handle::connect(port)?;
+
+    let cmd = BccCmd::GetBcc;
+    session.send(&BccMsgHeader { cmd, test_mode, context: 0 })?;
+
+    let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+    let response = recv_resp(&session, cmd, res_buf)?;
+    let bcc = read_payload(response, bcc)?;
+
+    Ok(bcc)
+}
+
+/// Retrieves the signed data in a COSE-Sign1 message. Data signed using the CDI leaf private key.
+/// Clients may request to sign using a test key via test_mode.
+///
+/// # Examples
+///
+/// ```
+/// let mut cose_sign1_buf = [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+///
+/// let cose_sign1 = sign_data(
+///     HwBccMode::Test,
+///     SigningAlgorithm::ED25519,
+///     TEST_MAC_KEY,
+///     TEST_AAD,
+///     &mut cose_sign1_buf,
+/// )
+/// .expect("could not get signed data");
+/// ```
+pub fn sign_data<'a>(
+    test_mode: HwBccMode,
+    cose_algorithm: SigningAlgorithm,
+    data: &[u8],
+    aad: &[u8],
+    cose_sign1: &'a mut [u8],
+) -> Result<&'a [u8], HwBccError> {
+    if cose_sign1.is_empty() {
+        log::error!("cose_sign1 buffer must not be empty");
+        return Err(HwBccError::BadLen);
+    }
+
+    if aad.len() > HWBCC_MAX_AAD_SIZE as usize {
+        log::error!("AAD exceeds HWCC_MAX_AAD_SIZE limit");
+        return Err(HwBccError::BadLen);
+    }
+
+    let port = CStr::from_bytes_with_nul(HWBCC_PORT).expect("HWBCC_PORT was not null terminated");
+    let session = Handle::connect(port)?;
+
+    let cmd = BccCmd::SignData;
+    let req =
+        SignDataMsg::new(BccMsgHeader { cmd, test_mode, context: 0 }, cose_algorithm, data, aad);
+    session.send(&req)?;
+
+    let res_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+    let response = recv_resp(&session, cmd, res_buf)?;
+    let cose_sign1 = read_payload(response, cose_sign1)?;
+
+    Ok(cose_sign1)
 }

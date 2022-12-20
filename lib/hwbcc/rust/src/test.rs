@@ -34,8 +34,8 @@ const TEST_AAD: &'static [u8] = &[0xcf, 0xe1, 0x89, 0x39, 0xb1, 0x72, 0xbf, 0x4f
 
 #[test]
 fn test_protected_data_test_mode() {
-    let cose_sign1_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
-    let bcc_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+    let cose_sign1_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+    let bcc_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
 
     let DataResult { cose_sign1, bcc } = get_protected_data(
         HwBccMode::Test,
@@ -115,8 +115,8 @@ fn test_protected_data() {
         0x8b, 0x1f, 0x97, 0xb6, 0x7b, 0xde, 0x2a, 0x7e, 0x2a, 0x46, 0xae, 0x98, 0x91, 0x47, 0xff,
         0x5a, 0xef,
     ];
-    let cose_sign1_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
-    let bcc_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+    let cose_sign1_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+    let bcc_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
 
     let DataResult { cose_sign1, bcc } = get_protected_data(
         HwBccMode::Release,
@@ -165,7 +165,7 @@ fn test_get_dice_artifacts() {
         0x5b, 0xe8,
     ];
 
-    let dice_artifacts_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+    let dice_artifacts_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
     /*
        dice_artifacts expects the following CBOR encoded structure.
        Since the implementation of hwbcc_get_dice_artifacts serves only the
@@ -217,6 +217,127 @@ fn test_ns_deprivilege() {
     ns_deprivilege().expect("could not execute ns deprivilege");
 
     // ns_deprivilege should not block calls from secure world
-    let dice_artifacts_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_SIZE as usize];
+    let dice_artifacts_buf = &mut [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
     assert!(get_dice_artifacts(0, dice_artifacts_buf).is_ok());
+}
+
+#[test]
+fn test_get_bcc_test_mode() {
+    let mut bcc_buf = [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+
+    let bcc = get_bcc(HwBccMode::Test, &mut bcc_buf).expect("could not get bcc");
+
+    assert!(bcc.len() > 0);
+
+    let dk_pub_key = &mut [0u8; ED25519_PUBLIC_KEY_LEN as usize];
+    let km_pub_key = &mut [0u8; ED25519_PUBLIC_KEY_LEN as usize];
+
+    assert!(unsafe {
+        // SAFETY: the bcc bytes will be deserialized from CBOR
+        // and validated via copy, and not in-place. The original
+        // bytestring will remain valid after the check.
+        validate_bcc(
+            bcc.as_ptr(),
+            bcc.len(),
+            dk_pub_key as *mut [u8; ED25519_PUBLIC_KEY_LEN as usize],
+            km_pub_key as *mut [u8; ED25519_PUBLIC_KEY_LEN as usize],
+        )
+    });
+
+    // get second set of keys
+    bcc_buf.fill(0);
+
+    let bcc = get_bcc(HwBccMode::Test, &mut bcc_buf).expect("could not get bcc");
+
+    assert!(bcc.len() > 0);
+
+    let dk_pub_key2 = &mut [0u8; ED25519_PUBLIC_KEY_LEN as usize];
+    let km_pub_key2 = &mut [0u8; ED25519_PUBLIC_KEY_LEN as usize];
+
+    assert!(unsafe {
+        // SAFETY: the bcc bytes will be deserialized from CBOR
+        // and validated via copy, and not in-place. The original
+        // bytestring will remain valid after the check.
+        validate_bcc(
+            bcc.as_ptr(),
+            bcc.len(),
+            dk_pub_key2 as *mut [u8; ED25519_PUBLIC_KEY_LEN as usize],
+            km_pub_key2 as *mut [u8; ED25519_PUBLIC_KEY_LEN as usize],
+        )
+    });
+
+    /* the two sets of keys must be different in test mode */
+    assert_ne!(dk_pub_key, dk_pub_key2);
+    assert_ne!(km_pub_key, km_pub_key2);
+}
+
+#[cfg(feature = "generic-arm-unittest")]
+#[test]
+fn test_get_bcc() {
+    /*
+     * Device key is hard-coded on emulator targets, i.e. BCC keys are fixed too.
+     * We test that BCC keys don't change to make sure that we don't accidentally
+     * change the key derivation procedure. Function of test TA app UUID.
+     */
+    const EMULATOR_PUB_KEY: &'static [u8; ED25519_PUBLIC_KEY_LEN as usize] = &[
+        0xc3, 0xfc, 0x8c, 0x92, 0x1d, 0x52, 0xb2, 0x34, 0x9f, 0x6d, 0x59, 0xa3, 0xcd, 0xcd, 0x4a,
+        0x8b, 0x1f, 0x97, 0xb6, 0x7b, 0xde, 0x2a, 0x7e, 0x2a, 0x46, 0xae, 0x98, 0x91, 0x47, 0xff,
+        0x5a, 0xef,
+    ];
+    let mut bcc_buf = [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+
+    let bcc = get_bcc(HwBccMode::Release, &mut bcc_buf).expect("could not get bcc");
+
+    assert!(bcc.len() > 0);
+
+    let dk_pub_key = &mut [0u8; ED25519_PUBLIC_KEY_LEN as usize];
+    let km_pub_key = &mut [0u8; ED25519_PUBLIC_KEY_LEN as usize];
+
+    assert!(unsafe {
+        // SAFETY: the bcc bytes will be deserialized from CBOR
+        // and validated via copy, and not in-place. The original
+        // bytestring will remain valid after the check.
+        validate_bcc(
+            bcc.as_ptr(),
+            bcc.len(),
+            dk_pub_key as *mut [u8; ED25519_PUBLIC_KEY_LEN as usize],
+            km_pub_key as *mut [u8; ED25519_PUBLIC_KEY_LEN as usize],
+        )
+    });
+
+    assert_eq!(EMULATOR_PUB_KEY, dk_pub_key);
+    assert_eq!(dk_pub_key, km_pub_key);
+}
+
+#[test]
+fn test_sign_data_test_mode() {
+    let mut cose_sign1_buf = [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+
+    let cose_sign1 = sign_data(
+        HwBccMode::Test,
+        SigningAlgorithm::ED25519,
+        TEST_MAC_KEY,
+        TEST_AAD,
+        &mut cose_sign1_buf,
+    )
+    .expect("could not sign data");
+
+    assert!(cose_sign1.len() > 0);
+}
+
+#[cfg(feature = "generic-arm-unittest")]
+#[test]
+fn test_sign_data() {
+    let mut cose_sign1_buf = [0u8; HWBCC_MAX_RESP_PAYLOAD_LENGTH];
+
+    let cose_sign1 = sign_data(
+        HwBccMode::Release,
+        SigningAlgorithm::ED25519,
+        TEST_MAC_KEY,
+        TEST_AAD,
+        &mut cose_sign1_buf,
+    )
+    .expect("could not sign data");
+
+    assert!(cose_sign1.len() > 0);
 }
