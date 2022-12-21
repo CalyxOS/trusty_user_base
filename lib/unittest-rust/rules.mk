@@ -22,8 +22,9 @@ MODULE_SRCS := $(LOCAL_DIR)/src/lib.rs
 MODULE_CRATE_NAME := test
 
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/trusty-log \
+	trusty/user/base/lib/log-rust \
 	trusty/user/base/lib/trusty-std \
 	trusty/user/base/lib/tipc/rust \
+	trusty/user/base/lib/trusty-log \
 
 include make/library.mk
