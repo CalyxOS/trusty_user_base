@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+// Some targets may not have any tests enabled
+#![allow(unused)]
+
 use super::*;
 use ::test::assert;
 use tipc::{Handle, TipcError};
@@ -28,6 +31,7 @@ fn open_hwwsk_session() -> Result<Handle, TipcError> {
 
 const KEY_SIZE: usize = 32;
 
+#[cfg(feature = "generic-arm-unittest")]
 #[test]
 fn test_hwwsk_generate_key() {
     let session = open_hwwsk_session().expect("could not open hwkey session");
@@ -39,6 +43,7 @@ fn test_hwwsk_generate_key() {
     assert!(key_res.is_ok());
 }
 
+#[cfg(feature = "generic-arm-unittest")]
 #[test]
 fn test_hwwsk_import_key() {
     let session = open_hwwsk_session().expect("could not open hwkey session");

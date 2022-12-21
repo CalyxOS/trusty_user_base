@@ -37,6 +37,11 @@ MODULE_BINDGEN_SRC_HEADER := $(LOCAL_DIR)/bindings.h
 
 MODULE_RUST_TESTS := true
 
+# Enable tests specific to the generic emulator build
+ifeq (generic-arm64, $(PLATFORM))
+MODULE_RUSTFLAGS += --cfg 'feature="generic-arm-unittest"'
+endif
+
 # For test service
 MANIFEST := $(LOCAL_DIR)/manifest.json
 
