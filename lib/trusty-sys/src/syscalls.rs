@@ -24,6 +24,7 @@ pub use inc::_trusty_accept as accept;
 pub use inc::_trusty_brk as brk;
 pub use inc::_trusty_close as close;
 pub use inc::_trusty_connect as connect;
+pub use inc::_trusty_dup as dup;
 pub use inc::_trusty_exit_etc as exit_etc;
 pub use inc::_trusty_finish_dma as finish_dma;
 pub use inc::_trusty_get_msg as get_msg;

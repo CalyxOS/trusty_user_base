@@ -73,6 +73,14 @@ impl Handle {
         }
     }
 
+    pub fn try_clone(&self) -> crate::Result<Self> {
+        // SAFETY: external syscall, handle descriptor is valid for the lifetime
+        // of self. Return value is either an error or a new valid handle
+        // descriptor that we can take ownership of.
+        let rc = unsafe { trusty_sys::dup(self.0) };
+        Self::from_raw(rc.try_into().or(Err(TipcError::InvalidHandle))?)
+    }
+
     pub(crate) fn from_raw(fd: i32) -> crate::Result<Self> {
         if fd < 0 {
             Err(TipcError::from_uapi(fd as c_long))
