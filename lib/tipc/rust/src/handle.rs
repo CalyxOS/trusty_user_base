@@ -21,9 +21,18 @@ use core::convert::TryInto;
 use core::mem::MaybeUninit;
 use trusty_std::alloc::{FallibleVec, Vec};
 use trusty_std::ffi::CStr;
-use trusty_sys::c_long;
+use trusty_sys::{c_int, c_long};
 
-/// An open IPC connection.
+/// An open IPC connection or shared memory reference.
+///
+/// A `Handle` can either represent an open IPC connection or a shared memory
+/// reference. Which one a given handle represents generally must be determined
+/// from context, i.e. the handle returned by [`Handle::connect`] will always
+/// represent an IPC connection. A given incoming or outgoing message will
+/// generally have specific semantics regarding what kind of handles are sent
+/// along with it.
+///
+/// # IPC Connections
 ///
 /// This handle knows how to send and receive messages which implement
 /// [`Serialize`] and [`Deserialize`] respectively. Serialization and parsing
@@ -32,6 +41,13 @@ use trusty_sys::c_long;
 /// The handle owns its connection, which is closed when this struct is dropped.
 /// Do not rely on the connection being closed for protocol correctness, as the
 /// drop method may not always be called.
+///
+/// # Shared Memory References
+///
+/// An incoming TIPC message may include one or more handles representing a
+/// shared memory buffer. These can be mapped into process memory using
+/// [`Handle::mmap`]. The returned [`UnsafeSharedBuf`] object provides access to
+/// the shared memory buffer and will unmap the buffer automatically on drop.
 #[repr(transparent)]
 #[derive(Eq, PartialEq, Debug)]
 pub struct Handle(handle_t);
@@ -282,6 +298,39 @@ impl Handle {
             ret
         }
     }
+
+    /// Maps the shared memory buffer represented by this handle.
+    ///
+    /// If `size` is not already a multiple of the page size it will be rounded up
+    /// to the nearest multiple of the page size. Use the
+    /// [`len`][UnsafeSharedBuf::len] method on the returned [`UnsafeSharedBuf`] to
+    /// determine the final size of the mapped buffer.
+    pub fn mmap(&self, size: usize, flags: MMapFlags) -> crate::Result<UnsafeSharedBuf> {
+        let prot = match flags {
+            MMapFlags::Read => trusty_sys::MMAP_FLAG_PROT_READ as c_int,
+            MMapFlags::Write => trusty_sys::MMAP_FLAG_PROT_WRITE as c_int,
+            MMapFlags::ReadWrite => {
+                (trusty_sys::MMAP_FLAG_PROT_READ | trusty_sys::MMAP_FLAG_PROT_WRITE) as c_int
+            }
+        };
+
+        // SAFETY: FFI call with all safe arguments.
+        let page_size = unsafe { libc::getauxval(libc::AT_PAGESZ) };
+
+        // Round `size` up to the nearest multiple of the page size.
+        let page_size: usize = page_size.try_into().unwrap();
+        let size = (size + (page_size - 1)) & !(page_size - 1);
+
+        // SAFETY: FFI call with all safe arguments.
+        let buf_ptr =
+            unsafe { libc::mmap(core::ptr::null_mut(), size, prot, 0, self.as_raw_fd(), 0) };
+
+        if buf_ptr == libc::MAP_FAILED {
+            Err(TipcError::InvalidHandle)
+        } else {
+            Ok(UnsafeSharedBuf { buf: buf_ptr as *mut u8, len: size })
+        }
+    }
 }
 
 impl Drop for Handle {
@@ -310,6 +359,77 @@ impl<'a> Serializer<'a> for BorrowingSerializer<'a> {
 
     fn serialize_handle(&mut self, handle: &'a Handle) -> Result<Self::Ok, Self::Error> {
         self.handles.try_push(Handle(handle.as_raw_fd())).or(Err(TipcError::AllocError))
+    }
+}
+
+/// Memory protection flags for [`Handle::mmap`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MMapFlags {
+    /// The shared buffer can be read from.
+    Read,
+
+    /// The shared buffer can be written to.
+    Write,
+
+    /// The shared buffer can be read from and written to.
+    ReadWrite,
+}
+
+/// A shared buffer that has been mapped into memory
+///
+/// # Safety
+///
+/// Note that all operations performed on the shared buffer must be performed
+/// through a raw pointer, accessible via the [`ptr`][Self::ptr] method. Rust's
+/// ownership semantics do not align with how shared buffers work, and so it
+/// cannot be represented as a normal Rust slice or reference. Extra care must
+/// be taken on the part of the user to ensure that all reads and writes
+/// performed on the buffer are done safely.
+///
+/// Most notably, it is **never** safe to take a reference to data in the shared
+/// buffer. All read operations must copy data from the buffer via the raw
+/// pointer APIs in order to safely read shared memory.
+///
+/// # Unmapping
+///
+/// Call [`unmap`][Self::unmap] once the shared memory is no longer needed to
+/// unmap the buffer. Doing this invalidates any existing pointers to the
+/// buffer, so care must be taken to ensure that any such pointers are not used
+/// after unmapping.
+///
+/// Note that the buffer is not automatically unmapped on drop. Failing to unmap
+/// the buffer will leak memory until the process exits.
+#[derive(Debug)]
+pub struct UnsafeSharedBuf {
+    buf: *mut u8,
+    len: usize,
+}
+
+impl UnsafeSharedBuf {
+    /// Gets the pointer to the start of the buffer.
+    ///
+    /// Any pointers returned by this method are invalidated once
+    /// [`unmap`][Self::unmap] is called.
+    pub fn ptr(&self) -> *mut u8 {
+        self.buf
+    }
+
+    /// Gets the length of the buffer.
+    ///
+    /// Guaranteed to always be a multiple of the page size.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Unmaps the shared memory buffer.
+    ///
+    /// Invalidates any pointers to the shared memory that were previously returned
+    /// by calls to [`ptr`][Self::ptr].
+    pub fn unmap(self) {
+        let rc = unsafe { libc::munmap(self.buf as *mut _, self.len) };
+        if rc != 0 {
+            panic!("Failed to unmap shared buf");
+        }
     }
 }
 
