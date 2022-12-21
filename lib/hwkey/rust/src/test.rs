@@ -418,6 +418,11 @@ fn test_hwkey_derive_large_payload() {
     const HEADER_SIZE: usize = mem::size_of::<hwkey_derive_versioned_msg>();
     const MAX_PAYLOAD_LEN: usize = HWKEY_MAX_MSG_SIZE as usize - HEADER_SIZE;
 
+    // A payload length that should be supported everywhere, copied from the C
+    // tests. If you increase this, make sure that all hwkey implementations
+    // support a larger payload.
+    const PAYLOAD_LEN: usize = 128;
+
     let hwkey_session = Hwkey::open().expect("could not open hwkey session");
     let ctx = &[0u8; MAX_PAYLOAD_LEN + 1 as usize];
     let buf1 = &mut [0u8; MAX_PAYLOAD_LEN + 1 as usize];
@@ -427,7 +432,7 @@ fn test_hwkey_derive_large_payload() {
         .kdf(KdfVersion::Best)
         .rollback_version_source(RollbackVersionSource::RunningVersion)
         .os_rollback_version(OsRollbackVersion::Current)
-        .derive(&ctx[..MAX_PAYLOAD_LEN as usize - 1], &mut buf1[..MAX_PAYLOAD_LEN as usize - 1])
+        .derive(&ctx[..PAYLOAD_LEN], &mut buf1[..PAYLOAD_LEN])
         .expect("versioned derive with large context and key");
 
     let err = hwkey_session
