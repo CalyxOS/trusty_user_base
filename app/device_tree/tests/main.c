@@ -17,6 +17,7 @@
 #define TLOG_TAG "device_tree_user_test"
 #define LOCAL_TRACE 0
 
+#include <endian.h>
 #include <lib/shared/device_tree/device_tree.h>
 #include <lib/unittest/unittest.h>
 #include <string.h>
@@ -111,12 +112,23 @@ TEST_F(DeviceTreeTest, get_node) {
     /* Check the property's value */
     uint8_t* prop_value = NULL;
     size_t len;
-    uint64_t expected_value = 0x785634120DD0FECA;
+    uint8_t expected_value[] = {0xCA, 0xFE, 0xD0, 0x0D, 0x12, 0x34, 0x56, 0x78};
     rc = device_tree_prop_get_value(prop, &prop_value, &len);
     ASSERT_NE(prop_value, NULL);
     EXPECT_EQ(rc, NO_ERROR);
     EXPECT_EQ(memcmp(prop_value, &expected_value, 8), 0);
     EXPECT_EQ(len, 8);
+
+    /* Check the property's value using the u64 helper */
+    uint64_t prop_value_u64 = 0;
+    rc = device_tree_prop_get_u64(prop, &prop_value_u64);
+    EXPECT_EQ(rc, NO_ERROR);
+    EXPECT_EQ(prop_value_u64, 0xCAFED00D12345678);
+
+    /* Check that we can't use the u32 helper for a u64 */
+    uint32_t prop_value_u32 = 0;
+    rc = device_tree_prop_get_u32(prop, &prop_value_u32);
+    EXPECT_EQ(rc, DT_ERROR_INVALID_ARGS);
 
 test_abort:
     if (prop) {
