@@ -39,13 +39,6 @@ TRUSTY_USER_TESTS += \
 	trusty/user/base/lib/tipc/test/srv \
 	trusty/user/base/lib/uirq/test \
 
-TRUSTY_RUST_USER_TESTS += \
-	trusty/user/base/lib/tipc/rust \
-	trusty/user/base/lib/hwkey/rust \
-	trusty/user/base/lib/hwbcc/rust \
-	trusty/user/base/lib/hwwsk/rust \
-	trusty/user/base/lib/storage/rust \
-
 ifeq (true,$(call TOBOOL,$(USER_COVERAGE_ENABLED)))
 TRUSTY_USER_TESTS += \
 	trusty/user/base/lib/sancov/test/srv \
