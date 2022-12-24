@@ -14,19 +14,34 @@
  * limitations under the License.
  */
 
+/* A device tree overlay with a node for device tree tests */
+
 #include "dt-bindings/interrupt-controller/arm-gic.h"
 
 /dts-v1/;
+/plugin/;
 / {
-    compatible = "google,test_device";
-    chosen {
-        kaslr-seed = <0xcafed00d 0x12345678>;
-        bootargs = "arg0=blah arg1=blah arg2=blah";
-    };
-
-    gic: interrupt-controller@DEADBEEF {
-        compatible = "arm,gic-v3";
-        reg = <0x0 0x12345678 0x10000>,
-              <0x0 0x9ABCDEF0 0x10000>;
+    /*
+     * This property is only used for selecting the test dtbo and it's ignored
+     * when the overlay is applied to a base device tree
+     */
+    compatible = "google,test_overlay";
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            test_node {
+                /* The compatible string that the tests initially search for */
+                compatible = "google,test_node";
+                gic: interrupt-controller@DEADBEEF {
+                    compatible = "arm,gic-v3";
+                    reg = <0x0 0x12345678 0x10000>,
+                          <0x0 0x9ABCDEF0 0x10000>;
+                };
+                chosen {
+                    bootargs = "arg0=blah arg1=blah arg2=blah";
+                    kaslr-seed = <0xcafed00d 0x12345678>;
+                };
+            };
+        };
     };
 };

@@ -24,8 +24,11 @@
 #include <trusty_unittest.h>
 #include <uapi/err.h>
 
+#define TEST_NODE_COMPAT "google,test_node"
+
 typedef struct device_tree_ctxt {
     struct device_tree_idevice_tree* tree;
+    /* The root test node is not necessarily the rot of the device tree */
     struct device_tree_inode* root_node;
 } DeviceTreeTest_t;
 
@@ -37,8 +40,8 @@ TEST_F_SETUP(DeviceTreeTest) {
     ASSERT_EQ(rc, NO_ERROR);
     ASSERT_NE(_state->tree, NULL);
 
-    /* This is the compatible string of the root node */
-    const char* root_compat = "google,test_device";
+    /* This is the compatible string of the root test node */
+    const char* root_compat = TEST_NODE_COMPAT;
     rc = device_tree_idevice_tree_get_compatible_nodes(_state->tree,
                                                        root_compat, &iter);
     ASSERT_EQ(rc, NO_ERROR);
@@ -85,9 +88,9 @@ TEST_F(DeviceTreeTest, get_prop) {
     rc = device_tree_prop_get_value(prop, (uint8_t**)&prop_value, &len);
     ASSERT_NE(prop_value, NULL);
     EXPECT_EQ(rc, NO_ERROR);
-    EXPECT_EQ(strcmp(prop_value, "google,test_device"), 0);
+    EXPECT_EQ(strcmp(prop_value, TEST_NODE_COMPAT), 0);
     /* Add 1 since string property values include the null-terminator */
-    EXPECT_EQ(len, strlen("google,test_device") + 1);
+    EXPECT_EQ(len, strlen(TEST_NODE_COMPAT) + 1);
 
 test_abort:
     if (prop) {
@@ -155,9 +158,9 @@ TEST_F(DeviceTreeTest, iter_props) {
     ASSERT_NE(prop_iter, NULL);
 
     /* Iterate over the properties */
-    const char* expected_prop_names[3] = {"kaslr-seed", "bootargs", NULL};
-    int expected_rc[3] = {NO_ERROR, NO_ERROR, DT_ERROR_PROP_NOT_FOUND};
-    for (int i = 0; i < 3; i++) {
+    const char* expected_prop_names[] = {"kaslr-seed", "bootargs", NULL};
+    int expected_rc[] = {NO_ERROR, NO_ERROR, DT_ERROR_PROP_NOT_FOUND};
+    for (size_t i = 0; i < countof(expected_prop_names); i++) {
         /* Advance the property iterator */
         rc = device_tree_iprop_iter_get_next_prop(prop_iter, &prop);
         ASSERT_EQ(rc, expected_rc[i]);
@@ -205,12 +208,11 @@ TEST_F(DeviceTreeTest, iter_nodes) {
     ASSERT_NE(node_iter, NULL);
 
     /* Iterate over the subnodes */
-    int expected_rc[4] = {NO_ERROR, NO_ERROR, NO_ERROR,
-                          DT_ERROR_NODE_NOT_FOUND};
-    const char* subnode_names[4] = {"chosen", "interrupt-controller@DEADBEEF",
-                                    "__symbols__", NULL};
-    const char* subnode_props[4] = {"kaslr-seed", "reg", "gic", NULL};
-    for (int i = 0; i < 4; i++) {
+    int expected_rc[] = {NO_ERROR, NO_ERROR, DT_ERROR_NODE_NOT_FOUND};
+    const char* subnode_names[] = {"chosen", "interrupt-controller@DEADBEEF",
+                                   NULL};
+    const char* subnode_props[] = {"kaslr-seed", "reg", NULL};
+    for (size_t i = 0; i < countof(subnode_names); i++) {
         /* Advance the node iterator */
         rc = device_tree_inode_iter_get_next_node(node_iter, &subnode);
         ASSERT_EQ(rc, expected_rc[i]);
