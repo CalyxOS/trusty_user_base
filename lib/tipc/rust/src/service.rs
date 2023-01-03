@@ -228,8 +228,25 @@ impl<D: Dispatcher> Channel<D> {
 }
 
 /// Trusty APP UUID
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Uuid(trusty_sys::uuid);
+
+impl fmt::Debug for Uuid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:08x}-{:04x}-{:04x}-",
+            self.0.time_low, self.0.time_mid, self.0.time_hi_and_version
+        )?;
+        for (idx, b) in self.0.clock_seq_and_node.iter().enumerate() {
+            write!(f, "{:02x}", b)?;
+            if idx == 1 {
+                write!(f, "-")?;
+            }
+        }
+        Ok(())
+    }
+}
 
 /// A service which handles IPC messages for a collection of ports.
 ///
