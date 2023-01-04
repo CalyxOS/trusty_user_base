@@ -56,6 +56,7 @@ MODULE_SRCS += \
 	$(SCUDO_DIR)/standalone/trusty.cpp \
 	$(SCUDO_DIR)/standalone/wrappers_c.cpp \
 	$(SCUDO_DIR)/standalone/wrappers_cpp.cpp \
+	$(SCUDO_DIR)/standalone/rss_limit_checker.cpp \
 
 # Add dependency on syscall-stubs
 MODULE_LIBRARY_DEPS += trusty/user/base/lib/syscall-stubs
