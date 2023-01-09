@@ -26,9 +26,11 @@ int setjmp(jmp_buf jmp) {
     (void)jmp;
     return 0;
 }
+
 void longjmp(jmp_buf jmp, int x) {
     (void)jmp;
     (void)x;
-    fprintf(stderr, "FATAL: unimplemented longjmp called -> aborting.");
+    fprintf(stderr, "FATAL: unimplemented longjmp called -> aborting.\n");
+    fflush(stderr);
     abort();
 }
