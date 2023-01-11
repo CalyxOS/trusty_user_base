@@ -183,4 +183,40 @@ TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(access_denied)) {
 test_abort:;
 }
 
+#if defined(ARCH_ARM)
+#define ARCH_SMC_FC_ECHO_THREE_ARGS SMC_FC_ECHO_THREE_ARGS
+#else
+#define ARCH_SMC_FC_ECHO_THREE_ARGS SMC_FC64_ECHO_THREE_ARGS
+#endif
+
+TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(invalid_arguments)) {
+    int rc;
+    struct smc_msg request = {
+            .params[0] = ARCH_SMC_FC_ECHO_THREE_ARGS,
+            .params[1] = SMC_ACCESS_CONTROL_ALLOW_ARGS,
+            .params[2] = 0,
+    };
+    struct smc_msg response;
+
+    rc = smc_send_request(_state->channel, &request);
+    ASSERT_EQ(rc, msg_len);
+
+    rc = smc_read_response(_state->channel, &response);
+    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ(response.params[0], ARCH_SMC_FC_ECHO_THREE_ARGS);
+    ASSERT_EQ(response.params[1], SMC_ACCESS_CONTROL_ALLOW_ARGS);
+
+    /* should fail validation per service access policy */
+    request.params[1] = SMC_ACCESS_CONTROL_VALIDATE_ARGS;
+
+    rc = smc_send_request(_state->channel, &request);
+    ASSERT_EQ(rc, msg_len);
+
+    rc = smc_read_response(_state->channel, &response);
+    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ((int32_t)response.params[0], ERR_INVALID_ARGS);
+
+test_abort:;
+}
+
 PORT_TEST(smc, "com.android.trusty.smc.test");
