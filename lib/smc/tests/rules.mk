@@ -21,6 +21,9 @@ MANIFEST := $(LOCAL_DIR)/manifest.json
 MODULE_SRCS += \
 	$(LOCAL_DIR)/smc_test.c
 
+MODULE_INCLUDES += \
+    $(TRUSTY_TOP)/trusty/
+
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libc-trusty \
 	trusty/user/base/lib/smc \
