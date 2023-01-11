@@ -17,6 +17,7 @@
 #define TLOG_TAG "smc-test"
 
 #include <lib/smc/smc_ipc.h>
+#include <lib/smc/smc_test.h>
 #include <trusty_ipc.h>
 #include <trusty_unittest.h>
 #include <uapi/err.h>
@@ -54,12 +55,6 @@ TEST_F_TEARDOWN(smc) {
 #else
 #define GENERIC_ARM64_PLATFORM_ONLY_TEST(name) DISABLED_##name
 #endif
-
-/* ARM DEN 0028A(0.9.0) mandates that bits 23:16 must be zero for fast calls
- * (when bit 31 == 1) */
-#define ILLEGAL_SMC ((long)0x80FF0000)
-/* Return value for unknown SMC (defined by ARM DEN 0028A(0.9.0) */
-#define SM_ERR_UNDEFINED_SMC ((int32_t)(-1))
 
 /* Check that SM_ERR_UNDEFINED_SMC is returned for an unknown SMC number */
 TEST_F(smc, ARM_ONLY_TEST(unknown_smc)) {
@@ -116,20 +111,6 @@ test_abort:
 /* Following test cases rely on Trusty SPD to be enabled in EL3, and are thus
  * platform-specific. */
 
-/* SMC numbers defined by ATF */
-#define SMC_NR(entity, fn, fastcall, smc64)                               \
-    (((((uint32_t)(fastcall)) & 0x1U) << 31U) | (((smc64)&0x1U) << 30U) | \
-     (((entity)&0x3FU) << 24U) | ((fn)&0xFFFFU))
-
-#define SMC_FASTCALL_NR(entity, fn) SMC_NR((entity), (fn), 1U, 0U)
-
-#define SMC_ENTITY_PLATFORM_MONITOR 61
-
-/*
- * Write character in r1 to debug console
- */
-#define SMC_FC_DEBUG_PUTC SMC_FASTCALL_NR(SMC_ENTITY_PLATFORM_MONITOR, 0x0)
-
 TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(putc)) {
     int rc;
     struct smc_msg request = {
@@ -147,17 +128,6 @@ TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(putc)) {
 
 test_abort:;
 }
-
-/*
- * Get register base address
- * r1: SMC_GET_GIC_BASE_GICD or SMC_GET_GIC_BASE_GICC
- */
-#define SMC_GET_GIC_BASE_GICD 0
-#define SMC_GET_GIC_BASE_GICC 1
-#define SMC_FC_GET_REG_BASE SMC_FASTCALL_NR(SMC_ENTITY_PLATFORM_MONITOR, 0x1)
-
-#define GICD_BASE 0x8000000
-#define GICC_BASE 0x8010000
 
 /* Check that we can query GICD base value from ATF */
 TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(get_gicd_base)) {
@@ -192,6 +162,23 @@ TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(get_gicc_base)) {
     rc = smc_read_response(_state->channel, &response);
     ASSERT_EQ(rc, msg_len);
     ASSERT_EQ(response.params[0], GICC_BASE);
+
+test_abort:;
+}
+
+TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(access_denied)) {
+    int rc;
+    struct smc_msg request = {
+            .params[0] = SMC_FC_ECHO_ONE_ARG,
+    };
+    struct smc_msg response;
+
+    rc = smc_send_request(_state->channel, &request);
+    ASSERT_EQ(rc, msg_len);
+
+    rc = smc_read_response(_state->channel, &response);
+    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ((int32_t)response.params[0], ERR_ACCESS_DENIED);
 
 test_abort:;
 }
