@@ -111,6 +111,10 @@ static int handle_get_fbs_req(handle_t chan, struct secure_fb_ctx* ctx) {
     rc = ctx->ops->get_fbs(session, &buffers);
     if (rc != SECURE_FB_ERROR_OK) {
         TLOGE("Failed secure_fb_impl_get_fbs() (%d)\n", rc);
+
+        /* Ensure nothing is returned, but continue to send error code */
+        buffers.num_fbs = 0;
+        buffers.num_handles = 0;
     }
 
     hdr.cmd = SECURE_FB_CMD_GET_FBS | SECURE_FB_CMD_RESP_BIT;
@@ -162,6 +166,8 @@ static int handle_display_fb(handle_t chan,
     rc = ctx->ops->display_fb(session, display_fb->buffer_id);
     if (rc != SECURE_FB_ERROR_OK) {
         TLOGE("Failed secure_fb_impl_display_fb() (%d)\n", rc);
+
+        /* Continue to return error code */
     }
 
     hdr.cmd = SECURE_FB_CMD_DISPLAY_FB | SECURE_FB_CMD_RESP_BIT;
