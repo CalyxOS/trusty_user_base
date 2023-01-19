@@ -34,7 +34,7 @@
 use core::cell::RefCell;
 use log::{Log, Metadata, Record};
 use tipc::{Handle, Manager, PortCfg, Serialize, Serializer, Service, TipcError, Uuid};
-use trusty_log::TrustyLogger;
+use trusty_log::{TrustyLogger, TrustyLoggerConfig};
 use trusty_std::alloc::Vec;
 
 // Public reexports
@@ -121,7 +121,10 @@ unsafe impl Sync for TrustyTestLogger {}
 
 impl TrustyTestLogger {
     const fn new() -> Self {
-        Self { stderr_logger: TrustyLogger, client_connection: RefCell::new(None) }
+        Self {
+            stderr_logger: TrustyLogger::new(TrustyLoggerConfig::new()),
+            client_connection: RefCell::new(None),
+        }
     }
 
     /// Connect a new client to this logger, disconnecting the existing client,
