@@ -19,6 +19,7 @@ use crate::sys::*;
 use crate::{Deserialize, Serialize, TipcError};
 use core::convert::TryInto;
 use core::mem::MaybeUninit;
+use log::{error, warn};
 use trusty_std::alloc::{FallibleVec, Vec};
 use trusty_std::ffi::CStr;
 use trusty_sys::{c_int, c_long};
@@ -223,16 +224,32 @@ impl Handle {
         // pointer, it does not mutate these handles, so we can safely cast the
         // immutable slice to mutable pointer.
         let mut rc = unsafe { trusty_sys::send_msg(self.as_raw_fd(), &mut msg) };
+
+        // If there's not enough space in the buffer to send the message, wait until we
+        // get a `SEND_UNBLOCKED` event or another error occurs.
         if rc == trusty_sys::Error::NotEnoughBuffer as c_long {
-            let event = self.wait(None)?;
-            if event.event & IPC_HANDLE_POLL_SEND_UNBLOCKED as u32 != 0 {
-                rc = unsafe { trusty_sys::send_msg(self.as_raw_fd(), &mut msg) };
-            } else if event.event & IPC_HANDLE_POLL_MSG as u32 != 0 {
-                return Err(TipcError::Busy);
-            } else if event.event & IPC_HANDLE_POLL_HUP as u32 != 0 {
-                return Err(TipcError::ChannelClosed);
+            loop {
+                let event = self.wait(None)?;
+                if event.event & IPC_HANDLE_POLL_SEND_UNBLOCKED as u32 != 0 {
+                    break;
+                } else if event.event & IPC_HANDLE_POLL_MSG as u32 != 0 {
+                    warn!("Received a message while waiting for send to be unblocked, abandoning send attempt");
+                    return Err(TipcError::Busy);
+                } else if event.event & IPC_HANDLE_POLL_HUP as u32 != 0 {
+                    return Err(TipcError::ChannelClosed);
+                } else {
+                    error!(
+                        "Unexpected event while waiting for send to be unblocked: {}",
+                        event.event,
+                    );
+                }
             }
+
+            // Retry the send. It should go through this time because sending is now
+            // unblocked.
+            rc = unsafe { trusty_sys::send_msg(self.as_raw_fd(), &mut msg) };
         }
+
         if rc < 0 {
             Err(TipcError::from_uapi(rc))
         } else if rc as usize != total_num_bytes {
