@@ -289,13 +289,13 @@ int tipc_add_service(struct tipc_hset* hset,
     struct tipc_srv* srv;
     struct port_ctx* port;
 
-    if (!hset || !ports || !num_ports || !ops) {
-        TLOGE("required parameter is missing\n");
+    if (IS_ERR(hset)) {
+        TLOGE("invalid handle set (%d)\n", PTR_ERR(hset));
         return ERR_INVALID_ARGS;
     }
 
-    if (IS_ERR(hset)) {
-        TLOGE("invalid handle set (%d)\n", PTR_ERR(hset));
+    if (!hset || !ports || !num_ports || !ops) {
+        TLOGE("required parameter is missing\n");
         return ERR_INVALID_ARGS;
     }
 
