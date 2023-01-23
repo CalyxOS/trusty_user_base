@@ -17,7 +17,7 @@
 use alloc::rc::{Rc, Weak};
 use core::fmt;
 use core::mem::{ManuallyDrop, MaybeUninit};
-use log::error;
+use log::{debug, error, warn};
 use trusty_std::alloc::{AllocError, Vec};
 use trusty_std::ffi::CString;
 use trusty_std::TryClone;
@@ -510,10 +510,17 @@ macro_rules! service_dispatcher {
             ) -> $crate::Result<bool> {
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
-                        let msg = <$service as $crate::Service>::Message::deserialize(msg, msg_handles).map_err(|e| {
-                            eprintln!("Could not parse message: {:?}", e);
-                            TipcError::InvalidData
-                        })?;
+                        let msg = match <$service as $crate::Service>::Message::deserialize(msg, msg_handles) {
+                            Ok(msg) => msg,
+
+                            // If the incoming message doesn't parse correctly, log the error and
+                            // then close the connection.
+                            Err(e) => {
+                                eprintln!("Could not parse message: {:?}", e);
+                                return Ok(false);
+                            }
+                        };
+
                         if let ConnectionKind::$service(conn) = &connection.1 {
                             $crate::Service::on_message(&**s, conn, handle, msg)
                         } else {
@@ -684,22 +691,67 @@ impl<
     ///
     /// Only returns if an error occurs.
     pub fn run_event_loop(mut self) -> Result<()> {
+        use trusty_sys::Error;
+
         loop {
-            let event = self.handle_set.wait(None)?;
-            // SAFETY: This cookie was previously initialized by the handle set.
-            // Its lifetime is managed by the handle set, so we are sure that
-            // the cookie is still valid if the channel is still in this handle
-            // set.
-            let channel: Rc<Channel<D>> = unsafe { Channel::from_opaque_ptr(event.cookie) }
-                .ok_or_else(|| {
-                    // The opaque pointer associated with this handle could not
-                    // be converted back into a `Channel`. This should never
-                    // happen, but throw an internal error if it does.
-                    error!("Connection cookie was invalid");
-                    TipcError::InvalidData
-                })?;
-            self.handler(channel, &event)?;
+            // Process the next incoming event, extracting any returned error for further
+            // checking.
+            let err = match self.event_loop_inner() {
+                Ok(()) => continue,
+                Err(err) => err,
+            };
+
+            // Check if the error is recoverable or not. If the error is not one of a
+            // limited set of recoverable errors, we break from the event loop.
+            match err {
+                // Recoverable errors that are always ignored.
+                | TipcError::SystemError(Error::TimedOut)
+                | TipcError::SystemError(Error::ChannelClosed)
+
+                // These are always caused by the client and so shouldn't be treated as an
+                // internal error or cause the event loop to exit.
+                | TipcError::ChannelClosed
+                => {
+                    debug!("Recoverable error ignored: {:?}", err)
+                }
+
+                // These are legitimate errors and we should be handling them, but they would be
+                // better handled lower in the event loop closer to where they originate. If
+                // they get propagated up here then we can't meaningfully handle them anymore,
+                // so just log them and continue the loop.
+                | TipcError::IncompleteWrite { .. }
+                | TipcError::NotEnoughBuffer
+                | TipcError::Busy
+                => {
+                    warn!(
+                        "Received error {:?} in main event loop. This should have been handled closer to where it originated",
+                        err,
+                    )
+                }
+
+                _ => {
+                    error!("Error occurred while handling incoming event: {:?}", err);
+                    return Err(err);
+                }
+            }
         }
+    }
+
+    fn event_loop_inner(&mut self) -> Result<()> {
+        let event = self.handle_set.wait(None)?;
+        // SAFETY: This cookie was previously initialized by the handle set.
+        // Its lifetime is managed by the handle set, so we are sure that
+        // the cookie is still valid if the channel is still in this handle
+        // set.
+        let channel: Rc<Channel<D>> = unsafe { Channel::from_opaque_ptr(event.cookie) }
+            .ok_or_else(|| {
+                // The opaque pointer associated with this handle could not
+                // be converted back into a `Channel`. This should never
+                // happen, but throw an internal error if it does.
+                error!("Connection cookie was invalid");
+                TipcError::InvalidData
+            })?;
+        self.handler(channel, &event)
     }
 
     fn handler(&mut self, channel: Rc<Channel<D>>, event: &trusty_sys::uevent) -> Result<()> {
@@ -727,6 +779,21 @@ impl<
                 self.handle_set.close(channel);
                 Ok(())
             }
+
+            // `SEND_UNBLOCKED` means that some previous attempt to send a message was
+            // blocked and has now become unblocked. This should normally be handled by
+            // the code trying to send the message, but if the sending code doesn't do so
+            // then we can end up getting it here.
+            _ if event.event & (sys::IPC_HANDLE_POLL_SEND_UNBLOCKED as u32) != 0 => {
+                warn!("Received `SEND_UNBLOCKED` event received in main event loop. This likely means that a sent message was lost somewhere");
+                Ok(())
+            }
+
+            // `NONE` is not an event we should get in practice, but if it does then it
+            // shouldn't trigger an error.
+            _ if event.event == (sys::IPC_HANDLE_POLL_NONE as u32) => Ok(()),
+
+            // Treat any unrecognized events as errors by default.
             _ => {
                 error!("Could not handle event {}", event.event);
                 Err(TipcError::UnknownError)
