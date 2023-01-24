@@ -82,35 +82,39 @@ test_abort:
 }
 
 TEST(crash, exit_success) {
-    handle_t chan = INVALID_IPC_HANDLE;
+    handle_t chan1 = INVALID_IPC_HANDLE;
+    handle_t chan2 = INVALID_IPC_HANDLE;
     int64_t t1, t2;
 
-    ASSERT_EQ(crasher_connect(&chan), 0);
+    ASSERT_EQ(crasher_connect(&chan1), 0);
     trusty_gettime(0, &t1);
-    ASSERT_EQ(crasher_command(chan, CRASHER_EXIT_SUCCESS), ERR_CHANNEL_CLOSED);
-    ASSERT_EQ(crasher_connect(&chan), 0);
+    ASSERT_EQ(crasher_command(chan1, CRASHER_EXIT_SUCCESS), ERR_CHANNEL_CLOSED);
+    ASSERT_EQ(crasher_connect(&chan2), 0);
     trusty_gettime(0, &t2);
-    ASSERT_EQ(crasher_command(chan, CRASHER_EXIT_SUCCESS), ERR_CHANNEL_CLOSED);
+    ASSERT_EQ(crasher_command(chan2, CRASHER_EXIT_SUCCESS), ERR_CHANNEL_CLOSED);
     ASSERT_LT(t2 - t1, S2NS(1));
 
 test_abort:
-    close(chan);
+    close(chan1);
+    close(chan2);
 }
 
 TEST(crash, exit_failure) {
-    handle_t chan = INVALID_IPC_HANDLE;
+    handle_t chan1 = INVALID_IPC_HANDLE;
+    handle_t chan2 = INVALID_IPC_HANDLE;
     int64_t t1, t2;
 
-    ASSERT_EQ(crasher_connect(&chan), 0);
+    ASSERT_EQ(crasher_connect(&chan1), 0);
     trusty_gettime(0, &t1);
-    ASSERT_EQ(crasher_command(chan, CRASHER_EXIT_FAILURE), ERR_CHANNEL_CLOSED);
-    ASSERT_EQ(crasher_connect(&chan), 0);
+    ASSERT_EQ(crasher_command(chan1, CRASHER_EXIT_FAILURE), ERR_CHANNEL_CLOSED);
+    ASSERT_EQ(crasher_connect(&chan2), 0);
     trusty_gettime(0, &t2);
-    ASSERT_EQ(crasher_command(chan, CRASHER_EXIT_FAILURE), ERR_CHANNEL_CLOSED);
+    ASSERT_EQ(crasher_command(chan2, CRASHER_EXIT_FAILURE), ERR_CHANNEL_CLOSED);
     ASSERT_GT(t2 - t1, S2NS(1));
 
 test_abort:
-    close(chan);
+    close(chan1);
+    close(chan2);
 }
 
 TEST(crash, read_null_ptr) {
