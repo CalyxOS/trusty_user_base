@@ -51,7 +51,6 @@ extern crate alloc as alloc_crate;
 pub mod alloc;
 mod clone_ext;
 pub mod ffi;
-pub mod sync;
 
 pub use clone_ext::TryClone;
 

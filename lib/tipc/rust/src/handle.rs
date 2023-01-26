@@ -455,8 +455,8 @@ pub(crate) mod test {
     use super::Handle;
     use crate::sys;
     use crate::TipcError;
+    use std::sync::Once;
     use test::expect_eq;
-    use trusty_std::sync::Once;
     use trusty_sys::Error;
 
     // Expected limits: should be in sync with kernel settings
