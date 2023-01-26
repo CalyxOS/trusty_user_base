@@ -16,4 +16,4 @@
 
 mod c_str;
 
-pub use c_str::{CStr, CString, FromBytesWithNulError, TryNewError};
+pub use c_str::{CString, TryNewError};

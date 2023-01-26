@@ -19,8 +19,8 @@
 
 use super::*;
 use ::test::assert;
+use core::ffi::CStr;
 use tipc::{Handle, TipcError};
-use trusty_std::ffi::CStr;
 
 ::test::init!();
 

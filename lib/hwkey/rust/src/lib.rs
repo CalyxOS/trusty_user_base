@@ -32,12 +32,12 @@ mod err;
 #[cfg(test)]
 mod test;
 
+use core::ffi::CStr;
 use core::mem;
 pub use err::HwkeyError;
 use sys::*;
 use tipc::{Deserialize, Handle, Serialize, Serializer, TipcError};
 use trusty_std::alloc::{TryAllocFrom, Vec};
-use trusty_std::ffi::CStr;
 
 /// A HwkeySession is a Handle.
 type HwkeySession = Handle;

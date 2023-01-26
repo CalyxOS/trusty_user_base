@@ -16,9 +16,9 @@
 
 use crate::sys::*;
 use alloc::alloc::AllocError;
+use core::ffi::FromBytesWithNulError;
 use core::num::TryFromIntError;
 use tipc::TipcError;
-use trusty_std::ffi::FromBytesWithNulError;
 use trusty_sys::Error;
 
 #[derive(Debug, Eq, PartialEq)]

@@ -26,10 +26,10 @@ mod sys {
 }
 
 use core::convert::{TryFrom, TryInto};
+use core::ffi::CStr;
 use core::mem;
 use sys::*;
 use tipc::{Deserialize, Handle, Serialize, Serializer, TipcError};
-use trusty_std::ffi::CStr;
 
 const SYSTEM_STATE_PORT: &'static [u8] = b"com.android.trusty.system-state\0";
 

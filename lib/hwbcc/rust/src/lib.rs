@@ -41,12 +41,12 @@ mod sys {
 
 pub use err::HwBccError;
 
+use core::ffi::CStr;
 use core::mem;
 use sys::*;
 use tipc::Serializer;
 use tipc::{Deserialize, Handle, Serialize};
 use trusty_std::alloc::{TryAllocFrom, Vec};
-use trusty_std::ffi::CStr;
 use trusty_sys::{c_long, Error};
 
 // Constant defined in trusty/user/base/interface/hwbcc/include/interface/hwbcc

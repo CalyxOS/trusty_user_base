@@ -18,10 +18,10 @@ use crate::serialization::Serializer;
 use crate::sys::*;
 use crate::{Deserialize, Serialize, TipcError};
 use core::convert::TryInto;
+use core::ffi::CStr;
 use core::mem::MaybeUninit;
 use log::{error, warn};
 use trusty_std::alloc::{FallibleVec, Vec};
-use trusty_std::ffi::CStr;
 use trusty_sys::{c_int, c_long};
 
 /// An open IPC connection or shared memory reference.
@@ -67,8 +67,8 @@ impl Handle {
     /// Open a TIPC connection to `com.android.trusty.test_port`:
     ///
     /// ```
+    /// use core::ffi::CStr;
     /// use tipc::Handle;
-    /// use trusty_std::ffi::CStr;
     ///
     /// let port = CStr::from_bytes_with_nul(b"com.android.trusty.test_port\0")
     ///                  .unwrap();
