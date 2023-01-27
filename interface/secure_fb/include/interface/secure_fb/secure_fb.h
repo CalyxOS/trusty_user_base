@@ -93,6 +93,27 @@ enum secure_fb_pixel_format {
     TTUI_PF_RGBA8 = 1,
 };
 
+/*
+ * @brief drawing rotation
+ */
+/**
+ * enum secure_fb_rotation - secure fb draw rotation
+ * @TTUI_DRAW_ROTATION_0:
+ *      no rotation needed.
+ * @TTUI_DRAW_ROTATION_90:
+ *      90" draw rotation required.
+ * @TTUI_DRAW_ROTATION_180:
+ *      180" draw rotation required.
+ * @TTUI_DRAW_ROTATION_270:
+ *      270" draw rotation required.
+ */
+enum secure_fb_rotation {
+    TTUI_DRAW_ROTATION_0,
+    TTUI_DRAW_ROTATION_90,
+    TTUI_DRAW_ROTATION_180,
+    TTUI_DRAW_ROTATION_270,
+};
+
 /**
  * struct secure_fb_info - information about framebuffer's topology
  * @buffer:       Start of the framebuffer. Unused when used as wire type.
@@ -103,6 +124,7 @@ enum secure_fb_pixel_format {
  * @width:        Width of the framebuffer in pixels.
  * @height:       Height of the framebuffer in pixles.
  * @pixel_format: Pixel format. (should be TTUI_PF_RGBA8)
+ * @rotation:     Draw rotation. (should be secure_fb_rotation)
  */
 struct secure_fb_info {
     uint8_t* buffer;
@@ -112,6 +134,7 @@ struct secure_fb_info {
     uint32_t width;
     uint32_t height;
     uint32_t pixel_format;
+    uint32_t rotation;
 };
 
 /**
