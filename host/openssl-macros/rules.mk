@@ -17,7 +17,12 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-SRC_DIR = external/rust/crates/rust-openssl/openssl-macros
+# temporarily handle both old and new crate paths (b/266828817)
+ifneq ($(wildcard external/rust/crates/openssl-macros/.*),)
+SRC_DIR := external/rust/crates/openssl-macros
+else
+SRC_DIR := external/rust/crates/rust-openssl/openssl-macros
+endif
 
 MODULE_SRCS := $(SRC_DIR)/src/lib.rs
 
