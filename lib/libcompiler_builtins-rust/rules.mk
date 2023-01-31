@@ -42,4 +42,6 @@ MODULE_RUSTFLAGS += \
 
 MODULE_ADD_IMPLICIT_DEPS := false
 
+MODULE_SKIP_DOCS := true
+
 include make/library.mk
