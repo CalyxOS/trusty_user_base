@@ -49,16 +49,20 @@ ifeq (true,$(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)))
 # Accept explicitly-set scudo or dlmalloc allocators,
 # default to dlmalloc if TRUSTY_APP_ALLOCATOR is empty,
 # error if non-supported allocator is explicitly specified
+ifeq (,$(TRUSTY_APP_ALLOCATOR))
+TRUSTY_APP_ALLOCATOR_FOR_$(MODULE) ?= dlmalloc
+TRUSTY_APP_ALLOCATOR := $(TRUSTY_APP_ALLOCATOR_FOR_$(MODULE))
+endif
+MANIFEST_ALLOCATOR := $(subst .json,-$(TRUSTY_APP_ALLOCATOR).json,$(MANIFEST))
+ifneq (,$(wildcard $(MANIFEST_ALLOCATOR)))
+    MANIFEST := $(MANIFEST_ALLOCATOR)
+endif
 ifeq ($(TRUSTY_APP_ALLOCATOR),$(filter $(TRUSTY_APP_ALLOCATOR),dlmalloc scudo ))
 ifeq (scudo,$(TRUSTY_APP_ALLOCATOR))
 MODULE_LIBRARY_DEPS += \
     trusty/user/base/lib/scudo
 endif
 ifeq (dlmalloc,$(TRUSTY_APP_ALLOCATOR))
-MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/dlmalloc
-endif
-ifeq (,$(TRUSTY_APP_ALLOCATOR))
 MODULE_LIBRARY_DEPS += \
     trusty/user/base/lib/dlmalloc
 endif
