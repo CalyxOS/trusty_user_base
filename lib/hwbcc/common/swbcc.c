@@ -345,19 +345,14 @@ int swbcc_sign_key(swbcc_session_t s,
     return NO_ERROR;
 }
 
+#define CONFIG_DESCRIPTOR_TOTAL_SIZE 48
+
 /*
  * Format and (size) of a COSE_Sign1 Msg in this case is:
  * Array header (1) | Protected Params (4) | Unprotected Params (1) |
  * CWT Hdr (2) | CWT (76) | Sig Hdr (2) | Sig (64)
  */
 #define BCC_SIGN1_SIZE (150)
-
-/*
- * Format and (size) of a Sig_structure in this case is:
- * Array header (1) | Context (11) | Protected Params (4) | AAD (1) |
- * CWT Hdr (2) | CWT (76)
- */
-#define BCC_SIG_STRUCTURE_SIZE (95)
 
 /*
  * Format and (size) of BCC in this case is:
@@ -372,10 +367,31 @@ static int encode_degenerate_cert(void* dice_ctx,
                                   size_t* cert_size) {
     int rc;
     DiceResult result;
-    DiceInputValues input_values;
+    DiceInputValues input_values = {};
 
-    /* No need to provide Dice inputs for this self-signed certificate */
-    memset(&input_values, 0, sizeof(input_values));
+    /*
+     * No need to provide DICE inputs for this self-signed certificate other
+     * than the configuration descriptor which should conform to the
+     * specification from the RKP HAL.
+     */
+    BccConfigValues config_values = {};
+    uint8_t config_descriptor_encoded[CONFIG_DESCRIPTOR_TOTAL_SIZE];
+    size_t config_descriptor_encoded_size = 0;
+
+    result = BccFormatConfigDescriptor(&config_values,
+                                       sizeof(config_descriptor_encoded),
+                                       config_descriptor_encoded,
+                                       &config_descriptor_encoded_size);
+
+    rc = dice_result_to_err(result);
+    if (rc != NO_ERROR) {
+        TLOGE("Failed to format config descriptor : %d\n", rc);
+        return rc;
+    }
+
+    input_values.config_type = kDiceConfigTypeDescriptor;
+    input_values.config_descriptor = config_descriptor_encoded;
+    input_values.config_descriptor_size = config_descriptor_encoded_size;
 
     result = DiceGenerateCertificate(dice_ctx, seed, seed, &input_values,
                                      cert_buf_size, cert, cert_size);
@@ -448,8 +464,6 @@ int swbcc_get_bcc(swbcc_session_t s,
     *bcc_size += bcc_used;
     return NO_ERROR;
 }
-
-#define CONFIG_DESCRIPTOR_TOTAL_SIZE 48
 
 /*
  * Size of a DICE artifacts handed over from root (without Bcc) is:
