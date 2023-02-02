@@ -1579,6 +1579,7 @@ class TestManifest(unittest.TestCase):
         """Test with valid manifest config with a constants config containing
         - UUID
         - min_heap, min_stack
+        - priority
         - apploader_flags
         Pack the manifest config data and unpack it and
         verify it with the expected values
@@ -1605,6 +1606,7 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
                 manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
             },
+            manifest_compiler.PRIORITY: 10,
             manifest_compiler.APPLOADER_FLAGS: {
                 manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: True,
             }
@@ -1616,6 +1618,7 @@ class TestManifest(unittest.TestCase):
             manifest_compiler.APP_NAME: "test-app-name",
             manifest_compiler.MIN_HEAP: 8192,
             manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.PRIORITY: 10,
             manifest_compiler.APPLOADER_FLAGS: {
                 manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION:
                     "REQUIRES_ENCRYPTION",
@@ -1635,6 +1638,39 @@ class TestManifest(unittest.TestCase):
                 pack_manifest_config_data(
                     self, config_data, log, constants)))
 
+    def test_manifest_empty_priority(self):
+        """Test with valid manifest config containing
+        - UUID
+        - min_heap and min_stack
+        - pinned_cpu
+        - priority empty
+
+        Pack the manifest config data and unpack it and
+        verify it with the expected values
+        """
+        constants = {}
+        log = manifest_compiler.Log()
+
+        # JSON manifest data structure
+        config_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 8192,
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.PINNED_CPU: 3,
+            manifest_compiler.PRIORITY: None,
+        }
+
+        default_app_name = "test"
+
+        manifest = manifest_compiler.parse_manifest_config(
+            config_data,
+            constants,
+            default_app_name,
+            log
+        )
+        self.assertTrue(log.error_occurred())
+        self.assertIsNone(manifest)
 
 def pack_manifest_config_data(self, config_data, log, constants):
     # parse manifest JSON data

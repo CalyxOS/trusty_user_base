@@ -101,6 +101,7 @@ extern "C" bool apploader_parse_manifest(
         case APP_MANIFEST_CONFIG_KEY_MAP_MEM:
         case APP_MANIFEST_CONFIG_KEY_START_PORT:
         case APP_MANIFEST_CONFIG_KEY_PINNED_CPU:
+        case APP_MANIFEST_CONFIG_KEY_PRIORITY:
         case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
             /* The apploader has no use for these values */
             break;

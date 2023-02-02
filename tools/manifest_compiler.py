@@ -74,6 +74,7 @@ USAGE:
             }
         ],
         "pinned_cpu": 3,
+        "priority" : 10,
         "version": 1,
         "apploader_flags": {
             "requires_encryption": false
@@ -135,6 +136,7 @@ START_PORT_ALLOW_TA_CONNECT = "allow_ta_connect"
 START_PORT_ALLOW_NS_CONNECT = "allow_ns_connect"
 APP_NAME = "app_name"
 PINNED_CPU = "pinned_cpu"
+PRIORITY = "priority"
 VERSION = "version"
 APPLOADER_FLAGS = "apploader_flags"
 APPLOADER_FLAGS_REQUIRES_ENCRYPTION = "requires_encryption"
@@ -162,6 +164,7 @@ TRUSTY_APP_CONFIG_KEY_PINNED_CPU = 6
 TRUSTY_APP_CONFIG_KEY_VERSION = 7
 TRUSTY_APP_CONFIG_KEY_MIN_SHADOW_STACK_SIZE = 8
 TRUSTY_APP_CONFIG_KEY_APPLOADER_FLAGS = 9
+TRUSTY_APP_CONFIG_KEY_PRIORITY = 10
 
 # MEM_MAP ARCH_MMU_FLAGS
 # These values need to be kept in sync with external/lk/include/arch/mmu.h
@@ -254,6 +257,7 @@ class Manifest(object):
             mgmt_flags,
             start_ports,
             pinned_cpu,
+            priority,
             version,
             apploader_flags,
     ):
@@ -266,6 +270,7 @@ class Manifest(object):
         self.mgmt_flags = mgmt_flags
         self.start_ports = start_ports
         self.pinned_cpu = pinned_cpu
+        self.priority = priority
         self.version = version
         self.apploader_flags = apploader_flags
 
@@ -708,6 +713,9 @@ def parse_manifest_config(manifest_dict, constants, default_app_name, log):
     pinned_cpu = get_int(manifest_dict, PINNED_CPU, constants, log,
                          optional=True)
 
+    # PRIORITY
+    priority = get_int(manifest_dict, PRIORITY, constants, log, optional=True)
+
     # VERSION
     version = get_int(manifest_dict, VERSION, constants, log, optional=True)
 
@@ -725,8 +733,8 @@ def parse_manifest_config(manifest_dict, constants, default_app_name, log):
         return None
 
     return Manifest(uuid, app_name, min_heap, min_stack, min_shadow_stack,
-                    mem_io_maps, mgmt_flags, start_ports, pinned_cpu, version,
-                    apploader_flags)
+                    mem_io_maps, mgmt_flags, start_ports, pinned_cpu,
+                    priority, version, apploader_flags)
 
 
 def swap_uuid_bytes(uuid):
@@ -808,6 +816,7 @@ def pack_manifest_data(manifest):
     #        TRUSTY_APP_CONFIG_KEY_MGMT_FLAGS, mgmt_flags
     #        TRUSTY_APP_CONFIG_KEY_START_PORT, flag, name_size, name
     #        TRUSTY_APP_CONFIG_KEY_PINNED_CPU, pinned_cpu
+    #        TRUSTY_APP_CONFIG_KEY_PRIORITY, priority
     #        TRUSTY_APP_CONFIG_KEY_VERSION, version
     #        TRUSTY_APP_CONFIG_KEY_MIN_SHADOW_STACK_SIZE, min_shadow_stack,
     #        TRUSTY_APP_CONFIG_KEY_APPLOADER_FLAGS, apploader_flags,
@@ -851,6 +860,11 @@ def pack_manifest_data(manifest):
         out.write(struct.pack("II",
                               TRUSTY_APP_CONFIG_KEY_PINNED_CPU,
                               manifest.pinned_cpu))
+
+    if manifest.priority is not None:
+        out.write(struct.pack("II",
+                              TRUSTY_APP_CONFIG_KEY_PRIORITY,
+                              manifest.priority))
 
     if manifest.version is not None:
         out.write(struct.pack("II",
@@ -1001,6 +1015,11 @@ def unpack_binary_manifest_to_data(packed_data):
             (pinned_cpu,), packed_data = struct.unpack(
                 "I", packed_data[:4]), packed_data[4:]
             manifest[PINNED_CPU] = pinned_cpu
+        elif tag == TRUSTY_APP_CONFIG_KEY_PRIORITY:
+            assert PRIORITY not in manifest
+            (priority,), packed_data = struct.unpack(
+                "I", packed_data[:4]), packed_data[4:]
+            manifest[PRIORITY] = priority
         elif tag == TRUSTY_APP_CONFIG_KEY_VERSION:
             assert VERSION not in manifest
             (version,), packed_data = struct.unpack(
