@@ -16,4 +16,5 @@
 
 mod c_str;
 
-pub use c_str::{CString, TryNewError};
+pub use alloc::ffi::CString;
+pub use c_str::{FallibleCString, TryNewError};

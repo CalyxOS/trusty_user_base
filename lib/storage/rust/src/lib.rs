@@ -141,7 +141,7 @@ use core::ffi::c_void;
 use core::mem::MaybeUninit;
 use core::ptr;
 use trusty_std::alloc::TryAllocFrom;
-use trusty_std::ffi::{CString, TryNewError};
+use trusty_std::ffi::{CString, FallibleCString, TryNewError};
 use trusty_std::string::{FromUtf8Error, String};
 use trusty_std::vec::Vec;
 use trusty_sys::c_long;

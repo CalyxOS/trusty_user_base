@@ -19,7 +19,7 @@ use core::fmt;
 use core::mem::{ManuallyDrop, MaybeUninit};
 use log::{debug, error, warn};
 use trusty_std::alloc::{AllocError, Vec};
-use trusty_std::ffi::CString;
+use trusty_std::ffi::{CString, FallibleCString};
 use trusty_std::TryClone;
 use trusty_sys::c_void;
 
@@ -847,7 +847,7 @@ mod test {
     use crate::{Deserialize, Handle, Manager, Result, Serialize, Serializer, TipcError, Uuid};
     use test::{expect, expect_eq};
     use trusty_std::alloc::FallibleVec;
-    use trusty_std::ffi::CString;
+    use trusty_std::ffi::{CString, FallibleCString};
     use trusty_std::format;
     use trusty_std::rc::Rc;
     use trusty_std::vec::Vec;

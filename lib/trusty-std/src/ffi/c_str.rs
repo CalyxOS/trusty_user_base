@@ -38,109 +38,9 @@
 
 use crate::alloc::{AllocError, TryAllocInto};
 use crate::TryClone;
-use alloc::boxed::Box;
+use alloc::ffi::CString;
 use alloc::vec::Vec;
-use core::ffi::CStr;
-use core::fmt;
-use core::ops;
 use core::slice::memchr;
-
-/// A type representing an owned, fallibly-allocated, C-compatible,
-/// nul-terminated string with no nul bytes in the middle.
-///
-/// This type serves the purpose of being able to safely generate a
-/// C-compatible string from a Rust byte slice or vector. An instance of this
-/// type is a static guarantee that the underlying bytes contain no interior 0
-/// bytes ("nul characters") and that the final byte is 0 ("nul terminator").
-///
-/// `CString` is to [`&CStr`] as [`String`][alloc::string::String] is to [`&str`]: the former
-/// in each pair are owned strings; the latter are borrowed
-/// references.
-///
-/// # Creating a `CString`
-///
-/// A `CString` is created from either a byte slice or a byte vector,
-/// or anything that implements [`TryInto`]`<`[`Vec`]`<`[`u8`]`>>` (for
-/// example, you can build a `CString` straight out of a [`String`][alloc::string::String] or
-/// a [`&str`], since both implement that trait).
-///
-/// The [`CString::try_new`] method will actually check that the provided
-/// `&[u8]` does not have 0 bytes in the middle, and return an error if it finds
-/// one. The method will also return an error if the underlying [`Vec`] cannot
-/// be allocated
-///
-/// # Extracting a raw pointer to the whole C string
-///
-/// `CString` implements a [`as_ptr`][`CStr::as_ptr`] method through the [`Deref`]
-/// trait. This method will give you a `*const c_char` which you can
-/// feed directly to extern functions that expect a nul-terminated
-/// string, like C's `strdup()`. Notice that [`as_ptr`][`CStr::as_ptr`] returns a
-/// read-only pointer; if the C code writes to it, that causes
-/// undefined behavior.
-///
-/// # Extracting a slice of the whole C string
-///
-/// Alternatively, you can obtain a `&[`[`u8`]`]` slice from a
-/// `CString` with the [`CString::as_bytes`] method. Slices produced in this
-/// way do *not* contain the trailing nul terminator. This is useful
-/// when you will be calling an extern function that takes a `*const
-/// u8` argument which is not necessarily nul-terminated, plus another
-/// argument with the length of the string — like C's `strndup()`.
-/// You can of course get the slice's length with its
-/// [`len`][slice.len] method.
-///
-/// If you need a `&[`[`u8`]`]` slice *with* the nul terminator, you
-/// can use [`CString::as_bytes_with_nul`] instead.
-///
-/// Once you have the kind of slice you need (with or without a nul
-/// terminator), you can call the slice's own
-/// [`as_ptr`][slice.as_ptr] method to get a read-only raw pointer to pass to
-/// extern functions. See the documentation for that function for a
-/// discussion on ensuring the lifetime of the raw pointer.
-///
-/// [`&str`]: prim@str
-/// [slice.as_ptr]: ../primitive.slice.html#method.as_ptr
-/// [slice.len]: ../primitive.slice.html#method.len
-/// [`Deref`]: ops::Deref
-/// [`&CStr`]: CStr
-///
-/// # Examples
-///
-/// ```ignore (extern-declaration)
-/// # fn main() {
-/// use std::ffi::CString;
-/// use std::os::raw::c_char;
-///
-/// extern "C" {
-///     fn my_printer(s: *const c_char);
-/// }
-///
-/// // We are certain that our string doesn't have 0 bytes in the middle,
-/// // so we can .expect()
-/// let c_to_print = CString::try_new("Hello, world!").expect("CString::new failed");
-/// unsafe {
-///     my_printer(c_to_print.as_ptr());
-/// }
-/// # }
-/// ```
-///
-/// # Safety
-///
-/// `CString` is intended for working with traditional C-style strings
-/// (a sequence of non-nul bytes terminated by a single nul byte); the
-/// primary use case for these kinds of strings is interoperating with C-like
-/// code. Often you will need to transfer ownership to/from that external
-/// code. It is strongly recommended that you thoroughly read through the
-/// documentation of `CString` before use, as improper ownership management
-/// of `CString` instances can lead to invalid memory accesses, memory leaks,
-/// and other memory errors.
-#[derive(PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct CString {
-    // Invariant 1: the slice ends with a zero byte and has a length of at least one.
-    // Invariant 2: the slice contains only one zero byte.
-    // Improper usage of unsafe function can break Invariant 2, but not Invariant 1.
-    inner: Box<[u8]>,
-}
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum TryNewError {
@@ -170,7 +70,7 @@ impl From<AllocError> for TryNewError {
     }
 }
 
-impl CString {
+pub trait FallibleCString {
     /// Creates a new C-compatible string from a container of bytes.
     ///
     /// This function will consume the provided data and use the
@@ -198,7 +98,30 @@ impl CString {
     /// This function will return an error if the supplied bytes contain an
     /// internal 0 byte. The [`TryNewError::NulError`] returned will contain the bytes as well as
     /// the position of the nul byte.
-    pub fn try_new<T: TryAllocInto<Vec<u8>>>(t: T) -> Result<CString, TryNewError> {
+    fn try_new<T: TryAllocInto<Vec<u8>>>(t: T) -> Result<CString, TryNewError>;
+
+    /// Creates a C-compatible string by consuming a byte vector,
+    /// without checking for interior 0 bytes.
+    ///
+    /// This method is equivalent to [`CString::try_new`] except that no runtime
+    /// assertion is made that `v` contains no 0 bytes, and it requires an
+    /// actual byte vector, not anything that can be converted to one with Into.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::ffi::CString;
+    ///
+    /// let raw = b"foo".to_vec();
+    /// unsafe {
+    ///     let c_string = CString::from_vec_unchecked(raw);
+    /// }
+    /// ```
+    unsafe fn try_from_vec_unchecked(v: Vec<u8>) -> Result<CString, AllocError>;
+}
+
+impl FallibleCString for CString {
+    fn try_new<T: TryAllocInto<Vec<u8>>>(t: T) -> Result<CString, TryNewError> {
         trait SpecIntoVec {
             fn into_vec(self) -> Result<Vec<u8>, AllocError>;
         }
@@ -225,92 +148,17 @@ impl CString {
             }
         }
 
-        Self::_new(SpecIntoVec::into_vec(t)?)
-    }
-
-    fn _new(bytes: Vec<u8>) -> Result<CString, TryNewError> {
+        let bytes = SpecIntoVec::into_vec(t)?;
         match memchr::memchr(0, &bytes) {
             Some(i) => Err(TryNewError::NulError(i, bytes)),
-            None => Ok(unsafe { CString::from_vec_unchecked(bytes)? }),
+            None => Ok(unsafe { CString::try_from_vec_unchecked(bytes)? }),
         }
     }
 
-    /// Creates a C-compatible string by consuming a byte vector,
-    /// without checking for interior 0 bytes.
-    ///
-    /// This method is equivalent to [`CString::try_new`] except that no runtime
-    /// assertion is made that `v` contains no 0 bytes, and it requires an
-    /// actual byte vector, not anything that can be converted to one with Into.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::ffi::CString;
-    ///
-    /// let raw = b"foo".to_vec();
-    /// unsafe {
-    ///     let c_string = CString::from_vec_unchecked(raw);
-    /// }
-    /// ```
-    pub unsafe fn from_vec_unchecked(mut v: Vec<u8>) -> Result<CString, AllocError> {
+    unsafe fn try_from_vec_unchecked(mut v: Vec<u8>) -> Result<CString, AllocError> {
         v.try_reserve_exact(1).or(Err(AllocError))?;
         v.push(0);
-        Ok(CString { inner: v.into_boxed_slice() })
-    }
-
-    /// Returns the contents of this `CString` as a slice of bytes.
-    ///
-    /// The returned slice does **not** contain the trailing nul
-    /// terminator, and it is guaranteed to not have any interior nul
-    /// bytes. If you need the nul terminator, use
-    /// [`CString::as_bytes_with_nul`] instead.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::ffi::CString;
-    ///
-    /// let c_string = CString::new("foo").expect("CString::new failed");
-    /// let bytes = c_string.as_bytes();
-    /// assert_eq!(bytes, &[b'f', b'o', b'o']);
-    /// ```
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.inner[..self.inner.len() - 1]
-    }
-
-    /// Equivalent to [`CString::as_bytes()`] except that the
-    /// returned slice includes the trailing nul terminator.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::ffi::CString;
-    ///
-    /// let c_string = CString::new("foo").expect("CString::new failed");
-    /// let bytes = c_string.as_bytes_with_nul();
-    /// assert_eq!(bytes, &[b'f', b'o', b'o', b'\0']);
-    /// ```
-    #[inline]
-    pub fn as_bytes_with_nul(&self) -> &[u8] {
-        &self.inner
-    }
-
-    /// Extracts a [`CStr`] slice containing the entire string.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::ffi::{CString, CStr};
-    ///
-    /// let c_string = CString::new(b"foo".to_vec()).expect("CString::new failed");
-    /// let cstr = c_string.as_c_str();
-    /// assert_eq!(cstr,
-    ///            CStr::from_bytes_with_nul(b"foo\0").expect("CStr::from_bytes_with_nul failed"));
-    /// ```
-    #[inline]
-    pub fn as_c_str(&self) -> &CStr {
-        &*self
+        Ok(CString::from_vec_with_nul_unchecked(v))
     }
 }
 
@@ -318,30 +166,10 @@ impl TryClone for CString {
     type Error = AllocError;
 
     fn try_clone(&self) -> Result<Self, Self::Error> {
-        Ok(Self { inner: self.inner.try_clone()? })
-    }
-}
+        let inner = self.as_bytes_with_nul().try_alloc_into()?;
 
-impl fmt::Debug for CString {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&**self, f)
-    }
-}
-
-impl Drop for CString {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe {
-            *self.inner.get_unchecked_mut(0) = 0;
-        }
-    }
-}
-
-impl ops::Deref for CString {
-    type Target = CStr;
-
-    #[inline]
-    fn deref(&self) -> &CStr {
-        unsafe { CStr::from_bytes_with_nul_unchecked(self.as_bytes_with_nul()) }
+        // SAFETY: The `Vec` used here was cloned directly from an existing `CString`,
+        // and so upholds the invariants required.
+        Ok(unsafe { CString::from_vec_with_nul_unchecked(inner) })
     }
 }
