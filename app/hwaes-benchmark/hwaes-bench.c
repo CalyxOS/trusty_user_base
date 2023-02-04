@@ -68,9 +68,8 @@
         .input_size = arg_input_size / 8,                                      \
         .output = OUTPUT_BYTES(arg_mode, arg_key_size, arg_input_size,         \
                                arg_direction),                                 \
-        .output_size = sizeof(OUTPUT_BYTES(arg_mode, arg_key_size,             \
-                                           arg_input_size, arg_direction)),    \
-        .iv = iv_##arg_mode, .iv_size = sizeof(iv_##arg_mode),                 \
+        .output_size = arg_input_size / 8, .iv = iv_##arg_mode,                \
+        .iv_size = sizeof(iv_##arg_mode),                                      \
         .tag = TAG(arg_key_size, arg_input_size), .tag_size = GCM_TAG_LEN,     \
         .mode = HWAES_##arg_mode##_MODE, .encrypt = DIRECTION_##arg_direction, \
     }
@@ -543,18 +542,12 @@ BENCH_SETUP(crypto) {
      * Setup input and expected output (text_in/text_out)
      * Setup GCM specifics (tag and aad)
      */
-    _state->args.text_out.len = CUR_PARAM.input_size;
-    _state->args.text_in.len = CUR_PARAM.input_size;
-
     if (CUR_PARAM.mode == HWAES_GCM_MODE) {
         _state->args.aad.data_ptr = aad;
         _state->args.aad.len = sizeof(aad);
 
         if (CUR_PARAM.encrypt) {
             /* clang-format off */
-            _state->args.text_out.data_ptr          = _state->shm_base;
-            _state->args.text_out.shm_hd_ptr        = &_state->shm_hd;
-
             _state->args.tag_out.len                = GCM_TAG_LEN;
             ASSERT_GE(_state->shm_len, _state->args.text_out.len + _state->args.tag_out.len);
             _state->args.tag_out.data_ptr           = _state->shm_base + _state->args.text_out.len;
@@ -583,19 +576,20 @@ static int encrypt() {
     int rc = hwaes_encrypt(_state->hwaes_session, &_state->args);
     ASSERT_EQ(HWAES_NO_ERROR, rc, "encryption failed for param: %zu\n",
               bench_get_param_idx());
+
     rc = memcmp(_state->shm_base, CUR_PARAM.output, CUR_PARAM.input_size);
     ASSERT_EQ(NO_ERROR, rc, "wrong encryption result for param: %zu\n",
               bench_get_param_idx());
+
 test_abort:
     return rc;
 }
 
 static int decrypt() {
-    int rc = HWAES_NO_ERROR;
-    rc = hwaes_decrypt(_state->hwaes_session, &_state->args);
-
+    int rc = hwaes_decrypt(_state->hwaes_session, &_state->args);
     ASSERT_EQ(HWAES_NO_ERROR, rc, "decryption failed for param: %zu\n",
               bench_get_param_idx());
+
     rc = memcmp(_state->shm_base, plaintext, CUR_PARAM.input_size);
     ASSERT_EQ(0, rc, "wrong decryption result for param: %zu\n",
               bench_get_param_idx());
