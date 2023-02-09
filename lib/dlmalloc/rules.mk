@@ -23,9 +23,6 @@ MODULE_INCLUDES += \
 MODULE_SRCS += \
 	$(LOCAL_DIR)/malloc.c \
 
-MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/trusty-log \
-
 # dlmalloc should be freestanding, but the rest of the app should not be.
 MODULE_COMPILEFLAGS += -ffreestanding
 

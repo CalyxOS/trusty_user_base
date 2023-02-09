@@ -26,6 +26,8 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libcore-rust \
 	trusty/user/base/lib/syscall-stubs \
 
+MODULE_ADD_IMPLICIT_DEPS := false
+
 # Get the path to the generated Rust file
 include trusty/user/base/lib/syscall-stubs/common-inc.mk
 
