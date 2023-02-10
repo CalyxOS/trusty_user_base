@@ -218,7 +218,7 @@ bool TrustyAcvpTool::MapShm(handle_t shm, size_t size) {
     shm_handle_ = shm;
     arg_buffer_ = (uint8_t*)mmap(NULL, arg_buffer_size_, PROT_READ | PROT_WRITE,
                                  0, shm_handle_, 0);
-    if (!arg_buffer_) {
+    if (arg_buffer_ == MAP_FAILED) {
         return false;
     }
 

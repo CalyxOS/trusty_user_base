@@ -125,7 +125,7 @@ static int handle_msg_shm_map_req(handle_t chan,
 
     shm_base = mmap(0, shm_req->len, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE,
                     0, shm_handle, 0);
-    if (!shm_base) {
+    if (shm_base == MAP_FAILED) {
         TLOGE("failed to map shared memory\n");
         rc = ERR_GENERIC;
         goto err_mmap;
