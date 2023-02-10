@@ -94,6 +94,14 @@ enum storage_cmd {
  *                              STORAGE_MSG_FLAG_POST_COMMIT was set for the
  *                              request.
  * @STORAGE_ERR_NOT_ALLOWED     operation is not allowed in the current state
+ * @STORAGE_ERR_CORRUPTED       requested operation touches a corrupted block
+ *                              and is not allowed
+ * @STORAGE_ERR_FS_REPAIRED     filesystem has been repaired in a way that may
+ *                              affect the requested operation. The requested
+ *                              operation is not allowed without acknowledging
+ *                              the repaired state. Pass
+ *                              STORAGE_MSG_FLAGS_FS_REPAIRED_ACK if a repaired
+ *                              filesystem state is acceptable.
  */
 enum storage_err {
     STORAGE_NO_ERROR = 0,
@@ -106,6 +114,8 @@ enum storage_err {
     STORAGE_ERR_TRANSACT = 7,
     STORAGE_ERR_SYNC_FAILURE = 8,
     STORAGE_ERR_NOT_ALLOWED = 9,
+    STORAGE_ERR_CORRUPTED = 10,
+    STORAGE_ERR_FS_REPAIRED = 11,
 };
 
 /**
@@ -213,6 +223,13 @@ enum storage_file_list_flag {
  *                                          @STORAGE_MSG_FLAG_TRANSACT_COMPLETE,
  *                                          and only allowed when provisiong is
  *                                          allowed by the system state service.
+ * @STORAGE_MSG_FLAG_FS_REPAIRED_ACK:       acknowledge that an error in the
+ *                                          file system may have been repaired,
+ *                                          and therefore rollback may have
+ *                                          occurred. Do not use this flag
+ *                                          unless accessing files where partial
+ *                                          rollback of file system state is
+ *                                          acceptable.
  */
 enum storage_msg_flag {
     STORAGE_MSG_FLAG_BATCH = 0x1,
@@ -221,6 +238,7 @@ enum storage_msg_flag {
     STORAGE_MSG_FLAG_TRANSACT_COMPLETE = STORAGE_MSG_FLAG_POST_COMMIT,
     STORAGE_MSG_FLAG_PRE_COMMIT_CHECKPOINT = 0x8,
     STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT = 0x10,
+    STORAGE_MSG_FLAG_FS_REPAIRED_ACK = 0x20,
 };
 
 /*
