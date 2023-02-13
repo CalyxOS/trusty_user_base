@@ -598,11 +598,10 @@ test_abort:
     return rc;
 }
 
-/* Function to benchmark, call 1 run */
-BENCH(crypto, hwaes, 1, params) {
+/* Function to benchmark, call 20 run */
+BENCH(crypto, hwaes, 20, params) {
     if (CUR_PARAM.encrypt) {
         return encrypt();
-
     } else {
         return decrypt();
     }
@@ -610,6 +609,10 @@ BENCH(crypto, hwaes, 1, params) {
 
 BENCH_RESULT(crypto, hwaes, ns_per_byte) {
     return bench_get_duration_ns() / CUR_PARAM.input_size;
+}
+
+BENCH_RESULT(crypto, hwaes, time_ns) {
+    return bench_get_duration_ns();
 }
 
 PORT_TEST(hwaes, "com.android.trusty.hwaes.bench")
