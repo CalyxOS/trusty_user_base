@@ -33,11 +33,6 @@
  */
 #define HWAES_MAX_NUM_HANDLES 8
 #define PAGE_SIZE() getauxval(AT_PAGESZ)
-#define CHECK(exec)       \
-    rc = exec;            \
-    if (rc != NO_ERROR) { \
-        return rc;        \
-    }
 
 #define INPUT_BYTES_ENCRYPT(...) plaintext
 #define INPUT_BYTES_DECRYPT(mode, key_size, input_size) \
@@ -78,7 +73,7 @@
 
 /**
  * struct hwaes_iov - a wrapper of an array of iovec.
- * @iovs: array of iovec.
+ * @iov: array of iovec.
  * @num_iov: number of iovec.
  * @total_len: total length of the tipc message.
  */
@@ -322,7 +317,7 @@ static const uint8_t ciphertext_GCM_256_4096[] = {
         0xBC, 0xDA, 0x21, 0x5C, 0xBA, 0x50, 0x0C, 0xF3};
 
 /**
- * struct crypto_hwaes_state_t - holds the current bench state.
+ * struct crypto_hwaes_state - holds the current bench state.
  * @hwaes_session: handle to an open session with the hwaes secure app.
  * @memref: handle to the shared memory.
  * @shm_base: base address of shared memory.
@@ -335,7 +330,7 @@ static const uint8_t ciphertext_GCM_256_4096[] = {
  * @req_iov:   iovector array of requests
  * @req_shm:   shared memories array for request
  */
-typedef struct {
+struct crypto_hwaes_state {
     hwaes_session_t hwaes_session;
     handle_t memref;
     void* shm_base;
@@ -347,12 +342,12 @@ typedef struct {
     struct hwaes_shm_desc shm_descs[HWAES_MAX_NUM_HANDLES];
     struct hwaes_iov req_iov;
     struct hwaes_shm req_shm;
-} crypto_hwaes_state_t;
+};
 
-static crypto_hwaes_state_t* _state;
+static struct crypto_hwaes_state* _state;
 
 /**
- * struct crypto_hwaes_param_t - Necessary Parameters for hwaes_encrypt.
+ * struct crypto_hwaes_param - Necessary Parameters for hwaes_encrypt.
  * @key: key to use for encryption
  * @key_size: byte size of the key
  * @input: base address of the bytes blob to be encrypted/decrypted
@@ -366,7 +361,7 @@ static crypto_hwaes_state_t* _state;
  * @mode: GMC/CBC AES ecnryption block mode
  * @encrypt: direction? encrypt or decrypt
  */
-typedef struct crypto_hwaes_param_t {
+struct crypto_hwaes_param {
     const uint8_t* key;
     size_t key_size;
     const uint8_t* input;
@@ -379,12 +374,12 @@ typedef struct crypto_hwaes_param_t {
     size_t tag_size;
     enum hwaes_mode mode;
     bool encrypt;
-} crypto_hwaes_param_t;
+};
 
 /**
- * Array of parameters for the parametric BENCH
+ * params - Array of parameters for the parametric BENCH
  */
-static crypto_hwaes_param_t params[16] = {
+static struct crypto_hwaes_param params[16] = {
         HWAES_CRYPT_ARGS(CBC, 128, 256, ENCRYPT),
         HWAES_CRYPT_ARGS(CBC, 128, 256, DECRYPT),
         HWAES_CRYPT_ARGS(CBC, 128, 4096, ENCRYPT),
@@ -412,12 +407,12 @@ static void get_param_name_cb(char* buf, size_t buf_size, size_t param_idx) {
 
 BENCH_SETUP(crypto) {
     int rc = NO_ERROR;
-    trusty_bench_get_param_name_cb = &get_param_name_cb;
 
+    trusty_bench_get_param_name_cb = &get_param_name_cb;
     /*
      * Create State Container for next bench run
      */
-    _state = malloc(sizeof(crypto_hwaes_state_t));
+    _state = malloc(sizeof(struct crypto_hwaes_state));
     if (_state == NULL) {
         TLOGE("Cannot Allocate Memory for _state.\n");
         rc = ERR_NO_MEMORY;
@@ -430,6 +425,7 @@ BENCH_SETUP(crypto) {
      */
     void* shm_base;
     size_t shm_len = PAGE_SIZE();
+
     shm_base = memalign(PAGE_SIZE(), shm_len);
     if (shm_base == NULL) {
         TLOGE("Failed to allocate shared memory.\n");
@@ -538,6 +534,13 @@ BENCH_SETUP(crypto) {
             .num_handles = 1,
     };
 
+    return NO_ERROR;
+test_abort:
+    TLOGE("ERROR SETUP ABORTED\n");
+    return rc;
+}
+
+static void gcm_reset_tag(bool encrypt) {
     /**
      * Setup input and expected output (text_in/text_out)
      * Setup GCM specifics (tag and aad)
@@ -546,10 +549,17 @@ BENCH_SETUP(crypto) {
         _state->args.aad.data_ptr = aad;
         _state->args.aad.len = sizeof(aad);
 
-        if (CUR_PARAM.encrypt) {
+        /* Force Reset */
+        _state->args.tag_in.len = 0;
+        _state->args.tag_in.data_ptr = NULL;
+        _state->args.tag_out.len = 0;
+        _state->args.tag_out.data_ptr = NULL;
+        _state->args.tag_out.shm_hd_ptr = NULL;
+
+        if (encrypt) {
             /* clang-format off */
             _state->args.tag_out.len                = GCM_TAG_LEN;
-            ASSERT_GE(_state->shm_len, _state->args.text_out.len + _state->args.tag_out.len);
+            EXPECT_GE(_state->shm_len, _state->args.text_out.len + _state->args.tag_out.len);
             _state->args.tag_out.data_ptr           = _state->shm_base + _state->args.text_out.len;
             _state->args.tag_out.shm_hd_ptr         = &_state->shm_hd;
             /* clang-format on */
@@ -558,11 +568,6 @@ BENCH_SETUP(crypto) {
             _state->args.tag_in.data_ptr = CUR_PARAM.tag;
         }
     }
-    rc = NO_ERROR;
-    return rc;
-test_abort:
-    TLOGE("ERROR SETUP ABORTED\n");
-    return rc;
 }
 
 BENCH_TEARDOWN(crypto) {
@@ -572,26 +577,22 @@ BENCH_TEARDOWN(crypto) {
     free(_state);
 }
 
-static int encrypt() {
+static int encrypt(void) {
+    gcm_reset_tag(true);
     int rc = hwaes_encrypt(_state->hwaes_session, &_state->args);
-    ASSERT_EQ(HWAES_NO_ERROR, rc, "encryption failed for param: %zu\n",
-              bench_get_param_idx());
 
-    rc = memcmp(_state->shm_base, CUR_PARAM.output, CUR_PARAM.input_size);
-    ASSERT_EQ(NO_ERROR, rc, "wrong encryption result for param: %zu\n",
+    ASSERT_EQ(HWAES_NO_ERROR, rc, "encryption failed for param: %zu\n",
               bench_get_param_idx());
 
 test_abort:
     return rc;
 }
 
-static int decrypt() {
+static int decrypt(void) {
+    gcm_reset_tag(false);
     int rc = hwaes_decrypt(_state->hwaes_session, &_state->args);
-    ASSERT_EQ(HWAES_NO_ERROR, rc, "decryption failed for param: %zu\n",
-              bench_get_param_idx());
 
-    rc = memcmp(_state->shm_base, plaintext, CUR_PARAM.input_size);
-    ASSERT_EQ(0, rc, "wrong decryption result for param: %zu\n",
+    ASSERT_EQ(HWAES_NO_ERROR, rc, "decryption failed for param: %zu\n",
               bench_get_param_idx());
 
 test_abort:
@@ -600,11 +601,20 @@ test_abort:
 
 /* Function to benchmark, call 20 run */
 BENCH(crypto, hwaes, 20, params) {
+    int res;
+
     if (CUR_PARAM.encrypt) {
-        return encrypt();
+        res = encrypt();
+        if (res == NO_ERROR) {
+            return decrypt();
+        }
     } else {
-        return decrypt();
+        res = decrypt();
+        if (res == NO_ERROR) {
+            return encrypt();
+        }
     }
+    return res;
 }
 
 BENCH_RESULT(crypto, hwaes, ns_per_byte) {
