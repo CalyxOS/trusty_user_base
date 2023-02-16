@@ -105,7 +105,7 @@ typedef struct scudo_info {
     handle_t chan;
 } scudo_info_t;
 
-static bool has_mte() {
+static bool has_mte(void) {
     return getauxval(AT_HWCAP2) & HWCAP2_MTE;
 }
 
