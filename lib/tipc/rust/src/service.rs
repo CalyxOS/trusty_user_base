@@ -231,6 +231,17 @@ impl<D: Dispatcher> Channel<D> {
 #[derive(Clone, Eq, PartialEq)]
 pub struct Uuid(trusty_sys::uuid);
 
+impl Uuid {
+    pub const fn new(
+        time_low: u32,
+        time_mid: u16,
+        time_hi_and_version: u16,
+        clock_seq_and_node: [u8; 8],
+    ) -> Self {
+        Uuid(trusty_sys::uuid { time_low, time_mid, time_hi_and_version, clock_seq_and_node })
+    }
+}
+
 impl fmt::Debug for Uuid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
