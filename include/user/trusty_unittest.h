@@ -23,7 +23,9 @@
         _tlog(args);                    \
     } while (0)
 
+#if !DISABLE_TRUSTY_UNITTEST_MACROS
 #include <lk/trusty_unittest.h>
+#endif
 
 #ifdef TRUSTY_USERSPACE
 #include <lib/unittest/unittest.h>

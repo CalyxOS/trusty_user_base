@@ -33,6 +33,9 @@ MODULE_COMPILEFLAGS += -DGTEST_INCLUDE_GTEST_INTERNAL_GTEST_PORT_ARCH_H_=1
 # After disabling a bunch of features, there are dead constants.
 MODULE_COMPILEFLAGS += -Wno-unused-const-variable
 
+# Disable the C unittest macros
+MODULE_EXPORT_COMPILEFLAGS += -DDISABLE_TRUSTY_UNITTEST_MACROS=1
+
 # Explicitly list the files instead of using gtest-all.cc so the build can be
 # parallelized. Note we need to build all the files because of how command line
 # flags are handled. For example, we don't support death tests, but still need
