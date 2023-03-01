@@ -51,6 +51,16 @@ MODULE_BINDGEN_FLAGS += \
 	--blocklist-function="qfcvt" \
 	--blocklist-function="qfcvt_r" \
 
+# Specifying the correct clang target results in __builtin_va_list being
+# declared as a 4 item array of u64 for aarch64 targets. This is not FFI-safe,
+# so we can't declare va_list functions for aarch64 until bindgen supports
+# mapping va_list to its Rust equivalent
+# (https://github.com/rust-lang/rust/issues/44930)
+MODULE_BINDGEN_FLAGS += \
+	--blocklist-function="v.*printf.*" \
+	--blocklist-function="v.*scanf.*" \
+	--blocklist-function="BIO_vsnprintf" \
+
 MODULE_INCLUDES += \
 	$(BSSL_SRC_DIR)/include \
 
