@@ -627,7 +627,7 @@ TEST(ipc, connect_selfie) {
         handle_t test_port = rc;
 
         /* Since we are single threaded we will always timeout
-         * for synchronous connect as can't accept.
+         * at wait_any for synchronous connect as can't accept.
          */
 
         /* with non-zero timeout  */
@@ -646,7 +646,7 @@ TEST(ipc, connect_selfie) {
         uevent_t event;
         EXPECT_EQ(ERR_TIMED_OUT, wait_any(&event, 0));
 
-        /* retry using a couple of async connections */
+        /* retry using a couple of closed async connections */
         rc = connect(path, IPC_CONNECT_ASYNC);
         EXPECT_GT(rc, 0, "selfie async");
 
@@ -661,6 +661,32 @@ TEST(ipc, connect_selfie) {
 
         EXPECT_EQ(ERR_TIMED_OUT, wait_any(&event, 0));
 
+        /* retry using accept and sync connection */
+        rc = sync_connect(path, connect_timeout);
+        EXPECT_EQ(ERR_TIMED_OUT, rc, "selfie async");
+
+        rc = sync_connect(path, 0);
+        EXPECT_EQ(ERR_TIMED_OUT, rc, "selfie async");
+
+        /* try accepting a pending connection */
+        rc = accept(test_port, &peer_uuid);
+        EXPECT_EQ(ERR_NO_MSG, rc, "accept");
+
+        rc = memcmp(&peer_uuid, &zero_uuid, sizeof(zero_uuid));
+        EXPECT_EQ(0, rc, "accept");
+
+        /* retry with a pending then closed async connection */
+        rc = connect(path, IPC_CONNECT_ASYNC);
+        EXPECT_GT(rc, 0, "selfie async");
+
+        rc = close(rc);
+        EXPECT_EQ(0, rc, "selfie async");
+
+        /* try accepting a pending connection, that was already closed */
+        rc = accept(test_port, &peer_uuid);
+        EXPECT_EQ(ERR_NO_MSG, rc, "accept async");
+
+        /* retry with a pending async connection */
         rc = connect(path, IPC_CONNECT_ASYNC);
         EXPECT_GT(rc, 0, "selfie async");
 
