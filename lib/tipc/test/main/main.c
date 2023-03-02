@@ -610,7 +610,7 @@ TEST(ipc, async_connect) {
 }
 
 TEST(ipc, connect_selfie) {
-    int rc, rc1;
+    int rc;
     uuid_t peer_uuid = UUID_INITIAL_VALUE(peer_uuid);
     uuid_t zero_uuid = UUID_INITIAL_VALUE(zero_uuid);
     char path[MAX_PORT_PATH_LEN];
@@ -626,23 +626,46 @@ TEST(ipc, connect_selfie) {
     if (rc >= 0) {
         handle_t test_port = rc;
 
-        /* Since we are single threaded and cannot accept connection
-         * we will always timeout.
+        /* Since we are single threaded we will always timeout
+         * for synchronous connect as can't accept.
          */
 
         /* with non-zero timeout  */
         rc = sync_connect(path, connect_timeout);
-        EXPECT_EQ(ERR_TIMED_OUT, rc, "selfie");
+        EXPECT_EQ(ERR_TIMED_OUT, rc, "selfie sync");
 
         /* with zero timeout */
         rc = sync_connect(path, 0);
-        EXPECT_EQ(ERR_TIMED_OUT, rc, "selfie");
+        EXPECT_EQ(ERR_TIMED_OUT, rc, "selfie sync");
 
         /* since we did not call wait on port yet we have
          * 2 connection requests pending (attached to port)
-         * teared down by peer (us).
+         * teared down by peer (us), an now removed from the
+         * port - there should be no events waiting.
          */
         uevent_t event;
+        EXPECT_EQ(ERR_TIMED_OUT, wait_any(&event, 0));
+
+        /* retry using a couple of async connections */
+        rc = connect(path, IPC_CONNECT_ASYNC);
+        EXPECT_GT(rc, 0, "selfie async");
+
+        rc = close(rc);
+        EXPECT_EQ(0, rc, "selfie async");
+
+        rc = connect(path, IPC_CONNECT_ASYNC);
+        EXPECT_GT(rc, 0, "selfie async");
+
+        rc = close(rc);
+        EXPECT_EQ(0, rc, "selfie async");
+
+        EXPECT_EQ(ERR_TIMED_OUT, wait_any(&event, 0));
+
+        rc = connect(path, IPC_CONNECT_ASYNC);
+        EXPECT_GT(rc, 0, "selfie async");
+
+        handle_t client_port = rc;
+
         unsigned int exp_event = IPC_HANDLE_POLL_READY;
 
         int rc = wait_any(&event, INFINITE_TIME);
@@ -651,27 +674,16 @@ TEST(ipc, connect_selfie) {
         EXPECT_EQ(exp_event, event.event, "wait on port");
 
         if (rc == NO_ERROR && (event.event & IPC_HANDLE_POLL_READY)) {
-            /* we have pending connection, but it is already closed */
-            rc = accept(test_port, &peer_uuid);
-            EXPECT_EQ(ERR_CHANNEL_CLOSED, rc, "accept");
+            /* close the connection */
+            rc = close(client_port);
+            EXPECT_EQ(0, rc, "selfie async");
 
-            rc1 = memcmp(&peer_uuid, &zero_uuid, sizeof(zero_uuid));
-            EXPECT_EQ(0, rc1, "accept")
-
-            /* the second one is closed too */
-            rc = accept(test_port, &peer_uuid);
-            EXPECT_EQ(ERR_CHANNEL_CLOSED, rc, "accept");
-
-            rc1 = memcmp(&peer_uuid, &zero_uuid, sizeof(zero_uuid));
-            EXPECT_EQ(0, rc1, "accept")
-
-            /* There should be no more pending connections so next
-               accept should return ERR_NO_MSG */
+            /* we had a pending connection, but it is already closed */
             rc = accept(test_port, &peer_uuid);
             EXPECT_EQ(ERR_NO_MSG, rc, "accept");
 
-            rc1 = memcmp(&peer_uuid, &zero_uuid, sizeof(zero_uuid));
-            EXPECT_EQ(0, rc1, "accept")
+            rc = memcmp(&peer_uuid, &zero_uuid, sizeof(zero_uuid));
+            EXPECT_EQ(0, rc, "accept")
         }
 
         /* add couple connections back and destroy them along with port */
