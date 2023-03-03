@@ -25,6 +25,9 @@ int smc_read_response(handle_t channel, struct smc_msg* msg) {
     int rc;
     uevent_t event;
     size_t msg_len = sizeof(struct smc_msg);
+    size_t err_len = sizeof(struct smc_err);
+    /* We must be able to tell the type of a reply based on its length */
+    STATIC_ASSERT(sizeof(struct smc_msg) != sizeof(struct smc_err));
 
     rc = wait(channel, &event, INFINITE_TIME);
     if (rc != NO_ERROR) {
@@ -32,8 +35,11 @@ int smc_read_response(handle_t channel, struct smc_msg* msg) {
         goto err;
     }
 
-    rc = tipc_recv1(channel, msg_len, msg, msg_len);
-    if (rc != (int)msg_len) {
+    rc = tipc_recv1(channel, err_len, msg, msg_len);
+    if (rc == (int)err_len) {
+        rc = ((struct smc_err*)msg)->code;
+        TLOGE("%s: smc call failed (%d).\n", __func__, rc);
+    } else if (rc != (int)msg_len) {
         TLOGD("%s: failed (%d) to read message. Expected to read %zu bytes.\n",
               __func__, rc, msg_len);
         if (rc >= 0)

@@ -22,10 +22,27 @@
 
 #define SMC_MSG_NUM_PARAMS 4
 
+/* Return value for unknown SMC (defined by ARM DEN 0028E(1.4.0) */
+#define SM_ERR_UNDEFINED_SMC -1
+
 /**
  * struct smc_msg - request/response structure for SMC
+ *
+ * Normally the response will have SMC_MSG_NUM_PARAMS entries, containing the
+ * values returned by the SMC call. If an error occurred when trying to invoke
+ * the SMC, a single uint64_t value is returned containing an ERR_ code.
+ *
  * @params: parameters of smc call
  */
 struct smc_msg {
     uint64_t params[SMC_MSG_NUM_PARAMS];
+};
+
+/**
+ * struct smg_err - response error structure for SMC
+ *
+ * @code: error code
+ */
+struct smc_err {
+    int code;
 };
