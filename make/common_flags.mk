@@ -35,12 +35,7 @@ ifeq (true,$(call TOBOOL,$(USER_LTO_ENABLED)))
 MODULE_COMPILEFLAGS += \
 	-fvisibility=hidden \
 	-flto=thin \
-
-# -fsplit-lto-unit doesn't work with coverage enabled, because we end up
-# splitting a module due to coverage instrumentation which hits a bug in LLVM.
-ifneq (true,$(call TOBOOL,$(USER_COVERAGE_ENABLED)))
-MODULE_COMPILEFLAGS += -fsplit-lto-unit
-endif
+	-fsplit-lto-unit \
 
 endif
 
