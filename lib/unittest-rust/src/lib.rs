@@ -33,7 +33,9 @@
 
 use core::cell::RefCell;
 use log::{Log, Metadata, Record};
-use tipc::{Handle, Manager, PortCfg, Serialize, Serializer, Service, TipcError, Uuid};
+use tipc::{
+    ConnectResult, Handle, Manager, MessageResult, PortCfg, Serialize, Serializer, Service, Uuid,
+};
 use trusty_log::{TrustyLogger, TrustyLoggerConfig};
 use trusty_std::alloc::Vec;
 
@@ -129,7 +131,7 @@ impl TrustyTestLogger {
 
     /// Connect a new client to this logger, disconnecting the existing client,
     /// if any.
-    fn connect(&self, handle: &Handle) -> Result<(), TipcError> {
+    fn connect(&self, handle: &Handle) -> tipc::Result<()> {
         let _ = self.client_connection.replace(Some(handle.try_clone()?));
         Ok(())
     }
@@ -190,7 +192,7 @@ impl Service for TestService {
         _port: &PortCfg,
         handle: &Handle,
         _peer: &Uuid,
-    ) -> Result<Option<()>, TipcError> {
+    ) -> tipc::Result<ConnectResult<Self::Connection>> {
         LOGGER.connect(handle)?;
 
         let mut failed_tests = 0;
@@ -227,9 +229,7 @@ impl Service for TestService {
         handle.send(&response)?;
 
         LOGGER.disconnect();
-
-        // Tell the manager we want to close the connection
-        Ok(None)
+        Ok(ConnectResult::CloseConnection)
     }
 
     fn on_message(
@@ -237,8 +237,8 @@ impl Service for TestService {
         _connection: &Self::Connection,
         _handle: &Handle,
         _msg: Self::Message,
-    ) -> Result<bool, TipcError> {
-        Ok(false)
+    ) -> tipc::Result<MessageResult> {
+        Ok(MessageResult::CloseConnection)
     }
 
     fn on_disconnect(&self, _connection: &Self::Connection) {

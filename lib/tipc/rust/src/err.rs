@@ -65,12 +65,40 @@ pub enum TipcError {
     SystemError(Error),
 }
 
+/// The result type for an `on_connect` operation.
+///
+/// If the connection is accepted, contains created connection object for this connection.
+#[derive(Clone, Copy, Debug)]
+pub enum ConnectResult<C> {
+    Accept(C),
+    CloseConnection,
+}
+
+/// The result type for an `on_message` operation.
+///
+/// Its value tells the `ServiceManager` what to do after handling the message.
+#[derive(Clone, Copy, Debug)]
+pub enum MessageResult {
+    MaintainConnection,
+    CloseConnection,
+}
+
 impl TipcError {
     pub(crate) fn from_uapi(rc: c_long) -> Self {
         let sys_err: Error = rc.into();
         match sys_err {
             Error::BadHandle => TipcError::InvalidHandle,
             e => TipcError::SystemError(e),
+        }
+    }
+}
+
+impl<T> ConnectResult<T> {
+    /// Maps a `ConnectResult<T>` to a `ConnectResult<U>` by applying a function to the contained connection.
+    pub fn map<U, F: FnOnce(T) -> U>(self, f: F) -> ConnectResult<U> {
+        match self {
+            Self::Accept(c) => ConnectResult::Accept(f(c)),
+            Self::CloseConnection => ConnectResult::CloseConnection,
         }
     }
 }

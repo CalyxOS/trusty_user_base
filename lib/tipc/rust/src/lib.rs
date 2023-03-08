@@ -38,7 +38,7 @@ mod handle;
 mod serialization;
 mod service;
 
-pub use err::{Result, TipcError};
+pub use err::{ConnectResult, MessageResult, Result, TipcError};
 pub use handle::{Handle, MMapFlags, UnsafeSharedBuf};
 pub use serialization::{Deserialize, Serialize, Serializer};
 pub use service::{Dispatcher, Manager, PortCfg, Service, Uuid};

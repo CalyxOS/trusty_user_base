@@ -25,7 +25,7 @@ use trusty_sys::c_void;
 
 use crate::handle::MAX_MSG_HANDLES;
 use crate::sys;
-use crate::{Deserialize, Handle, Result, TipcError};
+use crate::{ConnectResult, Deserialize, Handle, MessageResult, Result, TipcError};
 use handle_set::HandleSet;
 
 mod handle_set;
@@ -47,8 +47,8 @@ mod handle_set;
 /// #         _port: &PortCfg,
 /// #         _handle: &Handle,
 /// #         _peer: &Uuid,
-/// #     ) -> Result<Option<Self::Connection>> {
-/// #         Ok(Some(()))
+/// #     ) -> Result<ConnectResult<Self::Connection>> {
+/// #         Ok(ConnectResult::Accept(()))
 /// #     }
 /// #
 /// #     fn on_message(
@@ -56,8 +56,8 @@ mod handle_set;
 /// #         _connection: &Self::Connection,
 /// #         _handle: &Handle,
 /// #         _msg: Self::Message,
-/// #     ) -> Result<bool> {
-/// #         Ok(true)
+/// #     ) -> Result<MessageResult> {
+/// #         Ok(MessageResult::MaintainConnection)
 /// #     }
 /// # }
 ///
@@ -274,28 +274,28 @@ pub trait Service {
 
     /// Called when a client connects
     ///
-    /// Returns either `Ok(Some(Connection))` if the connection should be
-    /// accepted or `Ok(None)` if the connection should be closed.
+    /// Returns either `Ok(Accept(Connection))` if the connection should be
+    /// accepted or `Ok(CloseConnection)` if the connection should be closed.
     fn on_connect(
         &self,
         port: &PortCfg,
         handle: &Handle,
         peer: &Uuid,
-    ) -> Result<Option<Self::Connection>>;
+    ) -> Result<ConnectResult<Self::Connection>>;
 
     /// Called when the service receives a message.
     ///
     /// The service manager handles deserializing the message, which is then
     /// passed to this callback.
     ///
-    /// Should return `Ok(true)` if the connection should be kept open. The
-    /// connection will be closed if `Ok(false)` or `Err(_)` is returned.
+    /// Should return `Ok(MaintainConnection)` if the connection should be kept open. The
+    /// connection will be closed if `Ok(CloseConnection)` or `Err(_)` is returned.
     fn on_message(
         &self,
         connection: &Self::Connection,
         handle: &Handle,
         msg: Self::Message,
-    ) -> Result<bool>;
+    ) -> Result<MessageResult>;
 
     /// Called when the client closes a connection.
     fn on_disconnect(&self, _connection: &Self::Connection) {}
@@ -308,29 +308,29 @@ pub trait Dispatcher {
 
     /// Called when a client connects
     ///
-    /// Returns either `Ok(Some(Connection))` if the connection should be
-    /// accepted or `Ok(None)` if the connection should be closed.
+    /// Returns either `Ok(Accept(Connection))` if the connection should be
+    /// accepted or `Ok(CloseConnection)` if the connection should be closed.
     fn on_connect(
         &self,
         port: &PortCfg,
         handle: &Handle,
         peer: &Uuid,
-    ) -> Result<Option<Self::Connection>>;
+    ) -> Result<ConnectResult<Self::Connection>>;
 
     /// Called when the service receives a message.
     ///
     /// The service manager handles deserializing the message, which is then
     /// passed to this callback.
     ///
-    /// Should return `Ok(true)` if the connection should be kept open. The
-    /// connection will be closed if `Ok(false)` or `Err(_)` is returned.
+    /// Should return `Ok(MaintainConnection)` if the connection should be kept open. The
+    /// connection will be closed if `Ok(CloseConnection)` or `Err(_)` is returned.
     fn on_message(
         &self,
         connection: &Self::Connection,
         handle: &Handle,
         msg: &[u8],
         msg_handles: &mut [Option<Handle>],
-    ) -> Result<bool>;
+    ) -> Result<MessageResult>;
 
     /// Called when the client closes a connection.
     fn on_disconnect(&self, _connection: &Self::Connection) {}
@@ -364,7 +364,7 @@ impl<S: Service> Dispatcher for SingleDispatcher<S> {
         port: &PortCfg,
         handle: &Handle,
         peer: &Uuid,
-    ) -> Result<Option<Self::Connection>> {
+    ) -> Result<ConnectResult<Self::Connection>> {
         self.service.on_connect(port, handle, peer)
     }
 
@@ -374,7 +374,7 @@ impl<S: Service> Dispatcher for SingleDispatcher<S> {
         handle: &Handle,
         msg: &[u8],
         msg_handles: &mut [Option<Handle>],
-    ) -> Result<bool> {
+    ) -> Result<MessageResult> {
         let msg = S::Message::deserialize(msg, msg_handles).map_err(|e| {
             error!("Could not parse message: {:?}", e);
             TipcError::InvalidData
@@ -500,14 +500,13 @@ macro_rules! service_dispatcher {
                 port: &PortCfg,
                 handle: &Handle,
                 peer: &Uuid,
-            ) -> $crate::Result<Option<Self::Connection>> {
+            ) -> $crate::Result<$crate::ConnectResult<Self::Connection>> {
                 let port_idx = self.ports.iter().position(|cfg| cfg == port)
                                                 .ok_or(TipcError::InvalidPort)?;
 
                 match &self.services[port_idx] {
                     $(ServiceKind::$service(s) => {
-                        $crate::Service::on_connect(&**s, port, handle, peer)
-                            .map(|c| c.map(|c| (port_idx, ConnectionKind::$service(c))))
+                        $crate::Service::on_connect(&**s, port, handle, peer).map(|c| c.map(|c| (port_idx, ConnectionKind::$service(c))))
                     })+
                 }
             }
@@ -518,7 +517,7 @@ macro_rules! service_dispatcher {
                 handle: &Handle,
                 msg: &[u8],
                 msg_handles: &mut [Option<Handle>],
-            ) -> $crate::Result<bool> {
+            ) -> $crate::Result<$crate::MessageResult> {
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
                         let msg = match <$service as $crate::Service>::Message::deserialize(msg, msg_handles) {
@@ -528,7 +527,7 @@ macro_rules! service_dispatcher {
                             // then close the connection.
                             Err(e) => {
                                 eprintln!("Could not parse message: {:?}", e);
-                                return Ok(false);
+                                return Ok(MessageResult::CloseConnection);
                             }
                         };
 
@@ -611,8 +610,8 @@ impl<
     ///         _port: &PortCfg,
     ///         _handle: &Handle,
     ///         _peer: &Uuid,
-    ///     ) -> Result<Option<Self::Connection>> {
-    ///         Ok(Some(()))
+    ///     ) -> Result<ConnectResult<Self::Connection>> {
+    ///         Ok(ConnectResult::Accept(()))
     ///     }
     ///
     ///     fn on_message(
@@ -620,8 +619,8 @@ impl<
     ///         _connection: &Self::Connection,
     ///         _handle: &Handle,
     ///         _msg: Self::Message,
-    ///     ) -> Result<bool> {
-    ///         Ok(true)
+    ///     ) -> Result<MessageResult> {
+    ///         Ok(MessageResult::MaintainConnection)
     ///     }
     /// }
     ///
@@ -773,8 +772,8 @@ impl<
             }
             ChannelTy::Connection(data) if event.event & (sys::IPC_HANDLE_POLL_MSG as u32) != 0 => {
                 match self.handle_message(&channel.handle, &data) {
-                    Ok(true) => Ok(()),
-                    Ok(false) => {
+                    Ok(MessageResult::MaintainConnection) => Ok(()),
+                    Ok(MessageResult::CloseConnection) => {
                         self.handle_set.close(channel);
                         Ok(())
                     }
@@ -826,7 +825,7 @@ impl<
         // TODO: Implement access control
 
         let connection_data = self.dispatcher.on_connect(&cfg, &connection_handle, &peer)?;
-        if let Some(data) = connection_data {
+        if let ConnectResult::Accept(data) = connection_data {
             let connection_channel = Channel::try_new_connection(connection_handle, data)?;
             self.handle_set.add_connection(connection_channel)?;
         }
@@ -834,7 +833,7 @@ impl<
         Ok(())
     }
 
-    fn handle_message(&mut self, handle: &Handle, data: &D::Connection) -> Result<bool> {
+    fn handle_message(&mut self, handle: &Handle, data: &D::Connection) -> Result<MessageResult> {
         let mut handles: [Option<Handle>; MAX_MSG_HANDLES] = Default::default();
         let (byte_count, handle_count) =
             handle.recv_vectored(&mut [self.buffer.as_mut()], &mut handles)?;
@@ -855,7 +854,10 @@ impl<
 mod test {
     use super::{PortCfg, Service};
     use crate::handle::test::{first_free_handle_index, MAX_USER_HANDLES};
-    use crate::{Deserialize, Handle, Manager, Result, Serialize, Serializer, TipcError, Uuid};
+    use crate::{
+        ConnectResult, Deserialize, Handle, Manager, MessageResult, Result, Serialize, Serializer,
+        TipcError, Uuid,
+    };
     use test::{expect, expect_eq};
     use trusty_std::alloc::FallibleVec;
     use trusty_std::ffi::{CString, FallibleCString};
@@ -884,8 +886,8 @@ mod test {
             _port: &PortCfg,
             _handle: &Handle,
             _peer: &Uuid,
-        ) -> Result<Option<Self::Connection>> {
-            Ok(Some(()))
+        ) -> Result<ConnectResult<Self::Connection>> {
+            Ok(ConnectResult::Accept(()))
         }
 
         fn on_message(
@@ -893,8 +895,8 @@ mod test {
             _connection: &Self::Connection,
             _handle: &Handle,
             _msg: Self::Message,
-        ) -> Result<bool> {
-            Ok(true)
+        ) -> Result<MessageResult> {
+            Ok(MessageResult::MaintainConnection)
         }
     }
 
@@ -1055,8 +1057,8 @@ mod test {
             _port: &PortCfg,
             _handle: &Handle,
             _peer: &Uuid,
-        ) -> Result<Option<Self::Connection>> {
-            Ok(Some(()))
+        ) -> Result<ConnectResult<Self::Connection>> {
+            Ok(ConnectResult::Accept(()))
         }
 
         fn on_message(
@@ -1064,9 +1066,9 @@ mod test {
             _connection: &Self::Connection,
             handle: &Handle,
             _msg: Self::Message,
-        ) -> Result<bool> {
+        ) -> Result<MessageResult> {
             handle.send(&1i32)?;
-            Ok(true)
+            Ok(MessageResult::MaintainConnection)
         }
     }
 
@@ -1081,8 +1083,8 @@ mod test {
             _port: &PortCfg,
             _handle: &Handle,
             _peer: &Uuid,
-        ) -> Result<Option<Self::Connection>> {
-            Ok(Some(()))
+        ) -> Result<ConnectResult<Self::Connection>> {
+            Ok(ConnectResult::Accept(()))
         }
 
         fn on_message(
@@ -1090,9 +1092,9 @@ mod test {
             _connection: &Self::Connection,
             handle: &Handle,
             _msg: Self::Message,
-        ) -> Result<bool> {
+        ) -> Result<MessageResult> {
             handle.send(&2i32)?;
-            Ok(true)
+            Ok(MessageResult::MaintainConnection)
         }
     }
 
@@ -1142,8 +1144,8 @@ mod multiservice_with_lifetimes_tests {
             _port: &PortCfg,
             _handle: &Handle,
             _peer: &Uuid,
-        ) -> Result<Option<Self::Connection>> {
-            Ok(Some(()))
+        ) -> Result<ConnectResult<Self::Connection>> {
+            Ok(ConnectResult::Accept(()))
         }
 
         fn on_message(
@@ -1151,9 +1153,9 @@ mod multiservice_with_lifetimes_tests {
             _connection: &Self::Connection,
             handle: &Handle,
             _msg: Self::Message,
-        ) -> Result<bool> {
+        ) -> Result<MessageResult> {
             handle.send(&2i32)?;
-            Ok(true)
+            Ok(MessageResult::MaintainConnection)
         }
     }
 
@@ -1170,8 +1172,8 @@ mod multiservice_with_lifetimes_tests {
             _port: &PortCfg,
             _handle: &Handle,
             _peer: &Uuid,
-        ) -> Result<Option<Self::Connection>> {
-            Ok(Some(()))
+        ) -> Result<ConnectResult<Self::Connection>> {
+            Ok(ConnectResult::Accept(()))
         }
 
         fn on_message(
@@ -1179,9 +1181,9 @@ mod multiservice_with_lifetimes_tests {
             _connection: &Self::Connection,
             handle: &Handle,
             _msg: Self::Message,
-        ) -> Result<bool> {
+        ) -> Result<MessageResult> {
             handle.send(&2i32)?;
-            Ok(true)
+            Ok(MessageResult::MaintainConnection)
         }
     }
 
