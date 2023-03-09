@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+include frameworks/native/libs/binder/trusty/usertests-inc.mk
 include trusty/user/app/cast-auth/usertests-inc.mk
 include trusty/user/app/keymaster/usertests-inc.mk
 include trusty/user/app/keymint/usertests-inc.mk

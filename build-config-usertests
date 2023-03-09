@@ -15,6 +15,7 @@
 # This file lists userspace tests
 
 [
+    include("frameworks/native/libs/binder/trusty/build-config-usertests"),
     include("trusty/user/app/cast-auth/build-config-usertests"),
     include("trusty/user/app/keymaster/build-config-usertests"),
     include("trusty/user/app/keymint/build-config-usertests"),
