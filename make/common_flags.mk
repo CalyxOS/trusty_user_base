@@ -68,6 +68,15 @@ endif # MODULE_CFI_ENABLED
 
 endif # !MODULE_DISABLE_LTO
 
+# Branch Target Identification
+ifeq (true,$(call TOBOOL,$(ARCH_$(ARCH)_SUPPORTS_BTI)))
+ifeq (false,$(call TOBOOL,$(MODULE_DISABLE_BTI)))
+MODULE_COMPILEFLAGS += -mbranch-protection=bti \
+                       -DBTI_ENABLED
+MODULE_RUSTFLAGS += -Z branch-protection=bti
+endif
+endif
+
 # Stack protector
 ifneq (true,$(call TOBOOL,$(MODULE_DISABLE_STACK_PROTECTOR)))
 ifeq (true,$(call TOBOOL,$(USER_STACK_PROTECTOR)))
@@ -142,6 +151,7 @@ MODULE_DEFINES += TRUSTY_USERSPACE=1
 endif # TRUSTY_USERSPACE
 
 MODULE_CFI_ENABLED :=
+MODULE_DISABLE_BTI :=
 MODULE_DISABLE_CFI :=
 MODULE_DISABLE_COVERAGE :=
 MODULE_DISABLE_LTO :=
