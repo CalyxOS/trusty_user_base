@@ -14,6 +14,12 @@
  * limitations under the License.
  */
 
+#ifdef ARCH_ARM64
+#include <lk/asm.h>
+
+SECTION_GNU_NOTE_PROPERTY_AARCH64_FEATURES(GNU_NOTE_FEATURE_AARCH64_BTI)
+#endif
+
 
 .section .data
 

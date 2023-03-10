@@ -37,11 +37,15 @@
  * purposes, we report the error, restore the registers, then return to the
  * caller of __hwasan_check_*, and just continue execution.
  */
+
+#include <arch/asm.h>
+
 .section .text
 .file "hwasan_tag_mismatch.S"
 .global __hwasan_tag_mismatch;
 .type __hwasan_tag_mismatch,STT_FUNC;
 __hwasan_tag_mismatch:
+	bti c
 	str x28,      [sp, #224]
 	stp x26, x27, [sp, #208]
 	stp x24, x25, [sp, #192]
@@ -89,3 +93,5 @@ __hwasan_tag_mismatch:
 	ldp x29, x30, [sp, #232]
 	add sp, sp, #256
 	ret
+
+SECTION_GNU_NOTE_PROPERTY_AARCH64_FEATURES(GNU_NOTE_FEATURE_AARCH64_BTI)
