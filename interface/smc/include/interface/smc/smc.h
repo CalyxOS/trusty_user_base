@@ -26,12 +26,7 @@
 #define SM_ERR_UNDEFINED_SMC -1
 
 /**
- * struct smc_msg - request/response structure for SMC
- *
- * Normally the response will have SMC_MSG_NUM_PARAMS entries, containing the
- * values returned by the SMC call. If an error occurred when trying to invoke
- * the SMC, a single uint64_t value is returned containing an ERR_ code.
- *
+ * struct smc_msg - request structure for SMC
  * @params: parameters of smc call
  */
 struct smc_msg {
@@ -39,10 +34,11 @@ struct smc_msg {
 };
 
 /**
- * struct smg_err - response error structure for SMC
- *
- * @code: error code
+ * struct smc_response - response structure for SMC
+ * @msg: values returned by smcall iff call was allowed by smc access policy.
+ * @rc: status code. If non-zero, @msg may contain additional diagnostic info.
  */
-struct smc_err {
-    int code;
+struct __attribute__((__packed__)) smc_response {
+    struct smc_msg msg;
+    int32_t rc;
 };
