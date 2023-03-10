@@ -286,7 +286,18 @@ static int secure_dpu_on_connect(const struct tipc_port* port,
                                  void** ctx_p) {
     struct secure_dpu_ctx* priv = (struct secure_dpu_ctx*)port->priv;
 
-    assert(priv->chan);
+    /* WORKAROUND(b/267744475):
+     * The secure display is a limited resource. This means only one client
+     * can have an open session at a time.
+     * Ideally the port's max_chan_cnt = 1 so we don't have to handle this
+     * case, but a stuck port or remote process could 'jam' the port / TA.
+     * So we accept the newest connection and drop anything previous.
+     */
+    if (*(priv->chan) != INVALID_IPC_HANDLE) {
+        TLOGE("New connection while connected, closing old\n");
+        close(*(priv->chan));
+    }
+
     /* Update the handle to user provided pointer */
     *(priv->chan) = chan;
 
@@ -315,9 +326,6 @@ int add_secure_dpu_service(struct tipc_hset* hset, handle_t* chan) {
             .on_message = secure_dpu_on_message,
     };
 
-    /*
-     * The secure display is a limited resource. This means only one client
-     * can have an open session at a time.
-     */
-    return tipc_add_service(hset, &port, 1, 1, &ops);
+    return tipc_add_service(hset, &port, 1 /* num_ports */,
+                            2 /* max_chan_cnt */, &ops);
 }
