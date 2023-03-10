@@ -260,7 +260,12 @@ impl Handle {
     }
 
     /// Get the raw file descriptor of this handle.
-    pub(crate) fn as_raw_fd(&self) -> i32 {
+    ///
+    /// Returns the raw integer OS file descriptor(fd) associated with this handle. This is
+    /// primarily useful for interacting with FFI interfaces. The programmer must ensure that any
+    /// interactions with the raw fd do not cause it to close or otherwise become invalid. This
+    /// handle must outlive all uses of the returned fd. Otherwise, the behavior is undefined.
+    pub fn as_raw_fd(&self) -> i32 {
         self.0
     }
 
