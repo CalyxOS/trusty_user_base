@@ -34,4 +34,7 @@ MODULE_LIBRARY_DEPS += \
 MODULE_INCLUDES += \
         $(LOCAL_DIR)/../include \
 
+# Test CFI independently of BTI
+MODULE_DISABLE_BTI = true
+
 include make/trusted_app.mk
