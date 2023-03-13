@@ -17,7 +17,8 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_PROTOC_PLUGIN := trusty/host/common/scripts/stats_log/protoc_metrics_atoms_api_gen.py
+MODULE_PROTOC_PLUGIN := \
+	trusty/host/common/scripts/metrics_atoms_protoc_plugin/metrics_atoms_protoc_plugin.py
 
 MODULE_PROTO_PACKAGE := android/frameworks/stats
 
