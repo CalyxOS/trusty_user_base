@@ -32,11 +32,16 @@
  *
  * Note that the type of the event is not known to the client ahead of time.
  *
- * In the future, if we need to have Android "pull" metrics data from Trusty,
- * that can be done by introducing a separate port.
+ * This interface used to be exposed on the METRICS_PORT for Android to listen
+ * to the Trusty metrics event.
+ * However the METRICS_PORT is deprecated and replaced by ISTATS_SETTER_PORT
+ * from `trusty/user/base/interface/stats_setter` allowing asynchronous callback
+ * to a Normal-World IStats.aidl service (also see IStatsSetter.aidl under
+ * `frameworks/hardware/interfaces/stats/aidl/aidl_api/android.frameworks.stats.trusty`).
  *
- * This interface is shared between Android and Trusty. There is a copy in each
- * repository. They must be kept in sync.
+ * This Metrics interface still is used on the METRICS_CONSUMER_PORT, allowing
+ * the Trusty kernel errors to be reported to the metrics user-space service,
+ * then relayed via the IStats callback.
  */
 
 #define METRICS_PORT "com.android.trusty.metrics"
