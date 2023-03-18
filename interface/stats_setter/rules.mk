@@ -16,16 +16,13 @@
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
 AIDL_DIR := \
-	frameworks/hardware/interfaces/stats/aidl
+	system/core/trusty/stats/aidl
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_AIDL_FLAGS := \
-	--stability=vintf \
-
 MODULE_AIDL_INCLUDES := -I frameworks/hardware/interfaces/stats/aidl
 
-MODULE_AIDL_PACKAGE := android/frameworks/stats/trusty
+MODULE_AIDL_PACKAGE := android/trusty/stats/nw/setter
 
 MODULE_AIDLS := \
 	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/IStatsSetter.aidl \

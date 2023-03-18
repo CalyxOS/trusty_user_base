@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-package android.trusty.stats;
+package android.trusty.stats.tz;
 
 import android.frameworks.stats.VendorAtom;
 
@@ -22,7 +22,6 @@ import android.frameworks.stats.VendorAtom;
  * IStats is an interface that allows clients to report specific hardware
  * reliability events, which are translated into calls for the client to accept.
  */
-@VintfStability
 interface IStats {
     /**
      * Report a custom vendor atom.

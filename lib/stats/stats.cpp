@@ -19,7 +19,7 @@
 
 #include <android/frameworks/stats/VendorAtom.h>
 #include <android/frameworks/stats/VendorAtomValue.h>
-#include <android/trusty/stats/IStats.h>
+#include <android/trusty/stats/tz/IStats.h>
 #include <binder/RpcSession.h>
 #include <binder/RpcTransportTipcTrusty.h>
 #include <lib/shared/binder_discover/binder_discover.h>
@@ -33,7 +33,7 @@
 
 using android::frameworks::stats::VendorAtom;
 using android::frameworks::stats::VendorAtomValue;
-using android::trusty::stats::IStats;
+using android::trusty::stats::tz::IStats;
 
 #define PARCEL_SET(value_type, value_args...)                     \
     do {                                                          \

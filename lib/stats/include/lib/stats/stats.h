@@ -23,7 +23,7 @@
 
 #ifdef __cplusplus
 #include <android/frameworks/stats/VendorAtom.h>
-#include <android/trusty/stats/IStats.h>
+#include <android/trusty/stats/tz/IStats.h>
 #endif
 
 __BEGIN_CDECLS
@@ -85,6 +85,6 @@ __END_CDECLS
 #ifdef __cplusplus
 android::frameworks::stats::VendorAtom* stats_vendor_atom_to_VendorAtom(
         struct stats_vendor_atom* self);
-android::sp<android::trusty::stats::IStats>& stats_istats_to_IStats(
+android::sp<android::trusty::stats::tz::IStats>& stats_istats_to_IStats(
         struct stats_istats* self);
 #endif

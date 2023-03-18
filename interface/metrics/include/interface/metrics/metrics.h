@@ -37,7 +37,7 @@
  * However the METRICS_PORT is deprecated and replaced by ISTATS_SETTER_PORT
  * from `trusty/user/base/interface/stats_setter` allowing asynchronous callback
  * to a Normal-World IStats.aidl service (also see IStatsSetter.aidl under
- * `frameworks/hardware/interfaces/stats/aidl/aidl_api/android.frameworks.stats.trusty`).
+ * `system/core/trusty/stats/aidl/android/trusty/stats/setter`).
  *
  * This Metrics interface still is used on the METRICS_CONSUMER_PORT, allowing
  * the Trusty kernel errors to be reported to the metrics user-space service,
