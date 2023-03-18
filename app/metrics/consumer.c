@@ -15,75 +15,83 @@
  */
 
 #define TLOG_TAG "metrics-consumer"
+#include "consumer.h"
 
-#include "metrics.h"
-
+#include <android/frameworks/stats/atoms.h>
+#include <android/trusty/stats/ports.h>
 #include <interface/metrics/consumer.h>
 #include <lib/tipc/tipc.h>
 #include <lib/tipc/tipc_srv.h>
 #include <metrics_consts.h>
+#include <stddef.h>
 #include <string.h>
 #include <trusty_log.h>
 #include <uapi/err.h>
 
-static int broadcast_event(handle_t chan,
-                           uint32_t cmd,
-                           uint8_t* msg,
-                           size_t msg_len) {
+const char TRUSTY_DOMAIN[] = "google.android.trusty";
+
+static enum metrics_error broadcast_event(uint32_t cmd,
+                                          uint8_t* msg,
+                                          size_t msg_len) {
+    size_t offset = sizeof(struct metrics_req);
+    enum metrics_error status = METRICS_NO_ERROR;
     int rc;
-    uevent_t evt;
-    struct metrics_resp resp;
+    switch (cmd) {
+    case METRICS_CMD_REPORT_CRASH: {
+        if (msg_len < offset + sizeof(struct metrics_report_crash_req)) {
+            TLOGE("metrics message too small: msg_len(%zu)\n", msg_len);
+            break;
+        }
+        struct metrics_report_crash_req* crash_args =
+                (struct metrics_report_crash_req*)(msg + offset);
+        offset += sizeof(struct metrics_report_crash_req);
 
-    if (chan == INVALID_IPC_HANDLE) {
-        TLOGI("no metrics client connected\n");
-        return NO_ERROR;
-    }
+        if (msg_len < offset + crash_args->app_id_len) {
+            TLOGE("metrics_report_crash message too small: msg_len(%zu)\n",
+                  msg_len);
+            break;
+        }
 
-    rc = tipc_send1(chan, msg, msg_len);
-    if (rc < 0) {
-        TLOGE("failed (%d) to send metrics event\n", rc);
-        return rc;
-    }
-
-    if (rc != (int)msg_len) {
-        TLOGE("unexpected number of bytes sent: %d\n", rc);
-        return ERR_BAD_LEN;
-    }
-
-    rc = wait(chan, &evt, INFINITE_TIME);
-    if (rc != NO_ERROR) {
-        TLOGE("failed (%d) to wait for response\n", rc);
-        return rc;
-    }
-
-    rc = tipc_recv1(chan, sizeof(resp), &resp, sizeof(resp));
-    if (rc < 0) {
-        TLOGE("failed (%d) to receive metrics event response\n", rc);
-        return rc;
-    }
-
-    if (rc != sizeof(resp)) {
-        TLOGE("unexpected number of bytes received: %d\n", rc);
-        return ERR_BAD_LEN;
-    }
-
-    if (resp.cmd != (cmd | METRICS_CMD_RESP_BIT)) {
-        TLOGE("unknown command received: %d\n", rc);
-        return ERR_CMD_UNKNOWN;
-    }
-
-    switch (resp.status) {
-    case METRICS_NO_ERROR:
+        char* app_id_ptr = (char*)(msg + offset);
+        TLOGD("metrics_report_crash: app_id=\"%.*s\" crash_reason=0x%08x\n",
+              crash_args->app_id_len, app_id_ptr, crash_args->crash_reason);
+        struct stats_trusty_app_crashed atom = {
+                .reverse_domain_name = TRUSTY_DOMAIN,
+                .reverse_domain_name_len = sizeof(TRUSTY_DOMAIN) - 1,
+                .app_id = app_id_ptr,
+                .app_id_len = crash_args->app_id_len,
+                .crash_reason = (int32_t)crash_args->crash_reason,
+        };
+        if ((rc = stats_trusty_app_crashed_report(
+                     METRICS_ISTATS_PORT, sizeof(METRICS_ISTATS_PORT), atom)) !=
+            NO_ERROR) {
+            TLOGE("stats_trusty_app_crashed_report failed (%d)\n", rc);
+        }
         break;
-    case METRICS_ERR_UNKNOWN_CMD:
-        TLOGE("client doesn't recognize the command: %d\n", cmd);
+    }
+
+    case METRICS_CMD_REPORT_EVENT_DROP: {
+        struct stats_trusty_error atom = {
+                .reverse_domain_name = TRUSTY_DOMAIN,
+                .reverse_domain_name_len = sizeof(TRUSTY_DOMAIN) - 1,
+                .error_code = TRUSTY_ERROR_KERNEL_EVENT_DROP,
+                .app_id = "",
+                .app_id_len = 0L,
+                .client_app_id = "",
+                .client_app_id_len = 0L,
+        };
+        if ((rc = stats_trusty_error_report(
+                     METRICS_ISTATS_PORT, sizeof(METRICS_ISTATS_PORT), atom)) !=
+            NO_ERROR) {
+            TLOGE("stats_trusty_error_report failed (%d)\n", rc);
+        }
         break;
+    }
     default:
-        TLOGE("unknown return code: %d\n", resp.status);
-        return ERR_CMD_UNKNOWN;
+        status = METRICS_ERR_UNKNOWN_CMD;
+        break;
     }
-
-    return NO_ERROR;
+    return status;
 }
 
 static int on_message(const struct tipc_port* port, handle_t chan, void* ctx) {
@@ -93,7 +101,6 @@ static int on_message(const struct tipc_port* port, handle_t chan, void* ctx) {
     uint32_t cmd;
     uint8_t msg[METRICS_MAX_MSG_SIZE];
     size_t msg_len;
-    struct srv_state* state = get_srv_state(port);
 
     memset(msg, 0, sizeof(msg));
     rc = tipc_recv1(chan, sizeof(req), msg, sizeof(msg));
@@ -103,21 +110,15 @@ static int on_message(const struct tipc_port* port, handle_t chan, void* ctx) {
     }
     msg_len = rc;
     cmd = ((struct metrics_req*)msg)->cmd;
-
-    rc = broadcast_event(state->client_chan, cmd, msg, msg_len);
-    if (rc != NO_ERROR) {
-        TLOGE("failed (%d) to broadcast metrics event to NS\n", rc);
-    }
-
     resp.cmd = (cmd | METRICS_CMD_RESP_BIT);
-    resp.status = METRICS_NO_ERROR;
+    resp.status = broadcast_event(cmd, msg, msg_len);
     rc = tipc_send1(chan, &resp, sizeof(resp));
     if (rc < 0) {
         TLOGE("failed (%d) to send metrics event response\n", rc);
         return rc;
     }
 
-    if (rc != sizeof(resp)) {
+    if ((size_t)rc != sizeof(resp)) {
         TLOGE("unexpected number of bytes sent: %d\n", rc);
         return ERR_BAD_LEN;
     }
@@ -125,7 +126,7 @@ static int on_message(const struct tipc_port* port, handle_t chan, void* ctx) {
     return NO_ERROR;
 }
 
-int add_metrics_consumer_service(struct srv_state* state) {
+int add_metrics_consumer_service(struct tipc_hset* hset) {
     static const struct uuid kernel_uuid = UUID_KERNEL_VALUE;
     static const struct uuid* allowed_uuids[] = {
             &kernel_uuid,
@@ -145,7 +146,5 @@ int add_metrics_consumer_service(struct srv_state* state) {
             .on_message = on_message,
     };
 
-    set_srv_state(&port, state);
-
-    return tipc_add_service(state->hset, &port, 1, 0, &ops);
+    return tipc_add_service(hset, &port, 1, 0, &ops);
 }
