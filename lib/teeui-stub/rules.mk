@@ -20,9 +20,6 @@ MODULE := $(LOCAL_DIR)
 LIBTEEUI_ROOT := $(TRUSTY_TOP)/system/teeui/libteeui
 FREETYPE_ROOT := $(TRUSTY_TOP)/external/freetype
 
-# Use the default layouts unless we have a vendor specific layout defined.
-CONFIRMATIONUI_LAYOUTS ?= $(LOCAL_DIR)/layouts
-
 MODULE_SRCS += \
 	$(LIBTEEUI_ROOT)/prebuilt/localization/ConfirmationUITranslations.cpp \
 	$(LIBTEEUI_ROOT)/src/cbor.cpp \
@@ -32,7 +29,6 @@ MODULE_SRCS += \
 	$(LIBTEEUI_ROOT)/src/label.cpp \
 	$(LIBTEEUI_ROOT)/src/msg_formatting.cpp \
 	$(LIBTEEUI_ROOT)/src/utils.cpp \
-
 
 MODULE_EXPORT_INCLUDES += \
 	$(LIBTEEUI_ROOT)/include \
