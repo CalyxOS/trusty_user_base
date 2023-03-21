@@ -135,7 +135,7 @@ int wait_infinite_logged(storage_session_t session,
         rc = wait(session, ev, wait_time);
         if (rc == ERR_TIMED_OUT) {
             TLOGE_APP_NAME(
-                    "Timed out after %ld milliseconds, retrying; "
+                    "Timed out after %ldx milliseconds, retrying; "
                     "called by %s\n",
                     wait_time, caller);
             wait_time = wait_time * 2;
@@ -147,7 +147,7 @@ int wait_infinite_logged(storage_session_t session,
 
     if (wait_time != WAIT_INFINITE_LOG_THRESHOLD_MSEC) {
         TLOGE_APP_NAME(
-                "Finally succeeded (last wait: < %ld milliseconds); "
+                "Finally succeeded (last wait: < %ldx milliseconds); "
                 "called by %s\n",
                 wait_time, caller);
     }
