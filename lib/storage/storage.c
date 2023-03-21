@@ -65,6 +65,10 @@ static inline uint32_t _to_msg_flags(uint32_t opflags) {
         msg_flags |= STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT;
     }
 
+    if (opflags & STORAGE_OP_FS_REPAIRED_ACK) {
+        msg_flags |= STORAGE_MSG_FLAG_FS_REPAIRED_ACK;
+    }
+
     return msg_flags;
 }
 

@@ -42,9 +42,15 @@ struct storage_open_dir_state;
  * @STORAGE_OP_CHECKPOINT: checkpoint file-system state during transaction
  *                         commit (only valid when committing a transaction and
  *                         only allowed if provisioning is allowed)
+ * @STORAGE_OP_FS_REPAIRED_ACK: acknowledge that an error in the file system may
+ *                              have been repaired, and therefore rollback may
+ *                              have occurred. Do not use this flag unless
+ *                              accessing files where partial rollback of file
+ *                              system state is acceptable.
  */
 #define STORAGE_OP_COMPLETE 0x1U
 #define STORAGE_OP_CHECKPOINT 0x2U
+#define STORAGE_OP_FS_REPAIRED_ACK 0x4U
 
 /**
  * storage_open_session() - Opens a storage session.
