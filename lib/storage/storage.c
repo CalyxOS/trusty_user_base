@@ -105,6 +105,9 @@ static ssize_t check_response(struct storage_msg* msg, ssize_t res) {
     case STORAGE_ERR_ACCESS:
         return ERR_ACCESS_DENIED;
 
+    case STORAGE_ERR_FS_REPAIRED:
+        return ERR_BAD_STATE;
+
     case STORAGE_ERR_UNIMPLEMENTED:
         TLOGE("cmd 0x%x: is unhandles command\n", msg->cmd);
         return ERR_NOT_IMPLEMENTED;
