@@ -102,7 +102,8 @@ int _tlog(const char* fmt, ...) {
     }
 
     va_start(ap, fmt);
-    ret = vsnprintf(buf + 1, sizeof(buf) - 1, fmt, ap);
+    /* use filtered version for consistency with stderr logging */
+    ret = vsnprintf_filtered(buf + 1, sizeof(buf) - 1, fmt, ap);
     va_end(ap);
 
     if (ret < 0) {
