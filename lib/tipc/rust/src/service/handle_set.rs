@@ -90,8 +90,14 @@ impl<D: Dispatcher, const PORT_COUNT: usize, const MAX_CONNECTION_COUNT: usize>
         // we hit the max
         assert!(!self.at_max_connections(), "Too many connections");
         self.do_set_ctrl(sys::HSET_ADD as u32, trusty_sys::uevent::ALL_EVENTS, &connection)?;
-        let slot_occupied = self.connections[self.connection_count].replace(connection).is_some();
-        assert!(!slot_occupied, "Expected unoccupied connection slot at {}", self.connection_count);
+
+        let _ = self
+            .connections
+            .iter_mut()
+            .find(|c| c.is_none())
+            .expect("No empty slot found, shouldn't happen because we checked at_max_connections")
+            .replace(connection);
+
         self.connection_count += 1;
 
         if self.at_max_connections() {
