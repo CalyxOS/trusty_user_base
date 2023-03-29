@@ -127,9 +127,9 @@ TRUSTY_APP_ALL_OBJS := $(ALLMODULE_OBJS) $(MODULE_EXTRA_OBJECTS)
 # Link app elf
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
 MODULE_RUSTFLAGS += \
-	-Z pre-link-args="$(filter-out %.rlib %.so,$(MODULE_EXTRA_OBJECTS))" \
-	-C link-args="$(filter-out %.rlib %.so,$(ALLMODULE_OBJS)) $(TRUSTY_APP_LIBGCC)" \
-	-C link-args="$(TRUSTY_APP_LDFLAGS) $(MODULE_LDFLAGS)" \
+	-Z pre-link-args="--push-state --whole-archive $(filter-out %.rlib %.so,$(MODULE_EXTRA_OBJECTS)) --pop-state" \
+	-C link-args="--push-state --whole-archive $(filter-out %.rlib %.so,$(ALLMODULE_OBJS)) --pop-state" \
+	-C link-args="$(TRUSTY_APP_LIBGCC) $(TRUSTY_APP_LDFLAGS) $(MODULE_LDFLAGS)" \
 
 $(TRUSTY_APP_SYMS_ELF).d:
 
@@ -157,7 +157,7 @@ $(TRUSTY_APP_SYMS_ELF): MODULE_SDK_LIBS := $(MODULE_SDK_LIBS)
 $(TRUSTY_APP_SYMS_ELF): $(TRUSTY_APP_ALL_OBJS) $(MODULE_SDK_LIBS)
 	@$(MKDIR)
 	@echo linking $@
-	$(TRUSTY_APP_LD) $(TRUSTY_APP_LDFLAGS) $(MODULE_LDFLAGS) $(addprefix -Ttext ,$(TRUSTY_APP_MEMBASE)) --start-group $(TRUSTY_APP_ALL_OBJS) $(TRUSTY_APP_LIBGCC) --end-group -o $@
+	$(TRUSTY_APP_LD) $(TRUSTY_APP_LDFLAGS) $(MODULE_LDFLAGS) $(addprefix -Ttext ,$(TRUSTY_APP_MEMBASE)) --start-group --push-state --whole-archive $(TRUSTY_APP_ALL_OBJS) --pop-state $(TRUSTY_APP_LIBGCC) --end-group -o $@
 endif
 
 ifeq ($(call TOBOOL,$(TRUSTY_APP_SYMTAB_ENABLED)),true)
