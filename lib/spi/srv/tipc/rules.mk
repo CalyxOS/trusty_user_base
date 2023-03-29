@@ -25,7 +25,6 @@ MODULE_LIBRARY_DEPS += \
     trusty/user/base/interface/spi \
     trusty/user/base/lib/spi/common \
     trusty/user/base/lib/tipc \
-    trusty/user/base/lib/spi/srv/tipc \
 
 MODULE_INCLUDES += \
     trusty/user/base/lib/spi/srv/common/include \
