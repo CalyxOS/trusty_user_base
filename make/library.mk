@@ -29,6 +29,7 @@
 # 		compatible with library.mk, instead use MODULE_LIBRARY_DEPS.
 # MODULE_ADD_IMPLICIT_DEPS : Add basic libraries to MODULE_LIBRARY_DEPS.
 # 		Defaults to true. (currently adds libc-trusty)
+# MODULE_USE_WHOLE_ARCHIVE : use --whole-archive when linking this module
 # MODULE_DEFINES : #defines local to this module
 # MODULE_CONSTANTS : JSON files with constants used for both the manifest and C
 # 		headers (optional) (CONSTANTS is a deprecated equivalent to
@@ -40,6 +41,8 @@
 # MODULE_INCLUDES : include directories local to this module
 # MODULE_SRCDEPS : extra dependencies that all of this module's files depend on
 # MODULE_EXTRA_OBJECTS : extra .o files that should be linked with the module
+# MODULE_WHOLE_ARCHIVES : extra .a libraries that need --whole-archive, e.g.,
+#		prebuilt archive dependencies
 # MODULE_ARM_OVERRIDE_SRCS : list of source files, local path that should be
 # 		force compiled with ARM (if applicable)
 # MODULE_RUST_EDITION : Rust edition to compile this crate for (optional)
@@ -359,6 +362,7 @@ $(foreach dep,$(sort $(MODULE_LIBRARY_DEPS)),\
 # Include exported flags in the local build
 MODULE_LIBRARIES := $(filter-out $(MODULE_LIBRARIES),$(MODULE_EXPORT_LIBRARIES)) $(MODULE_LIBRARIES)
 MODULE_EXTRA_OBJECTS := $(filter-out $(MODULE_EXTRA_OBJECTS),$(MODULE_EXPORT_EXTRA_OBJECTS)) $(MODULE_EXTRA_OBJECTS)
+MODULE_WHOLE_ARCHIVES := $(filter-out $(MODULE_WHOLE_ARCHIVES),$(MODULE_EXPORT_WHOLE_ARCHIVES)) $(MODULE_WHOLE_ARCHIVES)
 MODULE_RLIBS := $(filter-out $(MODULE_RLIBS),$(MODULE_EXPORT_RLIBS)) $(MODULE_RLIBS)
 MODULE_COMPILEFLAGS := $(MODULE_EXPORT_COMPILEFLAGS) $(MODULE_COMPILEFLAGS)
 MODULE_CONSTANTS := $(MODULE_EXPORT_CONSTANTS) $(MODULE_CONSTANTS)
@@ -622,6 +626,13 @@ endif # SDK module
 
 MODULE_EXPORT_EXTRA_OBJECTS += $(filter-out $(LIBRARY_ARCHIVE),$(ALLMODULE_OBJS))
 
+ifeq ($(call TOBOOL,$(MODULE_USE_WHOLE_ARCHIVE)),true)
+MODULE_EXPORT_WHOLE_ARCHIVES += $(LIBRARY_ARCHIVE)
+# Include the current module explicitly in MODULE_WHOLE_ARCHIVES
+# in case we were included from trusted_app.mk
+MODULE_WHOLE_ARCHIVES += $(LIBRARY_ARCHIVE)
+endif
+
 # Append dependency libraries into ALLMODULE_OBJS. This needs to happen after we
 # set up the SDK library copies, if necessary, because we need ALLMODULE_OBJS
 # without dependencies there.
@@ -632,6 +643,7 @@ endif # MODULE is not a header-only library
 _MODULES_$(MODULE)_LIBRARIES := $(MODULE_EXPORT_LIBRARIES)
 _MODULES_$(MODULE)_LICENSES := $(MODULE_LICENSES)
 _MODULES_$(MODULE)_EXTRA_OBJECTS := $(MODULE_EXPORT_EXTRA_OBJECTS)
+_MODULES_$(MODULE)_WHOLE_ARCHIVES := $(MODULE_EXPORT_WHOLE_ARCHIVES)
 _MODULES_$(MODULE)_RLIBS := $(MODULE_EXPORT_RLIBS)
 _MODULES_$(MODULE)_SDK_LIBS := $(MODULE_SDK_LIBS)
 _MODULES_$(MODULE)_LDFLAGS := $(MODULE_EXPORT_LDFLAGS)
@@ -655,6 +667,7 @@ MODULE_CRATE_NAME :=
 MODULE_SRCDEPS :=
 MODULE_LIBRARY_DEPS :=
 MODULE_LIBRARY_EXPORTED_DEPS :=
+MODULE_USE_WHOLE_ARCHIVE :=
 MODULE_LIBRARIES :=
 MODULE_LICENSES :=
 MODULE_RLIBS :=
@@ -666,6 +679,9 @@ MODULE_DISABLED :=
 MODULE_SDK_LIB_NAME :=
 MODULE_SDK_HEADER_INSTALL_DIR :=
 MODULE_SDK_HEADERS :=
+# MODULE_WHOLE_ARCHIVES is used by trusted_app.mk
+# so we intentionally do not reset it here
+
 LIB_SAVED_MODULE :=
 LIB_SAVED_ALLMODULE_OBJS :=
 
@@ -683,6 +699,7 @@ OTHER_SDK_OBJS :=
 MODULE_EXPORT_LIBRARIES :=
 MODULE_EXPORT_RLIBS :=
 MODULE_EXPORT_EXTRA_OBJECTS :=
+MODULE_EXPORT_WHOLE_ARCHIVES :=
 MODULE_EXPORT_COMPILEFLAGS :=
 MODULE_EXPORT_CONSTANTS :=
 MODULE_EXPORT_CFLAGS :=
