@@ -353,9 +353,17 @@ _MODULES_$(MODULE)_LDFLAGS := $(MODULE_EXPORT_LDFLAGS)
 _MODULES_$(MODULE)_SDK_HEADERS := $(MODULE_EXPORT_SDK_HEADERS)
 _MODULES_$(MODULE)_SRCDEPS := $(MODULE_EXPORT_SRCDEPS)
 
-# We need to avoid duplicate dependencies here, so we use the sort function
-# which also de-duplicates.
-$(foreach dep,$(sort $(MODULE_LIBRARY_DEPS)),\
+# We need to process each dependent module only once.
+# Therefore we get the realpath to avoid different relative-path references to the same module,
+# then sort to remove any duplicates.
+# Module dependencies are then make relative to to top of the build environment.
+MODULE_REAL_LIBRARY_DEPS := $(realpath $(MODULE_LIBRARY_DEPS))
+ifneq ($(words MODULE_REAL_LIBRARY_DEPS), $(words MODULE_LIBRARY_DEPS))
+	$(error some modules path do not exist)
+endif
+
+MODULE_UNIQUE_LIBRARY_DEPS := $(sort $(foreach dep, $(MODULE_REAL_LIBRARY_DEPS), $(subst $(TRUSTY_TOP)/,,$(dep))))
+$(foreach dep,$(MODULE_UNIQUE_LIBRARY_DEPS),\
 	$(eval DEPENDENCY_MODULE := $(dep))\
 	$(eval include make/userspace_recurse.mk))
 
@@ -709,3 +717,4 @@ MODULE_EXPORT_INCLUDES :=
 MODULE_EXPORT_LDFLAGS :=
 MODULE_EXPORT_SDK_HEADERS :=
 MODULE_EXPORT_SRCDEPS :=
+MODULE_UNIQUE_LIBRARY_DEPS :=
