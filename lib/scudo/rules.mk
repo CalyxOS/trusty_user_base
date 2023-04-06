@@ -50,6 +50,7 @@ MODULE_SRCS += \
 	$(SCUDO_DIR)/standalone/crc32_hw.cpp \
 	$(SCUDO_DIR)/standalone/flags.cpp \
 	$(SCUDO_DIR)/standalone/flags_parser.cpp \
+	$(SCUDO_DIR)/standalone/mem_map.cpp \
 	$(SCUDO_DIR)/standalone/release.cpp \
 	$(SCUDO_DIR)/standalone/report.cpp \
 	$(SCUDO_DIR)/standalone/string_utils.cpp \
