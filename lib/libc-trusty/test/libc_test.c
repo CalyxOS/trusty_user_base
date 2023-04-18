@@ -433,7 +433,6 @@ TEST_F(libc, float_builtins) {
     EXPECT_EQ(123, (int)__trunctfsf2(__extendsftf2(123.0f)));
 }
 #endif
-#endif
 
 /*
  * We provide a mock implementation of stdin because libcxx refers to it.
@@ -444,6 +443,7 @@ TEST_F(libc, getc) {
 
 test_abort:;
 }
+#endif
 
 #if __ARM_NEON__ || __ARM_NEON
 
@@ -509,7 +509,11 @@ TEST_F(libc, NullPointerPrintTest) {
     char buffer[BUFFER_SIZE];
 
     snprintf_filtered(buffer, BUFFER_SIZE, "pointer: %p", (void*)0);
+#if defined(TRUSTY_USERSPACE)
     EXPECT_STREQ(buffer, "pointer: 0");
+#else
+    EXPECT_STREQ(buffer, "pointer: 0x0");
+#endif
 }
 
 TEST_F(libc, SmallPointerPrintTest) {
