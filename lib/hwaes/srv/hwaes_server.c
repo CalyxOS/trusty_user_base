@@ -522,5 +522,5 @@ int add_hwaes_service(struct tipc_hset* hset,
     static struct tipc_srv_ops ops = {
             .on_message = hwaes_on_message,
     };
-    return tipc_add_service(hset, &port, 1, 1, &ops);
+    return tipc_add_service(hset, &port, 1, 2, &ops);
 }
