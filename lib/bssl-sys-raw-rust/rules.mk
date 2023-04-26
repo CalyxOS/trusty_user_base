@@ -23,11 +23,19 @@ MODULE_CRATE_NAME := bssl_sys_raw
 
 BSSL_SRC_DIR := external/boringssl/src
 
+# BoringSSL moved the sources under src/rust/bssl-sys,
+# but they used to be one level higher so we use the old path
+# for compatibility
+BSSL_RUST_DIR := $(BSSL_SRC_DIR)/rust/bssl-sys
+ifeq ($(wildcard $(BSSL_RUST_DIR)),)
+BSSL_RUST_DIR := $(BSSL_SRC_DIR)/rust
+endif
+
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/trusty-sys \
 	external/boringssl \
 
-MODULE_BINDGEN_SRC_HEADER := $(BSSL_SRC_DIR)/rust/wrapper.h
+MODULE_BINDGEN_SRC_HEADER := $(BSSL_RUST_DIR)/wrapper.h
 
 MODULE_BINDGEN_FLAGS += \
 	--no-derive-default \

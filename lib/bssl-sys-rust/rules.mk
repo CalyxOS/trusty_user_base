@@ -19,8 +19,16 @@ MODULE := $(LOCAL_DIR)
 
 BSSL_SRC_DIR := external/boringssl/src
 
+# BoringSSL moved the sources under src/rust/bssl-sys,
+# but they used to be one level higher so we use the old path
+# for compatibility
+BSSL_RUST_DIR := $(BSSL_SRC_DIR)/rust/bssl-sys
+ifeq ($(wildcard $(BSSL_RUST_DIR)),)
+BSSL_RUST_DIR := $(BSSL_SRC_DIR)/rust
+endif
+
 # Generate our `lib.rs` from the template provided with BoringSSL.
-BSSL_LIB_RS_TEMPLATE := $(BSSL_SRC_DIR)/rust/src/lib.rs
+BSSL_LIB_RS_TEMPLATE := $(BSSL_RUST_DIR)/src/lib.rs
 MODULE_LIB_RS_FILE := $(call TOBUILDDIR,$(BSSL_LIB_RS_TEMPLATE))
 $(warning MODULE_LIB_RS_FILE $(MODULE_LIB_RS_FILE))
 $(MODULE_LIB_RS_FILE): $(BSSL_LIB_RS_TEMPLATE)

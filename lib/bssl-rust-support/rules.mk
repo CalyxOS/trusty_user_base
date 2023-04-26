@@ -19,11 +19,19 @@ MODULE := $(LOCAL_DIR)
 
 BSSL_SRC_DIR := external/boringssl/src
 
+# BoringSSL moved the sources under src/rust/bssl-sys,
+# but they used to be one level higher so we use the old path
+# for compatibility
+BSSL_RUST_DIR := $(BSSL_SRC_DIR)/rust/bssl-sys
+ifeq ($(wildcard $(BSSL_RUST_DIR)),)
+BSSL_RUST_DIR := $(BSSL_SRC_DIR)/rust
+endif
+
 MODULE_EXPORT_INCLUDES := \
-	$(BSSL_SRC_DIR)/rust/src \
+	$(BSSL_RUST_DIR)/src \
 	$(BSSL_SRC_DIR)/include \
 
-MODULE_SRCS := $(BSSL_SRC_DIR)/rust/rust_wrapper.c
+MODULE_SRCS := $(BSSL_RUST_DIR)/rust_wrapper.c
 
 # MODULE_LIBRARY_DEPS := \
 
