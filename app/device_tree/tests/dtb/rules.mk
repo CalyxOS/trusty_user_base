@@ -21,6 +21,6 @@ MODULE_DTS := \
 	$(LOCAL_DIR)/test.dts
 
 MODULE_DTS_INCLUDES := \
-	external/linux/include
+	$(call FIND_EXTERNAL,linux/include)
 
 include make/dtb.mk
