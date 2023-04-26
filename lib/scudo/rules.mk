@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-SCUDO_DIR := external/scudo
+SCUDO_DIR := $(call FIND_EXTERNAL,scudo)
 
 MODULE_INCLUDES += \
 	$(SCUDO_DIR)/standalone \
