@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-RUST_LIBC_DIR = external/rust/crates/libc
+RUST_LIBC_DIR = $(call FIND_EXTERNAL,rust/crates/libc)
 
 MODULE_SRCS := $(RUST_LIBC_DIR)/src/lib.rs
 

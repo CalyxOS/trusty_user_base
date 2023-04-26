@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_SRCS := external/rust/crates/x509-cert/src/lib.rs
+MODULE_SRCS := $(call FIND_EXTERNAL,rust/crates/x509-cert/src/lib.rs)
 
 MODULE_CRATE_NAME := x509_cert
 

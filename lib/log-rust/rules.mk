@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-LOG_SRC_DIR = external/rust/crates/log
+LOG_SRC_DIR = $(call FIND_EXTERNAL,rust/crates/log)
 
 MODULE_SRCS := $(LOG_SRC_DIR)/src/lib.rs
 

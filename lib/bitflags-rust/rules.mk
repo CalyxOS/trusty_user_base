@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-SRC_DIR = external/rust/crates/bitflags
+SRC_DIR = $(call FIND_EXTERNAL,rust/crates/bitflags)
 
 MODULE_SRCS := $(SRC_DIR)/src/lib.rs
 

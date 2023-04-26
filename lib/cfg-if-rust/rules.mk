@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-CFG_IF_SRC_DIR = external/rust/crates/cfg-if
+CFG_IF_SRC_DIR = $(call FIND_EXTERNAL,rust/crates/cfg-if)
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libcore-rust \

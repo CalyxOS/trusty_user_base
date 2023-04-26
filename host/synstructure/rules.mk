@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_SRCS := external/rust/crates/synstructure/src/lib.rs
+MODULE_SRCS := $(call FIND_EXTERNAL,rust/crates/synstructure/src/lib.rs)
 
 MODULE_CRATE_NAME := synstructure
 

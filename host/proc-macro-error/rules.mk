@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_SRCS := external/rust/crates/proc-macro-error/src/lib.rs
+MODULE_SRCS := $(call FIND_EXTERNAL,rust/crates/proc-macro-error/src/lib.rs)
 
 MODULE_CRATE_NAME := proc_macro_error
 
