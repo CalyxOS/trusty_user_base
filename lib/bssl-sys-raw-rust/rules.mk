@@ -68,6 +68,7 @@ MODULE_BINDGEN_FLAGS += \
 	--blocklist-function="v.*printf.*" \
 	--blocklist-function="v.*scanf.*" \
 	--blocklist-function="BIO_vsnprintf" \
+	--blocklist-function="OPENSSL_vasprintf" \
 
 MODULE_INCLUDES += \
 	$(BSSL_SRC_DIR)/include \
