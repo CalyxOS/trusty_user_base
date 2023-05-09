@@ -19,10 +19,14 @@
 #include <lk/err_ptr.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <trusty/sys/mman.h>
 #include <trusty_syscalls.h>
 #ifdef HWASAN_ENABLED
 #include <lib/hwasan/hwasan_shadow.h>
 #endif /* HWASAN_ENABLED */
+
+#include <trusty_log.h>
+#define TLOG_TAG "mman"
 
 void* mmap(void* uaddr,
            size_t size,
@@ -80,4 +84,57 @@ int finish_dma(void* uaddr, uint32_t size, uint32_t flags) {
     uaddr = hwasan_remove_ptr_tag(uaddr);
 #endif
     return _trusty_finish_dma(uaddr, size, flags);
+}
+
+int prepare_input_output_dma(void* input,
+                             uint32_t input_len,
+                             void* output,
+                             uint32_t output_len,
+                             struct dma_pmem* input_pmem,
+                             struct dma_pmem* output_pmem) {
+    if (input == output && input_len != output_len) {
+        return ERR_INVALID_ARGS;
+    }
+
+    int rc = NO_ERROR;
+    if (input == output && input_len == output_len) {
+        rc = prepare_dma(input, input_len, DMA_FLAG_BIDIRECTION, input_pmem);
+        if (rc < 0) {
+            TLOGE("Couldn't prepare input/output dma - rc(%d)\n", rc);
+            return rc;
+        }
+        *output_pmem = *input_pmem;
+    } else {
+        rc = prepare_dma(input, input_len, DMA_FLAG_TO_DEVICE, input_pmem);
+        if (rc < 0) {
+            TLOGE("Couldn't prepare input dma - rc(%d)\n", rc);
+            return rc;
+        }
+        rc = prepare_dma(output, output_len, DMA_FLAG_FROM_DEVICE, output_pmem);
+        if (rc < 0) {
+            TLOGE("Couldn't prepare output dma - rc(%d)\n", rc);
+            finish_dma(input, input_len, DMA_FLAG_TO_DEVICE);  // Clean DMA
+            return rc;
+        }
+    }
+    return NO_ERROR;
+}
+
+int finish_input_output_dma(void* input,
+                            uint32_t input_len,
+                            void* output,
+                            uint32_t output_len) {
+    if (input == output && input_len != output_len) {
+        return ERR_INVALID_ARGS;
+    }
+
+    if (input == output && input_len == output_len) {
+        return finish_dma(input, input_len, DMA_FLAG_BIDIRECTION);
+    } else {
+        int rc_in = finish_dma(input, input_len, DMA_FLAG_TO_DEVICE);
+        int rc_out = finish_dma(output, output_len, DMA_FLAG_FROM_DEVICE);
+
+        /* Return an error if it exists */
+        return rc_in == NO_ERROR ? rc_out : rc_in;
+    }
 }

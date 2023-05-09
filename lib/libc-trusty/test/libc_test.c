@@ -25,9 +25,11 @@
 
 #include <trusty/string.h>
 #include <trusty/uuid.h>
+#include <uapi/err.h>
 
 #if defined(TRUSTY_USERSPACE)
 #include <sys/auxv.h>
+#include <trusty/sys/mman.h>
 #include <trusty/time.h>
 #include <trusty_unittest.h>
 #else
@@ -862,6 +864,105 @@ TEST_F(libc, UnsignedOverflowMacros) {
         (void)isspace(i);
     }
 }
+
+#if defined(TRUSTY_USERSPACE)
+
+#define TEST_BUF_SIZE 64
+
+TEST_F(libc, PrepareDmaFailsOnMultipleCalls) {
+    uint8_t buf[TEST_BUF_SIZE] = {0};
+    struct dma_pmem dma;
+
+    int rc = prepare_dma(buf, TEST_BUF_SIZE, DMA_FLAG_TO_DEVICE, &dma);
+    EXPECT_GE(rc, 1);
+
+    /* Second prepare should fail */
+    rc = prepare_dma(buf, TEST_BUF_SIZE, DMA_FLAG_TO_DEVICE, &dma);
+    EXPECT_EQ(ERR_INVALID_ARGS, rc);
+
+    rc = finish_dma(buf, TEST_BUF_SIZE, DMA_FLAG_TO_DEVICE);
+    EXPECT_EQ(NO_ERROR, rc);
+}
+
+TEST_F(libc, PrepareInputOutputDmaDifferentBufs) {
+    uint8_t buf_in[TEST_BUF_SIZE] = {0};
+    uint8_t buf_out[TEST_BUF_SIZE] = {0};
+    struct dma_pmem dma_in;
+    struct dma_pmem dma_out;
+
+    int rc = prepare_input_output_dma(buf_in, TEST_BUF_SIZE, buf_out,
+                                      TEST_BUF_SIZE, &dma_in, &dma_out);
+    EXPECT_EQ(NO_ERROR, rc);
+
+    /* Two areas should have been tracked */
+    rc = finish_dma(buf_in, TEST_BUF_SIZE, DMA_FLAG_TO_DEVICE);
+    EXPECT_EQ(NO_ERROR, rc);
+    rc = finish_dma(buf_out, TEST_BUF_SIZE, DMA_FLAG_FROM_DEVICE);
+    EXPECT_EQ(NO_ERROR, rc);
+}
+
+TEST_F(libc, PrepareWithDifferentBufSizes) {
+    uint8_t buf[TEST_BUF_SIZE] = {0};
+    struct dma_pmem dma_in;
+    struct dma_pmem dma_out;
+
+    int rc = prepare_input_output_dma(buf, TEST_BUF_SIZE, buf,
+                                      TEST_BUF_SIZE / 2, &dma_in, &dma_out);
+    EXPECT_EQ(ERR_INVALID_ARGS, rc);
+}
+
+TEST_F(libc, PrepareInputOutputDmaSameBufs) {
+    uint8_t buf_in[TEST_BUF_SIZE] = {0};
+    uint8_t* buf_out = buf_in;
+    struct dma_pmem dma_in;
+    struct dma_pmem dma_out;
+
+    int rc = prepare_input_output_dma(buf_in, TEST_BUF_SIZE, buf_out,
+                                      TEST_BUF_SIZE, &dma_in, &dma_out);
+    EXPECT_EQ(NO_ERROR, rc);
+
+    /* One area should have been tracked */
+    rc = finish_dma(buf_in, TEST_BUF_SIZE, DMA_FLAG_BIDIRECTION);
+    EXPECT_EQ(NO_ERROR, rc);
+}
+
+TEST_F(libc, FinishInputOutputDmaDifferentBufs) {
+    uint8_t buf_in[TEST_BUF_SIZE] = {0};
+    uint8_t buf_out[TEST_BUF_SIZE] = {0};
+    struct dma_pmem dma_in;
+    struct dma_pmem dma_out;
+
+    int rc = prepare_dma(buf_in, TEST_BUF_SIZE, DMA_FLAG_TO_DEVICE, &dma_in);
+    EXPECT_GE(rc, 1);
+    rc = prepare_dma(buf_out, TEST_BUF_SIZE, DMA_FLAG_TO_DEVICE, &dma_out);
+    EXPECT_GE(rc, 1);
+
+    rc = finish_input_output_dma(buf_in, TEST_BUF_SIZE, buf_out, TEST_BUF_SIZE);
+    EXPECT_EQ(NO_ERROR, rc);
+
+    /* DMAs should already be finished, finish should return ERR_NOT_FOUND */
+    rc = finish_dma(buf_in, TEST_BUF_SIZE, DMA_FLAG_TO_DEVICE);
+    EXPECT_EQ(ERR_NOT_FOUND, rc);
+    rc = finish_dma(buf_out, TEST_BUF_SIZE, DMA_FLAG_FROM_DEVICE);
+    EXPECT_EQ(ERR_NOT_FOUND, rc);
+}
+
+TEST_F(libc, FinishInputOutputSameDifferentBufs) {
+    uint8_t buf_in[TEST_BUF_SIZE] = {0};
+    uint8_t* buf_out = buf_in;
+    struct dma_pmem dma_in;
+
+    int rc = prepare_dma(buf_in, TEST_BUF_SIZE, DMA_FLAG_BIDIRECTION, &dma_in);
+    EXPECT_GE(rc, 1);
+
+    rc = finish_input_output_dma(buf_in, TEST_BUF_SIZE, buf_out, TEST_BUF_SIZE);
+    EXPECT_EQ(NO_ERROR, rc);
+
+    /* DMAs should already be finished, finish should return ERR_NOT_FOUND */
+    rc = finish_dma(buf_in, TEST_BUF_SIZE, DMA_FLAG_BIDIRECTION);
+    EXPECT_EQ(ERR_NOT_FOUND, rc);
+}
+#endif
 
 #if defined(TRUSTY_USERSPACE)
 PORT_TEST(libc, "com.android.libctest");
