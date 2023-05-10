@@ -53,10 +53,11 @@ ifeq (,$(TRUSTY_APP_ALLOCATOR))
 TRUSTY_APP_ALLOCATOR_FOR_$(MODULE) ?= dlmalloc
 TRUSTY_APP_ALLOCATOR := $(TRUSTY_APP_ALLOCATOR_FOR_$(MODULE))
 endif
-MANIFEST_ALLOCATOR := $(subst .json,-$(TRUSTY_APP_ALLOCATOR).json,$(MANIFEST))
-ifneq (,$(wildcard $(MANIFEST_ALLOCATOR)))
-    MANIFEST := $(MANIFEST_ALLOCATOR)
-endif
+
+ifneq (,$(findstring /scudo/,$(TRUSTY_APP_ALLOCATOR)))
+MODULE_LIBRARY_DEPS := $(MODULE_LIBRARY_DEPS) $(TRUSTY_APP_ALLOCATOR)
+TRUSTY_APP_ALLOCATOR := scudo
+else
 ifeq ($(TRUSTY_APP_ALLOCATOR),$(filter $(TRUSTY_APP_ALLOCATOR),dlmalloc scudo ))
 ifeq (scudo,$(TRUSTY_APP_ALLOCATOR))
 MODULE_LIBRARY_DEPS += \
@@ -69,6 +70,12 @@ endif
 else
 $(error $(TRUSTY_APP_ALLOCATOR) not a supported allocator)
 endif
+endif
+endif
+
+MANIFEST_ALLOCATOR := $(subst .json,-$(TRUSTY_APP_ALLOCATOR).json,$(MANIFEST))
+ifneq (,$(wildcard $(MANIFEST_ALLOCATOR)))
+    MANIFEST := $(MANIFEST_ALLOCATOR)
 endif
 
 ifeq ($(strip $(TRUSTY_APP_NAME)),)
