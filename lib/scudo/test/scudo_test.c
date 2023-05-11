@@ -176,7 +176,7 @@ TEST_F(scudo_info, alloc_large) {
     EXPECT_EQ(scudo_srv_rpc(_state->chan, SCUDO_ALLOC_LARGE), NO_ERROR);
 }
 
-TEST_F(scudo_info, mte_tagged_memref) {
+TEST_F(scudo_info, mte_tagged_memref_small) {
     if (!has_mte()) {
         trusty_unittest_printf("[  SKIPPED ] MTE is not available\n");
         return;
@@ -190,19 +190,37 @@ TEST_F(scudo_info, mte_tagged_memref) {
             MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE | MMAP_FLAG_PROT_MTE);
     ASSERT_GT(ref, 0);
     printf("created memref %d for %p\n", ref, mem);
-    int rc = scudo_srv_rpc_memref(_state->chan, SCUDO_TAGGED_MEMREF, ref);
+    int rc = scudo_srv_rpc_memref(_state->chan, SCUDO_TAGGED_MEMREF_SMALL, ref);
     EXPECT_EQ(rc, NO_ERROR);
     EXPECT_EQ(*((volatile char*)mem), 0x77);
-test_abort:;
+test_abort:
     close(ref);
     free(mem);
 }
 
-TEST_F(scudo_info, mte_untagged_memref) {
+TEST_F(scudo_info, mte_tagged_memref_large) {
     if (!has_mte()) {
         trusty_unittest_printf("[  SKIPPED ] MTE is not available\n");
         return;
     }
+    int ref = -1;
+    void* mem = memalign(PAGE_SIZE, PAGE_SIZE * 32);
+    ASSERT_NE(mem, NULL);
+    memset(mem, 0x33, PAGE_SIZE);
+    ref = memref_create(
+            mem, PAGE_SIZE * 32,
+            MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE | MMAP_FLAG_PROT_MTE);
+    ASSERT_GT(ref, 0);
+    printf("created memref %d for %p\n", ref, mem);
+    int rc = scudo_srv_rpc_memref(_state->chan, SCUDO_TAGGED_MEMREF_LARGE, ref);
+    EXPECT_EQ(rc, NO_ERROR);
+    EXPECT_EQ(*((volatile char*)mem), 0x77);
+test_abort:
+    close(ref);
+    free(mem);
+}
+
+TEST_F(scudo_info, mte_untagged_memref_small) {
     int ref = -1;
     void* mem = memalign(PAGE_SIZE, PAGE_SIZE);
     ASSERT_NE(mem, NULL);
@@ -211,10 +229,29 @@ TEST_F(scudo_info, mte_untagged_memref) {
                         MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE);
     ASSERT_GT(ref, 0);
     printf("created memref %d for %p\n", ref, mem);
-    int rc = scudo_srv_rpc_memref(_state->chan, SCUDO_UNTAGGED_MEMREF, ref);
+    int rc = scudo_srv_rpc_memref(_state->chan, SCUDO_UNTAGGED_MEMREF_SMALL,
+                                  ref);
     EXPECT_EQ(rc, NO_ERROR);
     EXPECT_EQ(*((volatile char*)mem), 0x77);
-test_abort:;
+test_abort:
+    close(ref);
+    free(mem);
+}
+
+TEST_F(scudo_info, mte_untagged_memref_large) {
+    int ref = -1;
+    void* mem = memalign(PAGE_SIZE, PAGE_SIZE * 32);
+    ASSERT_NE(mem, NULL);
+    memset(mem, 0x33, PAGE_SIZE);
+    ref = memref_create(mem, PAGE_SIZE * 32,
+                        MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE);
+    ASSERT_GT(ref, 0);
+    printf("created memref %d for %p\n", ref, mem);
+    int rc = scudo_srv_rpc_memref(_state->chan, SCUDO_UNTAGGED_MEMREF_LARGE,
+                                  ref);
+    EXPECT_EQ(rc, NO_ERROR);
+    EXPECT_EQ(*((volatile char*)mem), 0x77);
+test_abort:
     close(ref);
     free(mem);
 }

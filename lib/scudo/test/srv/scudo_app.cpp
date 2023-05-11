@@ -189,18 +189,25 @@ static int scudo_on_message(const struct tipc_port* port,
      * deallocations to test (1) that deallocated chunks can be
      * reused, and (2) that Scudo can service various different
      * sizes of allocations requests. We know chunks are reused
-     * because this app has 4096 bytes of heap memory and 5950
-     * bytes are malloc-ed by SCUDO_MANY_MALLOC. Currently, Scudo
-     * is configured with Trusty to have 128 byte chunks so the
-     * largest malloc request that can be serviced is 112 bytes.
+     * because this app has 2MB bytes of heap memory and ~10MB
+     * bytes are malloc-ed by SCUDO_MANY_MALLOC.
      */
     case SCUDO_MANY_MALLOC: {
         TLOGI("many malloc\n");
-        for (int i = 0; i < 100; ++i) {
+        // exercise a few of the smaller size classes in the primary allocator
+        for (int i = 0; i < 4000; ++i) {
             char* arr = reinterpret_cast<char*>(malloc(ARR_SIZE + i));
             touch(arr);
             snprintf(arr, ARR_SIZE, "(%d)!", i);
             TLOG("arr = %s\n", arr);
+            free(arr);
+        }
+        // do some larger allocations to verify the secondary allocator
+        // releases memory
+        for (int i = 0; i < 20; ++i) {
+            TLOG("secondary %d\n", i);
+            char* arr = reinterpret_cast<char*>(malloc(128 * 1024));
+            touch(arr);
             free(arr);
         }
         break;
@@ -294,21 +301,28 @@ static int scudo_on_message(const struct tipc_port* port,
         break;
     }
 
-    case SCUDO_TAGGED_MEMREF: {
+    case SCUDO_TAGGED_MEMREF_SMALL:
+    case SCUDO_TAGGED_MEMREF_LARGE: {
+        size_t memrefsize = 4096;
+        if (msg.cmd == SCUDO_TAGGED_MEMREF_LARGE) {
+            memrefsize *= 32;
+        }
         TLOGI("tagged memref (%d)\n", memref);
         volatile char* mapped = (volatile char*)mmap(
-                0, 4096,
+                0, memrefsize,
                 MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE | MMAP_FLAG_PROT_MTE,
                 0, memref, 0);
         if (mapped != MAP_FAILED) {
             TLOGI("Tagged memref should have failed\n");
             msg.cmd = SCUDO_TEST_FAIL;
+            munmap((void*)mapped, memrefsize);
             close(memref);
             break;
         }
+
         mapped = (volatile char*)mmap(
-                0, 4096, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE, 0, memref,
-                0);
+                0, memrefsize, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE, 0,
+                memref, 0);
         if (mapped == MAP_FAILED) {
             TLOGI("Untagged mapping failed\n");
             msg.cmd = SCUDO_TEST_FAIL;
@@ -316,15 +330,21 @@ static int scudo_on_message(const struct tipc_port* port,
             break;
         }
         *mapped = 0x77;
+        munmap((void*)mapped, memrefsize);
         close(memref);
         break;
     }
 
-    case SCUDO_UNTAGGED_MEMREF: {
+    case SCUDO_UNTAGGED_MEMREF_SMALL:
+    case SCUDO_UNTAGGED_MEMREF_LARGE: {
+        size_t memrefsize = 4096;
+        if (msg.cmd == SCUDO_UNTAGGED_MEMREF_LARGE) {
+            memrefsize *= 32;
+        }
         TLOGI("untagged memref (%d)\n", memref);
         volatile char* mapped = (volatile char*)mmap(
-                0, 4096, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE, 0, memref,
-                0);
+                0, memrefsize, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE, 0,
+                memref, 0);
 
         if (!mapped || *mapped != 0x33) {
             TLOGI("no map or bad data in memref %p: %0x\n", mapped,
@@ -334,6 +354,7 @@ static int scudo_on_message(const struct tipc_port* port,
             break;
         }
         *mapped = 0x77;
+        munmap((void*)mapped, memrefsize);
         close(memref);
         break;
     }
