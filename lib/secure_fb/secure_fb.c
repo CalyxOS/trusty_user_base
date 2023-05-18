@@ -19,6 +19,7 @@
 #include <lib/secure_fb/secure_fb.h>
 
 #include <assert.h>
+#include <inttypes.h>
 #include <lib/tipc/tipc.h>
 #include <lk/compiler.h>
 #include <stdlib.h>
@@ -57,16 +58,25 @@ static void free_secure_fb_session(struct secure_fb_session* s) {
 }
 
 static struct secure_fb_session* new_connected_session(uint32_t idx) {
-    int rc;
-    struct secure_fb_session* s = new_secure_fb_session();
     char port_name[SECURE_FB_MAX_PORT_NAME_SIZE] = {0};
-    if (s == NULL || idx >= SECURE_FB_MAX_INST) {
+    struct secure_fb_session* s;
+    int rc;
+
+    if (idx >= SECURE_FB_MAX_INST) {
+        TLOGE("Invalid index %" PRIu32 "\n", idx);
         return NULL;
     }
 
-    int n = sprintf(port_name, "%s.%d", SECURE_FB_PORT_NAME, idx);
+    int n = snprintf(port_name, sizeof(port_name), "%s.%d", SECURE_FB_PORT_NAME,
+                     idx);
     if (n != SECURE_FB_MAX_PORT_NAME_SIZE - 1) {
         TLOGE("Failed to create port name\n");
+        return NULL;
+    }
+
+    s = new_secure_fb_session();
+    if (s == NULL) {
+        TLOGE("Failed to create session\n");
         return NULL;
     }
 
