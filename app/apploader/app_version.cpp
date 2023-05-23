@@ -154,6 +154,8 @@ extern "C" bool apploader_check_app_version(
         TLOGE("Error retrieving application version from storage (%d)\n", rc);
         return false;
     }
+
+    /* Prevent rollback */
     if (manifest_extracts->version < storage_version) {
         TLOGE("Application package version (%" PRIu32
               ") is lower than storage version (%" PRIu32 ")\n",
@@ -161,10 +163,11 @@ extern "C" bool apploader_check_app_version(
         return false;
     }
 
+    /* Update min loadable version if needed */
     if (!system_state_app_loading_skip_version_update() &&
-        manifest_extracts->version > storage_version) {
+        manifest_extracts->min_version > storage_version) {
         rc = update_app_version(&manifest_extracts->uuid,
-                                manifest_extracts->version);
+                                manifest_extracts->min_version);
         if (rc < 0) {
             TLOGE("Error updating application version in storage (%d)\n", rc);
             return false;

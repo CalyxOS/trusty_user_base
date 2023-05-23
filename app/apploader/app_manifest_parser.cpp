@@ -48,6 +48,7 @@ extern "C" bool apploader_parse_manifest(
     int out_error;
     bool uuid_found = false;
     bool version_found = false;
+    bool min_version_found = false;
     bool mgmt_flags_found = false;
     bool apploader_flags_found = false;
 
@@ -84,6 +85,14 @@ extern "C" bool apploader_parse_manifest(
             out_ext.version = entry.value.version;
             version_found = true;
             break;
+        case APP_MANIFEST_CONFIG_KEY_MIN_VERSION:
+            if (min_version_found) {
+                TLOGE("Manifest contained duplicate min_version entry");
+                return false;
+            }
+            out_ext.min_version = entry.value.min_version;
+            min_version_found = true;
+            break;
         case APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS:
             if (apploader_flags_found) {
                 TLOGE("Manifest contained duplicate apploader_flags entry");
@@ -108,8 +117,19 @@ extern "C" bool apploader_parse_manifest(
         }
     }
 
+    /* min_version defaults to the app version if not specified */
+    if (!min_version_found) {
+        out_ext.min_version = out_ext.version;
+    }
+
+    if (out_ext.version < out_ext.min_version) {
+        TLOGE("Manifest contained invalid min_version entry");
+        return false;
+    }
+
     if (uuid_found) {
         *manifest_extracts = out_ext;
     }
+
     return (uuid_found);
 }

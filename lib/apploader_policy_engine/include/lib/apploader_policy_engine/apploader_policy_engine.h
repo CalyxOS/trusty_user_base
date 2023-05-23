@@ -29,6 +29,7 @@ __BEGIN_CDECLS
  * @non_critical_app:    Whether the app manifest opted-in to
  *                       NON_CRITICAL_APP.
  * @version:             Application version
+ * @min_version:         Application minimum future loadable version.
  * @requires_encryption: Whether the app manifest indicated that the ELF image
  *                       must be protected by encryption.
  */
@@ -36,6 +37,7 @@ struct manifest_extracts {
     uuid_t uuid;
     bool non_critical_app;
     uint32_t version;
+    uint32_t min_version;
     bool requires_encryption;
 };
 
