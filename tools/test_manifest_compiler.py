@@ -1672,6 +1672,119 @@ class TestManifest(unittest.TestCase):
         self.assertTrue(log.error_occurred())
         self.assertIsNone(manifest)
 
+    def test_manifest_good_version(self):
+        """Test with valid manifest config containing
+        - UUID
+        - min_heap and min_stack
+        - pinned_cpu
+        - version empty
+        - min_version
+
+        Pack the manifest config data and unpack it and
+        verify it with the expected values
+        """
+        constants = {}
+        log = manifest_compiler.Log()
+
+        # JSON manifest data structure
+        config_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 8192,
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.VERSION: 5,
+            manifest_compiler.MIN_VERSION: 2,
+            manifest_compiler.MGMT_FLAGS: {
+                manifest_compiler.MGMT_FLAG_RESTART_ON_EXIT: False,
+                manifest_compiler.MGMT_FLAG_DEFERRED_START: False,
+                manifest_compiler.MGMT_FLAG_NON_CRITICAL_APP: False
+            },
+            manifest_compiler.APPLOADER_FLAGS: {
+                manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
+            }
+        }
+
+        default_app_name = "test"
+
+        # Pack manifest config_data
+        # Unpack the binary packed data to JSON text
+        # Validate unpacked JSON text
+        self.assertEqual(
+            manifest_compiler.manifest_data_to_json(config_data),
+            manifest_compiler.unpack_binary_manifest_to_json(
+                pack_manifest_config_data(
+                    self, config_data, log, constants)))
+
+    def test_manifest_bad_version_1(self):
+        """Test with valid manifest config containing
+        - UUID
+        - min_heap and min_stack
+        - pinned_cpu
+        - version empty
+        - min_version
+
+        Pack the manifest config data and unpack it and
+        verify it with the expected values
+        """
+        constants = {}
+        log = manifest_compiler.Log()
+
+        # JSON manifest data structure
+        config_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 8192,
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.VERSION: None,
+            manifest_compiler.MIN_VERSION: 1,
+        }
+
+        default_app_name = "test"
+
+        manifest = manifest_compiler.parse_manifest_config(
+            config_data,
+            constants,
+            default_app_name,
+            log
+        )
+        self.assertTrue(log.error_occurred())
+        self.assertIsNone(manifest)
+
+    def test_manifest_bad_version_2(self):
+        """Test with valid manifest config containing
+        - UUID
+        - min_heap and min_stack
+        - pinned_cpu
+        - version empty
+        - min_version
+
+        Pack the manifest config data and unpack it and
+        verify it with the expected values
+        """
+        constants = {}
+        log = manifest_compiler.Log()
+
+        # JSON manifest data structure
+        config_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 8192,
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.VERSION: 1,
+            manifest_compiler.MIN_VERSION: 2,
+        }
+
+        default_app_name = "test"
+
+        manifest = manifest_compiler.parse_manifest_config(
+            config_data,
+            constants,
+            default_app_name,
+            log
+        )
+        self.assertTrue(log.error_occurred())
+        self.assertIsNone(manifest)
+
 def pack_manifest_config_data(self, config_data, log, constants):
     # parse manifest JSON data
     default_app_name = "test"
