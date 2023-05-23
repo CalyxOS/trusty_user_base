@@ -44,11 +44,11 @@ GENERATED += $(SYSCALL_SRCS)
 # Add generated trusty_syscall.S to build
 MODULE_SRCS += $(SYSCALL_S)
 
+# Add path to generated .h to module includes.
+# Because we are not exporting all generated files to MODULE_EXPORT_INCLUDES
+# this module must be part of TRUSTY_SDK_MODULES define in user-tasks.mk
+# otherwise build would break.
 MODULE_SDK_HEADERS += $(SYSCALL_H)
-
-# And path to  generated .h to module includes
-MODULE_EXPORT_INCLUDES += \
-	$(SYSCALL_SRCS_DIR) \
 
 MODULE_ADD_IMPLICIT_DEPS := false
 
