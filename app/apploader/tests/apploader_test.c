@@ -357,19 +357,26 @@ TEST_F(apploader_user, BadLoadCmdPackageCBORMap) {
 
 extern char version_test_app_v1_start[], version_test_app_v1_end[];
 extern char version_test_app_v2_start[], version_test_app_v2_end[];
+extern char version_test_app_v3_start[], version_test_app_v3_end[];
 
 /*
- * App with versions v1 and v2, which tests that v1 cannot be loaded after v2
+ * App with versions v1, v2 & v3 - min_version=1.
+ *  Test that v1 cannot be loaded after v2.
+ *  Then v3 can load after v2 (but has min_version to v1).
+ *  Then v1 still cannot be loaded.
+ *  Then v2 still can be loaded.
  */
 TEST_F(apploader_user, AppVersionTest) {
     uint32_t error;
 
+    /* Load v2, no min_version (so min defaults to v2) */
     error = load_test_app(_state->channel, version_test_app_v2_start,
                           version_test_app_v2_end);
     ASSERT_EQ(false, HasFailure());
     ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
                             error == APPLOADER_ERR_ALREADY_EXISTS);
 
+    /* Try to load v1 - this should not be allowed */
     error = load_test_app(_state->channel, version_test_app_v1_start,
                           version_test_app_v1_end);
     ASSERT_EQ(false, HasFailure());
@@ -383,6 +390,31 @@ TEST_F(apploader_user, AppVersionTest) {
         ASSERT_EQ(error, APPLOADER_ERR_INVALID_VERSION);
     }
 
+    /* Load v3, min_version = 1 */
+    error = load_test_app(_state->channel, version_test_app_v3_start,
+                          version_test_app_v3_end);
+    ASSERT_EQ(false, HasFailure());
+    ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
+                            error == APPLOADER_ERR_ALREADY_EXISTS);
+
+    /* Retry to load v1 - this should still not be allowed */
+    error = load_test_app(_state->channel, version_test_app_v1_start,
+                          version_test_app_v1_end);
+    ASSERT_EQ(false, HasFailure());
+
+    if (system_state_app_loading_skip_version_update()) {
+        ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
+                                error == APPLOADER_ERR_ALREADY_EXISTS);
+    } else {
+        ASSERT_EQ(error, APPLOADER_ERR_INVALID_VERSION);
+    }
+
+    /* Load v2, should still be allowed */
+    error = load_test_app(_state->channel, version_test_app_v2_start,
+                          version_test_app_v2_end);
+    ASSERT_EQ(false, HasFailure());
+    ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
+                            error == APPLOADER_ERR_ALREADY_EXISTS);
 test_abort:;
 }
 

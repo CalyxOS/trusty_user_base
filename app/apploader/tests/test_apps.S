@@ -37,6 +37,13 @@ version_test_app_v2_start:
 .incbin VERSION_TEST_APP_V2
 version_test_app_v2_end:
 
+.global version_test_app_v3_start, version_test_app_v3_end
+.hidden version_test_app_v3_start, version_test_app_v3_end
+.balign 4096
+version_test_app_v3_start:
+.incbin VERSION_TEST_APP_V3
+version_test_app_v3_end:
+
 .global mmio_test_app_allowed_start, mmio_test_app_allowed_end
 .hidden mmio_test_app_allowed_start, mmio_test_app_allowed_end
 .balign 4096

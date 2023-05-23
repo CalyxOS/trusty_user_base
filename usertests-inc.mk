@@ -72,6 +72,7 @@ endif
 TRUSTY_LOADABLE_USER_TASKS += \
 	trusty/user/base/app/apploader/tests/version_test_apps/v1 \
 	trusty/user/base/app/apploader/tests/version_test_apps/v2 \
+	trusty/user/base/app/apploader/tests/version_test_apps/v3 \
 	trusty/user/base/app/apploader/tests/mmio_test_apps/allowed \
 	trusty/user/base/app/apploader/tests/mmio_test_apps/bad_uuid \
 	trusty/user/base/app/apploader/tests/mmio_test_apps/bad_range_low \
