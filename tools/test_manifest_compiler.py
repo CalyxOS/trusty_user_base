@@ -1676,9 +1676,9 @@ class TestManifest(unittest.TestCase):
         """Test with valid manifest config containing
         - UUID
         - min_heap and min_stack
-        - pinned_cpu
-        - version empty
+        - version
         - min_version
+        - flags
 
         Pack the manifest config data and unpack it and
         verify it with the expected values
@@ -1703,8 +1703,6 @@ class TestManifest(unittest.TestCase):
                 manifest_compiler.APPLOADER_FLAGS_REQUIRES_ENCRYPTION: False,
             }
         }
-
-        default_app_name = "test"
 
         # Pack manifest config_data
         # Unpack the binary packed data to JSON text
