@@ -102,9 +102,6 @@ void apploader_policy_engine_put_key(const uint8_t* public_key) {
     }
 }
 
-int apploader_policy_engine_validate(
-        const uint8_t* public_key,
-        unsigned int public_key_size,
-        struct manifest_extracts* manifest_extracts) {
+bool apploader_policy_engine_validate(struct apploader_policy_data* data) {
     return true;
 }

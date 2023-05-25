@@ -109,7 +109,7 @@ err_open_session:
     return rc;
 }
 
-static int update_app_version(uuid_t* app_uuid, uint32_t new_version) {
+static int update_app_version(const uuid_t* app_uuid, uint32_t new_version) {
     int rc;
     auto file_name = get_storage_file_name(app_uuid);
     storage_session_t session;
@@ -143,35 +143,28 @@ err_open_session:
     return rc;
 }
 
-extern "C" bool apploader_check_app_version(
-        struct manifest_extracts* manifest_extracts) {
-    int rc;
-    uint32_t storage_version;
+extern "C" bool apploader_read_app_version(const uuid_t* uuid,
+                                           uint32_t* version) {
+    assert(uuid);
+    assert(version);
 
-    /* Check application version */
-    rc = get_app_storage_version(&manifest_extracts->uuid, &storage_version);
+    int rc = get_app_storage_version(uuid, version);
     if (rc < 0) {
         TLOGE("Error retrieving application version from storage (%d)\n", rc);
         return false;
     }
 
-    /* Prevent rollback */
-    if (manifest_extracts->version < storage_version) {
-        TLOGE("Application package version (%" PRIu32
-              ") is lower than storage version (%" PRIu32 ")\n",
-              manifest_extracts->version, storage_version);
-        return false;
-    }
+    return true;
+}
 
-    /* Update min loadable version if needed */
-    if (!system_state_app_loading_skip_version_update() &&
-        manifest_extracts->min_version > storage_version) {
-        rc = update_app_version(&manifest_extracts->uuid,
-                                manifest_extracts->min_version);
-        if (rc < 0) {
-            TLOGE("Error updating application version in storage (%d)\n", rc);
-            return false;
-        }
+extern "C" bool apploader_write_app_version(const uuid_t* uuid,
+                                            uint32_t version) {
+    assert(uuid);
+
+    int rc = update_app_version(uuid, version);
+    if (rc < 0) {
+        TLOGE("Error updating application version in storage (%d)\n", rc);
+        return false;
     }
 
     return true;

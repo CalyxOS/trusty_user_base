@@ -16,13 +16,14 @@
 
 #pragma once
 
-#include <apploader/package.h>
-#include <inttypes.h>
-
-#include "app_manifest_parser.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <uapi/trusty_uuid.h>
 
 __BEGIN_CDECLS
 
-bool apploader_check_app_version(struct manifest_extracts* manifest_extracts);
+bool apploader_read_app_version(const uuid_t* uuid, uint32_t* version);
+
+bool apploader_write_app_version(const uuid_t* uuid, uint32_t version);
 
 __END_CDECLS

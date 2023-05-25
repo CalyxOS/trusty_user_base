@@ -18,6 +18,7 @@
 
 #include <lk/compiler.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <uapi/trusty_uuid.h>
 
 __BEGIN_CDECLS
@@ -39,6 +40,25 @@ struct manifest_extracts {
     uint32_t version;
     uint32_t min_version;
     bool requires_encryption;
+};
+
+/**
+ * struct apploader_policy_data - Data about the application and package which
+ *                                can be used to determine loading eligability.
+ * @manifest_extracts:       Extracts from the application package manifest.
+ * @public_key:              Pointer to the application package public key.
+ * @public_key_size:         Byte length of the public_key.
+ * @app_stored_version:      Version of the application from storage for
+ *                            rollback protection.
+ * @force_store_min_version: If true, the min_verion should be written to
+ *                            storage, allowing overriding of anti-rollback.
+ */
+struct apploader_policy_data {
+    struct manifest_extracts manifest_extracts;
+    const uint8_t* public_key;
+    unsigned int public_key_size;
+    uint32_t app_stored_version;
+    bool force_store_min_version;
 };
 
 /**
@@ -69,18 +89,22 @@ void apploader_policy_engine_put_key(const uint8_t* public_key_ptr);
 
 /**
  * apploader_policy_engine_validate() - Check if app loading is allowed
- *                                      when using the specified combination
- *                                      of public key, UUID, and
- *                                      NON_CRITICAL_APP.
- * @public_key: Public key in DER encoding.
- * @public_key_size: The size of the public key.
- * @manifest_extracts: A subset of information from the manifest.
+ *                                      when using the specified apploader
+ *                                      policy data fields which includes
+ *                                      public key, UUID,
+ *                                      NON_CRITICAL_APP and version fields.
+ * @data: Information about the application on which loading decisions maybe
+ * made.
+ *
+ * Note this function may modify some aspects of policy_data to alter
+ * later loading behaviour e.g. force_store_min_version.
+ *
+ * Forcing an update of the application version does not override the system
+ * state server i.e. system_state_app_loading_skip_version_check() and
+ * system_state_app_loading_skip_version_update().
  *
  * Returns: true if app loading is allowed, false otherwise.
  */
-int apploader_policy_engine_validate(
-        const uint8_t* public_key,
-        unsigned int public_key_size,
-        struct manifest_extracts* manifest_extracts);
+bool apploader_policy_engine_validate(struct apploader_policy_data* data);
 
 __END_CDECLS
