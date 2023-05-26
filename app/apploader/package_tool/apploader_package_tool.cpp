@@ -807,6 +807,19 @@ static void print_package_info(const char* input_path) {
         printf("Encrypted: NO, OPTIONAL\n");
     }
 
+    const uuid_t* uuid = &manifest_extracts.uuid;
+    printf("UUID: %08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 "-%02" PRIx8
+           "%02" PRIx8 "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
+           "%02" PRIx8 "%02" PRIx8 "\n",
+           uuid->time_low, uuid->time_mid, uuid->time_hi_and_version,
+           uuid->clock_seq_and_node[0], uuid->clock_seq_and_node[1],
+           uuid->clock_seq_and_node[2], uuid->clock_seq_and_node[3],
+           uuid->clock_seq_and_node[4], uuid->clock_seq_and_node[5],
+           uuid->clock_seq_and_node[6], uuid->clock_seq_and_node[7]);
+
+    printf("Version: %" PRIu32 "\n", manifest_extracts.version);
+    printf("Min version: %" PRIu32 "\n", manifest_extracts.min_version);
+
     // Restore the old silence flag
     coseSetSilenceErrors(oldSilenceErrors);
 }
