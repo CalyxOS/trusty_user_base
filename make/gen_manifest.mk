@@ -24,6 +24,7 @@
 # 		headers (optional) (CONSTANTS is a deprecated equivalent to
 # 		MODULE_CONSTANTS)
 # MANIFEST : manifest for the application (optional)
+# MANIFEST_OVERLAY : additional overlay manifests for the application (optional)
 #
 # outputs:
 # TRUSTY_APP_MANIFEST_BIN : manifest binary name, if MANIFEST
@@ -70,11 +71,13 @@ endif
 $(TRUSTY_APP_MANIFEST_BIN): MANIFEST_COMPILER := $(MANIFEST_COMPILER)
 $(TRUSTY_APP_MANIFEST_BIN): PY3 := $(PY3)
 $(TRUSTY_APP_MANIFEST_BIN): CONFIG_CONSTANTS := $(MODULE_CONSTANTS)
+$(TRUSTY_APP_MANIFEST_BIN): MANIFEST := $(MANIFEST)
+$(TRUSTY_APP_MANIFEST_BIN): MANIFEST_OVERLAY := $(MANIFEST_OVERLAY)
 $(TRUSTY_APP_MANIFEST_BIN): HEADER_DIR := $(CONSTANTS_HEADER_DIR)
-$(TRUSTY_APP_MANIFEST_BIN): $(MANIFEST) $(MANIFEST_COMPILER) $(MODULE_CONSTANTS)
+$(TRUSTY_APP_MANIFEST_BIN): $(MANIFEST) $(MANIFEST_OVERLAY) $(MANIFEST_COMPILER) $(MODULE_CONSTANTS)
 	@$(MKDIR)
 	@echo compiling $< to $@
-	$(PY3) $(MANIFEST_COMPILER) -i $< -o $@ $(addprefix -c,$(CONFIG_CONSTANTS)) --header-dir $(HEADER_DIR) \
+	$(PY3) $(MANIFEST_COMPILER) $(addprefix -i,$(MANIFEST) $(MANIFEST_OVERLAY)) -o $@ $(addprefix -c,$(CONFIG_CONSTANTS)) --header-dir $(HEADER_DIR) \
 	$(TRUSTY_APP_ENABLE_SCS) $(DEFAULT_USER_SHADOW_STACK_SIZE)
 
 # We need the constants headers to be generated before the sources are compiled
@@ -106,3 +109,4 @@ CONSTANTS :=
 CONSTANTS_HEADER_DIR :=
 MODULE_CONSTANTS :=
 MANIFEST :=
+MANIFEST_OVERLAY :=

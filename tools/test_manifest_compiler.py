@@ -1783,6 +1783,97 @@ class TestManifest(unittest.TestCase):
         self.assertTrue(log.error_occurred())
         self.assertIsNone(manifest)
 
+    def test_manifest_overlay_1(self):
+        """Test with two manifest configs (main + overlay)
+        Main manifest contains the following entries
+        - UUID, app_name
+        - min_heap, min_stack
+        - version
+        - mem_maps with 2 entries
+        Overlay manifest contains overlay min_heap
+        and two more mem_maps entries, one of which is
+        skipped as duplicate, another one is added to
+        mem_maps from main manifest
+
+        Check correctness of merging procedure
+        """
+        log = manifest_compiler.Log()
+
+        # JSON manifest data structure
+        main_manifest_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 8192,
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.VERSION: 1,
+            manifest_compiler.MEM_MAP: [
+                {"id": 1, "addr": "0x70000000", "size": "0x1000",
+                 "type": "cached", "non_secure": False},
+                {"id": 2, "addr": "0x70010000", "size": "0x100",
+                 "type": "uncached", "non_secure": True}]
+        }
+        overlay_manifest_data = {
+            manifest_compiler.MIN_HEAP: 1000,
+            manifest_compiler.MEM_MAP: [
+                {"id": 2, "addr": "0x70010000", "size": "0x100",
+                 "type": "uncached", "non_secure": True},
+                {"id": 3, "addr": "0x70020000", "size": "0x4"}]
+        }
+
+        # Reference JSON manifest data structure
+        manifest_ref_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 1000, # from overlay
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.VERSION: 1,
+            manifest_compiler.MEM_MAP: [
+                {"id": 1, "addr": "0x70000000", "size": "0x1000", # from main
+                 "type": "cached", "non_secure": False},
+                {"id": 2, "addr": "0x70010000", "size": "0x100", # from main
+                 "type": "uncached", "non_secure": True},
+                {"id": 3, "addr": "0x70020000", "size": "0x4"}] # from overlay
+        }
+
+        merged_manifest_data = manifest_compiler.merge_manifest_dicts(
+            [main_manifest_data, overlay_manifest_data], log)
+
+        self.assertFalse(log.error_occurred())
+        self.assertEqual(
+            manifest_compiler.manifest_data_to_json(manifest_ref_data),
+            manifest_compiler.manifest_data_to_json(merged_manifest_data))
+
+    def test_manifest_overlay_2(self):
+        """Test with two conflicting manifest configs (main + overlay)
+        Manifest merge should fail because main and overlay
+        manifests have different data types to merge.
+        """
+        log = manifest_compiler.Log()
+
+        # JSON manifest data structure
+        main_manifest_data = {
+            manifest_compiler.UUID: "5f902ace-5e5c-4cd8-ae54-87b88c22ddaf",
+            manifest_compiler.APP_NAME: "test-app-name",
+            manifest_compiler.MIN_HEAP: 8192,
+            manifest_compiler.MIN_STACK: 4096,
+            manifest_compiler.VERSION: 1,
+            manifest_compiler.MEM_MAP: [
+                {"id": 1, "addr": "0x70000000", "size": "0x1000",
+                 "type": "cached", "non_secure": False},
+                {"id": 2, "addr": "0x70010000", "size": "0x100",
+                 "type": "uncached", "non_secure": True}]
+        }
+        overlay_manifest_data = {
+            manifest_compiler.MIN_HEAP: 1000,
+            manifest_compiler.MEM_MAP: 25 # conflicting types, scalar vs list
+        }
+
+        merged_manifest_data = manifest_compiler.merge_manifest_dicts(
+            [main_manifest_data, overlay_manifest_data], log)
+
+        self.assertTrue(log.error_occurred())
+        self.assertIsNone(merged_manifest_data)
+
 def pack_manifest_config_data(self, config_data, log, constants):
     # parse manifest JSON data
     default_app_name = "test"

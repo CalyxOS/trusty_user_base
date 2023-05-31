@@ -10,13 +10,21 @@ input. Processes the JSON config file and creates packed data
 mapping to C structures and dumps in binary format.
 
 USAGE:
-    manifest_compiler.py --input <input_filename> --output <output_filename> \
+    manifest_compiler.py \
+        --input <input_filename_1> \
+        --input <input_filename_2> \
+        --output <output_filename> \
         --constants <config_constants_file_1> \
         --constants <config_constants_file_2> \
         --header-dir <header_file_path>
 
     Arguments:
     input_filename  - Trusted app manifest config file in JSON format.
+                      At least one manifest config should be provided.
+                      Options from additional configs override scalars
+                      and merge to lists of the main manifest config,
+                      processing manifests in the order specified on the
+                      command line.
     output_filename - Binary file containing packed manifest config data mapped
                       to C structres.
     config_constant_file - This is optional
@@ -26,7 +34,10 @@ USAGE:
     header_file_path - Directory in which header files to be generated.
 
     example:
-        manifest_compiler.py --input manifest.json --output output.bin \
+        manifest_compiler.py \
+                --input manifest.json \
+                --input manifest_extra_mem_maps.json \
+                --output output.bin \
                 --constants manifest_constants.json \
                 --header-dir \
                 <build_dir>/user_tasks/trusty/user/app/sample/hwcrypto/include
@@ -725,7 +736,8 @@ def parse_manifest_config(manifest_dict, constants, default_app_name, log):
     version = get_int(manifest_dict, VERSION, constants, log, optional=True)
 
     # MIN_VERSION
-    min_version = get_int(manifest_dict, MIN_VERSION, constants, log, optional=True)
+    min_version = get_int(
+        manifest_dict, MIN_VERSION, constants, log, optional=True)
 
     if min_version is not None:
         if version is None:
@@ -1243,6 +1255,67 @@ def process_config_constants(const_config_files, header_dir, log):
 
     return config_constants
 
+def merge_manifest_dicts(manifests: list, log):
+    """Merges multiple manifests
+    """
+    def merge(base, overlay, log):
+        match base, overlay:
+            case dict(), dict():
+                common_keys = base.keys() & overlay.keys()
+                res =  {k: merge(base[k], overlay[k], log) for k in common_keys}
+                res |= {k: base[k] for k in base.keys() - common_keys}
+                res |= {k: overlay[k] for k in overlay.keys() - common_keys}
+                return res
+            case list(), list():
+                res = base.copy()
+                res.extend(i for i in overlay if i not in base)
+                return res
+            case int() | float() | str(), int() | float() | str():
+                return overlay  # overlay overrides base for scalars
+            case _:
+                log.error(
+                    f"Unhandled type pair: {type(base)} and {type(overlay)}")
+                return base
+
+    manifest_dict_merged : dict = {}
+
+    for manifest in manifests:
+        manifest_dict_merged = merge(manifest_dict_merged, manifest, log)
+
+    if log.error_occurred():
+        return None
+
+    return manifest_dict_merged
+
+def process_manifest_files(manifest_files, constants, log):
+    """Parse JSON manifest(s)
+    """
+    assert manifest_files
+
+    manifest_dicts = []
+
+    for manifest_file in manifest_files:
+        if not os.path.exists(manifest_file):
+            log.error(
+                f"Manifest config JSON file doesn't exist: {manifest_file}")
+            return None
+
+        manifest_dict = read_json_config_file(manifest_file, log)
+        if log.error_occurred():
+            return None
+
+        manifest_dicts.append(manifest_dict)
+
+    manifest_dict_merged = merge_manifest_dicts(manifest_dicts, log)
+
+    if manifest_dict_merged is None or log.error_occurred():
+        return None
+
+    default_app_name = os.path.basename(os.path.dirname(manifest_files[0]))
+
+    return parse_manifest_config(manifest_dict_merged, constants,
+                                 default_app_name, log)
+
 
 def index_constants(config_constants):
     constants = {}
@@ -1260,10 +1333,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-i", "--input",
-        dest="input_filename",
+        dest="input_filenames",
         required=False,
+        action="append",
         type=str,
-        help="It should be trusty app manifest config JSON file"
+        help="Trusty app manifest in JSON format. "
+             "If the flag is used to provide multiple input files, "
+             "subsequent files overwrite the values provided in "
+             "the first manifest file."
     )
     parser.add_argument(
         "-o", "--output",
@@ -1311,10 +1388,10 @@ def main():
     if args.constants and not args.header_dir:
         parser.error("--header-dir is required if --constants are specified")
 
-    if args.input_filename and not args.output_filename:
+    if args.input_filenames and not args.output_filename:
         parser.error("Input file provided with no manifest output file.")
 
-    if args.output_filename and not args.input_filename:
+    if args.output_filename and not args.input_filenames:
         parser.error("Building a manifest output file requires an input file.")
 
     if args.default_shadow_call_stack_size <= 0:
@@ -1334,21 +1411,10 @@ def main():
 
     constants = index_constants(config_constants)
 
-    if not os.path.exists(args.input_filename):
-        log.error(
-            f"Manifest config JSON file doesn't exist: {args.input_filename}")
+    manifest = process_manifest_files(args.input_filenames, constants, log)
+
+    if manifest is None:
         return 1
-
-    manifest_dict = read_json_config_file(args.input_filename, log)
-    if log.error_occurred():
-        return 1
-
-    # By default, app directory name will be used as app-name
-    default_app_name = os.path.basename(os.path.dirname(args.input_filename))
-
-    # parse the manifest config
-    manifest = parse_manifest_config(manifest_dict, constants,
-                                     default_app_name, log)
 
     if log.error_occurred():
         return 1

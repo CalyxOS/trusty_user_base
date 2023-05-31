@@ -60,6 +60,7 @@
 # MODULE_LICENSES : Any additional license files for the library other than
 # 		$(MODULE)/LICENSE and $(MODULE)/NOTICE
 # MANIFEST : App manifest JSON file, only applicable if this module is an app
+# MANIFEST_OVERLAY : Additional manifest overlay JSON files(s)
 #
 # Exported flags:
 # The following args are the same as their corresponding variables above, but

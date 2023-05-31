@@ -26,6 +26,7 @@
 # 		$(TRUSTY_APP_BUILDDIR)/$(MODULE))
 # TRUSTY_APP_IN_TREE : Boolean indicating if the app is being built in-tree
 # MANIFEST : App manifest JSON file
+# MANIFEST_OVERLAY : Additional manifest overlay JSON file(s)
 # MODULE_CONSTANTS : JSON files with constants used for both the manifest and C
 # 		headers (optional) (CONSTANTS is a deprecated equivalent to
 # 		MODULE_CONSTANTS)
@@ -73,10 +74,9 @@ endif
 endif
 endif
 
-MANIFEST_ALLOCATOR := $(subst .json,-$(TRUSTY_APP_ALLOCATOR).json,$(MANIFEST))
-ifneq (,$(wildcard $(MANIFEST_ALLOCATOR)))
-    MANIFEST := $(MANIFEST_ALLOCATOR)
-endif
+MANIFEST_ALLOCATOR := $(subst .json,-$(TRUSTY_APP_ALLOCATOR).json,$(MANIFEST) $(MANIFEST_OVERLAY))
+# append allocator-based manifest to the end, so it overrides base manifest values
+MANIFEST_OVERLAY += $(wildcard $(MANIFEST_ALLOCATOR))
 
 ifeq ($(strip $(TRUSTY_APP_NAME)),)
 TRUSTY_APP_NAME := $(notdir $(MODULE))
