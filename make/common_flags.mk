@@ -130,6 +130,13 @@ MODULE_COMPILEFLAGS += \
 endif
 endif
 
+# Fuzzing build
+ifeq (true,$(call TOBOOL,$(FUZZING_BUILD_ENABLED)))
+MODULE_COMPILEFLAGS += \
+	-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION \
+
+endif
+
 # HWASan
 ifeq (true,$(call TOBOOL,$(USER_HWASAN_ENABLED)))
 MODULE_DEFINES += \
