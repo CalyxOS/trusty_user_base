@@ -1,4 +1,8 @@
+
 ifeq ($(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)),true)
+# Add global library dependencies to the build path
+MODULE_LIBRARY_DEPS += $(GLOBAL_USER_LIBRARY_DEPS)
+
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libstd-rust \
