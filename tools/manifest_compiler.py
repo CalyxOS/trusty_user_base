@@ -592,6 +592,8 @@ def parse_mem_map(mem_maps, key, constants, log):
         if mem_map_entry:
             log.error("Unknown attributes in mem_map entries in "
                       f"manifest: {mem_map_entry}")
+        if any(item.id == mem_map.id for item in mem_io_maps):
+            log.error(f"Duplicate mem_map ID found: {mem_map.id}")
         mem_io_maps.append(mem_map)
 
     return mem_io_maps

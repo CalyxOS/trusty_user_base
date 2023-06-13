@@ -521,6 +521,17 @@ class TestManifest(unittest.TestCase):
             manifest_compiler.MEM_MAP, constants, log)
         self.assertTrue(log.error_occurred())
 
+    def test_validate_mem_map_8(self):
+        """Test duplicate mem_map ID fails"""
+        constants = {}
+        mem_map_json_data = [{"id": 1, "addr": "0x70000000", "size": "0x1000"},
+                             {"id": 1, "addr": "0x70010000", "size": "0x1000"}]
+
+        log = manifest_compiler.Log()
+        manifest_compiler.parse_mem_map(
+            mem_map_json_data, manifest_compiler.MEM_MAP, constants, log)
+        self.assertTrue(log.error_occurred())
+
     def test_validate_mgmt_flags_1(self):
         """Test with a valid management flags"""
         constants = {}
