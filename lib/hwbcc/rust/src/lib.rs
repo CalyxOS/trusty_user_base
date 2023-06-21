@@ -34,7 +34,6 @@ mod err;
 #[allow(non_snake_case)]
 #[allow(unused)]
 #[allow(deref_nullptr)] // https://github.com/rust-lang/rust-bindgen/issues/1651
-#[allow(unaligned_references)] // https://github.com/rust-lang/rust/issues/82523
 mod sys {
     include!(env!("BINDGEN_INC_FILE"));
 }
