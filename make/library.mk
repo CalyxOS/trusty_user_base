@@ -270,12 +270,15 @@ ifneq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
 MODULE_EXPORT_SDK_HEADERS :=
 
 define copy-headers-rule
-HEADERS := $$(shell cd "$(1)" && find . -type f)
+# Some libraries include symlinked headers. For now, follow
+# those symlinks and copy their targets instead so SDK users
+# can still include the symlink sources.
+HEADERS := $$(shell cd "$(1)" && find . -xtype f)
 OUTPUT_HEADERS := $$(addprefix $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/,$$(HEADERS))
 MODULE_EXPORT_SDK_HEADERS += $$(OUTPUT_HEADERS)
 $$(OUTPUT_HEADERS): $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/% : $(1)/% $(MODULE_SRCDEPS)
 	@$$(MKDIR)
-	$$(NOECHO)cp $$< $$@
+	$$(NOECHO)cp -L $$< $$@
 endef
 
 $(foreach include_dir,$(MODULE_EXPORT_INCLUDES),$(eval $(call copy-headers-rule,$(include_dir))))
