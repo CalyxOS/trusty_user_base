@@ -161,6 +161,11 @@ pub struct TestDesc {
     pub compile_fail: bool,
     pub no_run: bool,
     pub test_type: TestType,
+    pub source_file: &'static str,
+    pub start_line: usize,
+    pub start_col: usize,
+    pub end_line: usize,
+    pub end_col: usize,
 }
 
 impl TestDesc {
