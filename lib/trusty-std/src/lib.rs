@@ -39,7 +39,6 @@
 // remove it if needed
 #![feature(min_specialization)]
 #![feature(new_uninit)]
-#![feature(nonnull_slice_from_raw_parts)]
 #![feature(panic_info_message)]
 #![feature(rustc_attrs)]
 #![feature(slice_internals)]
