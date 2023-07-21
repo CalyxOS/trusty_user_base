@@ -17,6 +17,7 @@
 #define TLOG_TAG "secure_fb_test"
 
 #include <lib/secure_fb/secure_fb.h>
+#include <trusty/time.h>
 #include <trusty_unittest.h>
 #include <uapi/err.h>
 
@@ -46,32 +47,72 @@ TEST_F(secure_fb, open_and_close) {
 TEST_F(secure_fb, fb_info) {
     struct secure_fb_info* fb_info = &_state->fb_info;
 
-    ASSERT_NE(fb_info->buffer, NULL);
-    ASSERT_GT(fb_info->size, 0);
-    ASSERT_GT(fb_info->pixel_stride, 0);
-    ASSERT_GT(fb_info->line_stride, 0);
-    ASSERT_GT(fb_info->width, 0);
-    ASSERT_GT(fb_info->width, 0);
-    ASSERT_NE(fb_info->pixel_format, TTUI_PF_INVALID);
+    EXPECT_NE(fb_info->buffer, NULL);
+    EXPECT_GT(fb_info->size, 0);
+    EXPECT_GT(fb_info->pixel_stride, 0);
+    EXPECT_GT(fb_info->line_stride, 0);
+    EXPECT_GT(fb_info->width, 0);
+    EXPECT_GT(fb_info->height, 0);
+    EXPECT_NE(fb_info->pixel_format, TTUI_PF_INVALID);
 
-    ASSERT_LE(fb_info->width * fb_info->pixel_stride, fb_info->line_stride);
-    ASSERT_LE(fb_info->height * fb_info->line_stride, fb_info->size);
+    EXPECT_LE(fb_info->width * fb_info->pixel_stride, fb_info->line_stride);
+    EXPECT_LE(fb_info->height * fb_info->line_stride, fb_info->size);
 
 test_abort:;
 }
 
+/*
+ * Pixel colouring function.
+ * This divides the screen into 9 horizonal bars and then displays a blend
+ * from each channel into the other.  The first 3 bars blend from red, the
+ * second from green, the last 3 from blue.
+ */
+static void set_pixel(uint8_t* pixel,
+                      const uint32_t x,
+                      const uint32_t y,
+                      const uint32_t w,
+                      const uint32_t h) {
+    const uint32_t bar_height = (h + 8) / 9;
+    const uint8_t bar = y / bar_height;
+    float rgb_left[3] = {0, 0, 0};
+    float rgb_right[3] = {0, 0, 0};
+
+    rgb_left[bar / 3] = 1.0f;
+    rgb_right[bar % 3] = 1.0f;
+
+    float blend = (float)x / (float)w;
+
+    /* Set RGB */
+    for (uint8_t i = 0; i < 3; i++) {
+        float v = (rgb_left[i] * (1.0f - blend)) + (rgb_right[i] * blend);
+        *pixel = 255.0f * v;
+        pixel++;
+    }
+
+    /* Set alpha */
+    *pixel = 0xff;
+}
+
 TEST_F(secure_fb, display) {
     int rc;
-    struct secure_fb_info* fb_info = &_state->fb_info;
+    const struct secure_fb_info* fb_info = &_state->fb_info;
 
-    /*
-     * Set all pixel channels to max value. We only check that the operations
-     * don't fail in this test. Checking that screen color is correct needs to
-     * be done manually.
-     */
-    memset(fb_info->buffer, 0xff, fb_info->size);
+    ASSERT_EQ(fb_info->pixel_format, TTUI_PF_RGBA8);
+
+    for (uint32_t y = 0; y < fb_info->height; y++) {
+        uint8_t* pixel = &fb_info->buffer[y * fb_info->line_stride];
+
+        for (uint32_t x = 0; x < fb_info->width; x++) {
+            set_pixel(pixel, x, y, fb_info->width, fb_info->height);
+            pixel += fb_info->pixel_stride;
+        }
+    }
+
     rc = secure_fb_display_next(_state->session, &_state->fb_info);
     ASSERT_EQ(rc, 0);
+
+    /* Wait 2 seconds to allow screen to be viewed */
+    trusty_nanosleep(0, 0, 2000 * 1000 * 1000);
 
 test_abort:;
 }
@@ -81,9 +122,16 @@ TEST(secure_fb, stress) {
     secure_fb_handle_t session;
     struct secure_fb_info fb_info;
 
-    for (size_t i = 0; i < 100; i++) {
+    for (int i = 0; i < 256; i++) {
         rc = secure_fb_open(&session, &fb_info, 0);
         ASSERT_EQ(rc, 0);
+
+        /* Fill with grey level */
+        memset(fb_info.buffer, i, fb_info.size);
+
+        rc = secure_fb_display_next(session, &fb_info);
+        EXPECT_EQ(rc, 0);
+
         secure_fb_close(session);
     }
 
