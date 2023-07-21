@@ -31,6 +31,7 @@ MODULE_RUSTFLAGS += \
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/der-rust \
 	trusty/user/base/lib/pkcs8-rust \
+	trusty/user/base/lib/spki-rust \
 	trusty/user/base/lib/zeroize-rust \
 
 include make/library.mk
