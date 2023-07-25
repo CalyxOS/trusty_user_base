@@ -459,6 +459,20 @@ enum ffa_error {
 #define SMC_FC_FFA_FEATURES SMC_FASTCALL_NR_SHARED_MEMORY(0x64)
 
 /**
+ * SMC_FC_FFA_RX_RELEASE - SMC opcode to Relinquish ownership of a RX buffer
+ *
+ * Return:
+ * * w0:     &SMC_FC_FFA_SUCCESS
+ *
+ * or
+ *
+ * * w0:     &SMC_FC_FFA_ERROR
+ * * w2:     %FFA_ERROR_DENIED Caller did not have ownership of the RX buffer.
+ *           %FFA_ERROR_NOT_SUPPORTED if operation not supported
+ */
+#define SMC_FC_FFA_RX_RELEASE SMC_FASTCALL_NR_SHARED_MEMORY(0x65)
+
+/**
  * SMC_FC_FFA_RXTX_MAP - 32 bit SMC opcode to map message buffers
  *
  * Register arguments:
