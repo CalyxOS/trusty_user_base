@@ -418,6 +418,16 @@ enum ffa_error {
 #define SMC_FC64_FFA_SUCCESS SMC_FASTCALL64_NR_SHARED_MEMORY(0x61)
 
 /**
+ * SMC_FC_FFA_INTERRUPT - SMC interrupt return opcode
+ *
+ * Register arguments:
+ *
+ * * w1:     VMID in [31:16], vCPU in [15:0]
+ * * w2:     Interrupt ID
+ */
+#define SMC_FC_FFA_INTERRUPT SMC_FASTCALL_NR_SHARED_MEMORY(0x62)
+
+/**
  * SMC_FC_FFA_VERSION - SMC opcode to return supported FF-A version
  *
  * Register arguments:
@@ -520,6 +530,75 @@ enum ffa_error {
  * * w2:     ID in bit[15:0], bit[31:16] must be 0.
  */
 #define SMC_FC_FFA_ID_GET SMC_FASTCALL_NR_SHARED_MEMORY(0x69)
+
+/**
+ * SMC_FC_FFA_MSG_WAIT - SMC opcode to transition from running to waiting state
+ */
+#define SMC_FC_FFA_MSG_WAIT SMC_FASTCALL_NR_SHARED_MEMORY(0x6B)
+
+/**
+ * SMC_FC_FFA_MSG_SEND_DIRECT_REQ - 32 bit SMC opcode to send direct message as
+ *                                  a request
+ *
+ * Register arguments:
+ *
+ * * w1:     Sender ID in bit[31:16], receiver ID in [15:0]
+ * * w2:     Message Flags.
+ *           bit[31]   : Message type. 0 for partition message and 1 for
+ *                       framework message.
+ *           bit[30:8] : Reserved. Must be 0.
+ *           bit[7:0]  : Framework message type. Must be 0 if partition message.
+ * * w3-w7:  Implementation defined.
+ */
+#define SMC_FC_FFA_MSG_SEND_DIRECT_REQ SMC_FASTCALL_NR_SHARED_MEMORY(0x6F)
+
+/**
+ * SMC_FC64_FFA_MSG_SEND_DIRECT_REQ - 64 bit SMC opcode to send direct message
+ *                                    as a request
+ *
+ * Register arguments:
+ *
+ * * w1:     Sender ID in bit[31:16], receiver ID in [15:0]
+ * * w2:     Message Flags.
+ *           bit[31]   : Message type. 0 for partition message and 1 for
+ *                       framework message.
+ *           bit[30:8] : Reserved. Must be 0.
+ *           bit[7:0]  : Framework message type. Must be 0 if partition message.
+ * * x3-x7:  Implementation defined.
+ */
+#define SMC_FC64_FFA_MSG_SEND_DIRECT_REQ SMC_FASTCALL64_NR_SHARED_MEMORY(0x6F)
+
+/**
+ * SMC_FC_FFA_MSG_SEND_DIRECT_RESP - 32 bit SMC opcode to send direct message as
+ *                                   a response
+ *
+ * Register arguments:
+ *
+ * * w1:     Sender ID in bit[31:16], receiver ID in [15:0]
+ * * w2:     Message Flags.
+ *           bit[31]   : Message type. 0 for partition message and 1 for
+ *                       framework message.
+ *           bit[30:8] : Reserved. Must be 0.
+ *           bit[7:0]  : Framework message type. Must be 0 if partition message.
+ * * w3-w7:  Implementation defined.
+ */
+#define SMC_FC_FFA_MSG_SEND_DIRECT_RESP SMC_FASTCALL_NR_SHARED_MEMORY(0x70)
+
+/**
+ * SMC_FC64_FFA_MSG_SEND_DIRECT_RESP - 64 bit SMC opcode to send direct message
+ *                                     as a response
+ *
+ * Register arguments:
+ *
+ * * w1:     Sender ID in bit[31:16], receiver ID in [15:0]
+ * * w2:     Message Flags.
+ *           bit[31]   : Message type. 0 for partition message and 1 for
+ *                       framework message.
+ *           bit[30:8] : Reserved. Must be 0.
+ *           bit[7:0]  : Framework message type. Must be 0 if partition message.
+ * * x3-x7:  Implementation defined.
+ */
+#define SMC_FC64_FFA_MSG_SEND_DIRECT_RESP SMC_FASTCALL64_NR_SHARED_MEMORY(0x70)
 
 /**
  * SMC_FC_FFA_MEM_DONATE - 32 bit SMC opcode to donate memory
