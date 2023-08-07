@@ -15,7 +15,12 @@
  */
 
 #include <lib/unittest/unittest.h>
-
+#include <lib/coverage/common/cov_shm.h>
+#include <interface/line-coverage/aggregator.h>
+#include <lib/line-coverage/shm.h>
+#include <lib/coverage/common/ipc.h>
+#include <lib/tipc/tipc.h>
+#include <lib/tipc/tipc_srv.h>
 #include <lk/macros.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -166,6 +171,8 @@ int unittest_main(struct unittest** tests, size_t test_count) {
         }
     }
 
+    setup_mailbox(&((struct tipc_port){ .name = test->port_name }), 1);
+
     /* and just wait forever for now */
     for (;;) {
         ret = wait(hset, &evt, INFINITE_TIME);
@@ -176,6 +183,7 @@ int unittest_main(struct unittest** tests, size_t test_count) {
             break;
         if (evt.event & IPC_HANDLE_POLL_READY) {
             /* get connection request */
+            setup_shm();
             ret = accept(evt.handle, &unused_uuid);
             TLOGI("accept returned %d\n", ret);
             if (ret >= 0) {
@@ -195,6 +203,8 @@ int unittest_main(struct unittest** tests, size_t test_count) {
 
                 /* and close it */
                 close(ret);
+
+                dump_shm();
             }
         }
     }

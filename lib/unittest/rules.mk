@@ -22,4 +22,11 @@ MODULE_SRCS := \
 
 MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include/
 
+MODULE_LIBRARY_DEPS := \
+	trusty/user/base/interface/line-coverage \
+	trusty/user/base/lib/coverage/common \
+	trusty/user/base/lib/line-coverage \
+	trusty/user/base/lib/libc-trusty \
+	trusty/user/base/lib/tipc \
+
 include make/library.mk
