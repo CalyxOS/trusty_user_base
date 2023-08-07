@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <lib/coverage/common/shm.h>
+#include <lib/coverage/common/cov_shm.h>
 #include <lib/tipc/tipc_srv.h>
 #include <lk/list.h>
 #include <stddef.h>
@@ -40,7 +40,7 @@ struct srv_state {
      * is short (<100) and lookups/insertions are very infrequent.
      */
     struct list_node coverage_record_list;
-    struct shm mailbox;
+    struct cov_shm mailbox;
 };
 
 static inline void set_srv_state(struct tipc_port* port,
@@ -64,7 +64,7 @@ struct coverage_record {
     struct list_node node;
     struct uuid uuid;
     size_t idx;
-    struct shm data;
+    struct cov_shm data;
     size_t record_len;
 };
 

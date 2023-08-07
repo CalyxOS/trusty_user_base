@@ -18,7 +18,7 @@
 
 #include "coverage.h"
 
-#include <lib/coverage/common/shm.h>
+#include <lib/coverage/common/cov_shm.h>
 #include <lib/tipc/tipc_srv.h>
 #include <lk/err_ptr.h>
 #include <trusty_log.h>
@@ -37,7 +37,7 @@ int main(void) {
 
     list_initialize(&state.coverage_record_list);
 
-    rc = shm_alloc(&state.mailbox, MAX_NUM_APPS);
+    rc = cov_shm_alloc(&state.mailbox, MAX_NUM_APPS);
     if (rc != NO_ERROR) {
         TLOGE("failed to allocate shared memory for mailbox\n");
         return ERR_NO_MEMORY;
