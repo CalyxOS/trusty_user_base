@@ -604,7 +604,7 @@ $(SDK_LIB): OTHER_OBJS := $(ALLMODULE_OBJS)
 $(SDK_LIB): $(LIBRARY_ARCHIVE) $(ALLMODULE_OBJS)
 	@$(MKDIR)
 	cp $< $@
-	-cp $(OTHER_OBJS) $(TRUSTY_SDK_LIB_DIR)/
+	[ -z "$(OTHER_OBJS)" ] || cp $(OTHER_OBJS) $(TRUSTY_SDK_LIB_DIR)/
 
 # Ensure that any extra SDK objects are copied if they are missing
 $(OTHER_SDK_OBJS): $(SDK_LIB)
