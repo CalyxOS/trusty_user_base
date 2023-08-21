@@ -17,7 +17,7 @@
 #define TLOG_TAG "swbcc"
 
 #include <assert.h>
-#include <dice/android/bcc.h>
+#include <dice/android.h>
 #include <dice/cbor_writer.h>
 #include <dice/dice.h>
 #include <dice/ops.h>
@@ -43,7 +43,7 @@ static const struct uuid zero_uuid = UUID_INITIAL_VALUE(zero_uuid);
 struct ChildNodeInfo {
     uint8_t code_hash[DICE_HASH_SIZE];
     uint8_t authority_hash[DICE_HASH_SIZE];
-    BccConfigValues config_descriptor;
+    DiceAndroidConfigValues config_descriptor;
 };
 
 struct dice_root_state {
@@ -143,7 +143,7 @@ out:
 int swbcc_glob_init(const uint8_t FRS[DICE_HIDDEN_SIZE],
                     const uint8_t code_hash[DICE_HASH_SIZE],
                     const uint8_t authority_hash[DICE_HASH_SIZE],
-                    const BccConfigValues* config_descriptor) {
+                    const DiceAndroidConfigValues* config_descriptor) {
     assert(FRS);
 
     srv_state.ns_deprivileged = false;
@@ -154,8 +154,8 @@ int swbcc_glob_init(const uint8_t FRS[DICE_HIDDEN_SIZE],
            DICE_HIDDEN_SIZE);
     memcpy(srv_state.dice_root.child_node_info.authority_hash, authority_hash,
            DICE_HIDDEN_SIZE);
-    srv_state.dice_root.child_node_info.config_descriptor.inputs =
-            config_descriptor->inputs;
+    srv_state.dice_root.child_node_info.config_descriptor.configs =
+            config_descriptor->configs;
     /* Component name is not copied, assuming it points to string literals which
      * are static. */
     srv_state.dice_root.child_node_info.config_descriptor.component_name =
@@ -374,14 +374,13 @@ static int encode_degenerate_cert(void* dice_ctx,
      * than the configuration descriptor which should conform to the
      * specification from the RKP HAL.
      */
-    BccConfigValues config_values = {};
+    DiceAndroidConfigValues config_values = {};
     uint8_t config_descriptor_encoded[CONFIG_DESCRIPTOR_TOTAL_SIZE];
     size_t config_descriptor_encoded_size = 0;
 
-    result = BccFormatConfigDescriptor(&config_values,
-                                       sizeof(config_descriptor_encoded),
-                                       config_descriptor_encoded,
-                                       &config_descriptor_encoded_size);
+    result = DiceAndroidFormatConfigDescriptor(
+            &config_values, sizeof(config_descriptor_encoded),
+            config_descriptor_encoded, &config_descriptor_encoded_size);
 
     rc = dice_result_to_err(result);
     if (rc != NO_ERROR) {
@@ -507,7 +506,7 @@ int swbcc_get_dice_artifacts(swbcc_session_t s,
     uint8_t config_descriptor_encoded[CONFIG_DESCRIPTOR_TOTAL_SIZE];
     size_t config_descriptor_encoded_size = 0;
 
-    result = BccFormatConfigDescriptor(
+    result = DiceAndroidFormatConfigDescriptor(
             &(srv_state.dice_root.child_node_info.config_descriptor),
             sizeof(config_descriptor_encoded), config_descriptor_encoded,
             &config_descriptor_encoded_size);

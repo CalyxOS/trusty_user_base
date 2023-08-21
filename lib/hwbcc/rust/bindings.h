@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <dice/android/bcc.h>
+#include <dice/android.h>
 #include <dice/ops.h>
 #include <interface/hwbcc/hwbcc.h>
 #include <lib/hwbcc/common/common.h>
