@@ -27,7 +27,7 @@
 #include <trusty_unittest.h>
 #include <uapi/err.h>
 
-#define PAGE_SIZE() getauxval(AT_PAGESZ)
+#define AUX_PAGE_SIZE() getauxval(AT_PAGESZ)
 #define MAX_TRY_TIMES 1000
 #define UNUSED_HWAES_ERROR_CODE HWAES_NO_ERROR
 
@@ -358,7 +358,7 @@ test_abort:
 TEST_F_SETUP(hwaes) {
     int rc;
     void* shm_base;
-    size_t shm_len = PAGE_SIZE();
+    size_t shm_len = AUX_PAGE_SIZE();
     _state->hwaes_session = INVALID_IPC_HANDLE;
     _state->memref = INVALID_IPC_HANDLE;
     _state->shm_base = NULL;
@@ -366,7 +366,7 @@ TEST_F_SETUP(hwaes) {
     rc = hwaes_open(&_state->hwaes_session);
     ASSERT_EQ(rc, 0);
 
-    shm_base = memalign(PAGE_SIZE(), shm_len);
+    shm_base = memalign(AUX_PAGE_SIZE(), shm_len);
     ASSERT_NE(NULL, shm_base, "fail to allocate shared memory");
 
     rc = memref_create(shm_base, shm_len, PROT_READ | PROT_WRITE);

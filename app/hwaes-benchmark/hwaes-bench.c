@@ -32,7 +32,7 @@
  * Helper Macros
  */
 #define HWAES_MAX_NUM_HANDLES 8
-#define PAGE_SIZE() getauxval(AT_PAGESZ)
+#define AUX_PAGE_SIZE() getauxval(AT_PAGESZ)
 
 #define INPUT_BYTES_ENCRYPT(...) plaintext
 #define INPUT_BYTES_DECRYPT(mode, key_size, input_size) \
@@ -424,9 +424,9 @@ BENCH_SETUP(crypto) {
      * Make sure we get all the memory we need
      */
     void* shm_base;
-    size_t shm_len = PAGE_SIZE();
+    size_t shm_len = AUX_PAGE_SIZE();
 
-    shm_base = memalign(PAGE_SIZE(), shm_len);
+    shm_base = memalign(AUX_PAGE_SIZE(), shm_len);
     if (shm_base == NULL) {
         TLOGE("Failed to allocate shared memory.\n");
         rc = ERR_NO_MEMORY;

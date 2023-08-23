@@ -22,12 +22,14 @@
 #include <stdlib.h>
 #include <sys/auxv.h>
 #include <sys/mman.h>
+#include <trusty/sys/mman.h>
+
 #include <trusty_log.h>
 #include <uapi/err.h>
 
 #include <inttypes.h>
 
-#define PAGE_SIZE() getauxval(AT_PAGESZ)
+#define AUX_PAGE_SIZE() getauxval(AT_PAGESZ)
 
 struct shm {
     void* base;
@@ -119,7 +121,7 @@ static int hwaes_map_shm(size_t num,
         }
 
         size_t size = size64;
-        if (size == 0 || size % PAGE_SIZE()) {
+        if (size == 0 || size % AUX_PAGE_SIZE()) {
             TLOGE("size (%zu) of shared memory is invalid.\n", size);
             return ERR_INVALID_ARGS;
         }
@@ -334,12 +336,30 @@ static int hwaes_handle_aes_cmd(handle_t chan,
         goto out;
     }
 
+    /* aad buffer has alignment requirements.
+     * Its offset should be adjusted on client side, align the offset also here
+     * padding is applied only if the buffer is mapped directly to req message
+     */
+    if (cmd_header->aad.shm_idx == HWAES_INVALID_INDEX &&
+        cmd_header->aad.len != 0) {
+        req_offset = ROUND_UP(req_offset, HWAES_TEXT_IN_BUF_ALIGNMENT);
+    }
+
     rc = hwaes_set_arg_in(&cmd_header->aad, PROT_READ, shms, num_handles,
                           req_msg_buf, req_msg_size, &req_offset, &args.aad);
     if (rc != NO_ERROR) {
         TLOGE("failed to set aad\n");
         resp_header->result = tipc_err_to_hwaes_err(rc);
         goto out;
+    }
+
+    /* text_in buffer has alignment requirements.
+     * Its offset should be adjusted on client side, align the offset also here
+     * padding is applied only if the buffer is mapped directly to req message
+     */
+    if (cmd_header->text_in.shm_idx == HWAES_INVALID_INDEX &&
+        cmd_header->text_in.len != 0) {
+        req_offset = ROUND_UP(req_offset, HWAES_TEXT_IN_BUF_ALIGNMENT);
     }
 
     rc = hwaes_set_arg_in(&cmd_header->text_in, PROT_READ, shms, num_handles,
@@ -357,6 +377,15 @@ static int hwaes_handle_aes_cmd(handle_t chan,
         TLOGE("failed to set tag_in\n");
         resp_header->result = tipc_err_to_hwaes_err(rc);
         goto out;
+    }
+
+    /* text_out buffer has alignment requirements.
+     * Its offset should be adjusted on client side, align the offset also here
+     * padding is applied only if the buffer is mapped directly to resp message
+     */
+    if (cmd_header->text_out.shm_idx == HWAES_INVALID_INDEX &&
+        cmd_header->text_out.len != 0) {
+        resp_offset = ROUND_UP(resp_offset, HWAES_TEXT_OUT_BUF_ALIGNMENT);
     }
 
     rc = hwaes_set_arg_out(&cmd_header->text_out, PROT_READ | PROT_WRITE, shms,
@@ -457,18 +486,25 @@ static int hwaes_on_message(const struct tipc_port* port,
                             void* ctx) {
     int rc;
 
-    uint8_t req_msg_buf[HWAES_MAX_MSG_SIZE] = {0};
-    uint8_t resp_msg_buf[HWAES_MAX_MSG_SIZE] = {0};
-
     handle_t shm_handles[HWAES_MAX_NUM_HANDLES];
-    size_t num_handles;
+    size_t num_handles = 0;
     size_t req_msg_size;
+
+    uint8_t* req_msg_buf = memalign(AUX_PAGE_SIZE(), HWAES_MAX_MSG_SIZE);
+    uint8_t* resp_msg_buf = memalign(AUX_PAGE_SIZE(), HWAES_MAX_MSG_SIZE);
+
+    if (req_msg_buf == 0 || resp_msg_buf == 0) {
+        TLOGE("failed to allocate memory for req/resp msg.\n");
+        rc = ERR_NO_MEMORY;
+        goto free_handles;
+    }
 
     rc = hwaes_read_req(chan, req_msg_buf, shm_handles, &num_handles,
                         &req_msg_size);
     if (rc != NO_ERROR) {
         TLOGE("failed (%d) to hwaes_read_req()\n", rc);
-        return rc;
+        num_handles = 0;
+        goto free_handles;
     };
 
     struct hwaes_req* req_header = (struct hwaes_req*)req_msg_buf;
@@ -497,9 +533,12 @@ static int hwaes_on_message(const struct tipc_port* port,
     }
 
 free_handles:
-    for (size_t i = 0; i <= num_handles; i++) {
+    for (size_t i = 0; i < num_handles; i++) {
         close(shm_handles[i]);
     }
+
+    free(req_msg_buf);
+    free(resp_msg_buf);
 
     return rc;
 }

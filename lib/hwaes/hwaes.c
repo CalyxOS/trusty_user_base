@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <lib/tipc/tipc.h>
+#include <lk/macros.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -147,7 +148,7 @@ static void hwaes_set_shm_arg_out(const struct hwcrypt_arg_out* arg_ptr,
  * @arg_ptr:         pointer to the input arg.
  * @data_desc_ptr:   pointer to data descriptor.
  * @shm_descs:       array of shared memory descriptors.
- * @shm_wrapper_ptr: pointer to the wrapper of shared memmory array.
+ * @shm_wrapper_ptr: pointer to the wrapper of shared memory array.
  *
  */
 static void hwaes_set_shm_arg_in(const struct hwcrypt_arg_in* arg_ptr,
@@ -163,7 +164,7 @@ static void hwaes_set_shm_arg_in(const struct hwcrypt_arg_in* arg_ptr,
  * hwaes_set_iov_helper() - helper to set iov for argument
  * @data_ptr:        pointer to the argument data.
  * @len:             length of the argument data.
- * @iov_wrapper_ptr: pointer to a wraaper for an iovec array.
+ * @iov_wrapper_ptr: pointer to a wrapper for an iovec array.
  *
  */
 static void hwaes_set_iov_helper(const void* data_ptr,
@@ -182,11 +183,34 @@ static void hwaes_set_iov_helper(const void* data_ptr,
 }
 
 /**
+ * hwaes_pad_iov_helper() - helper to set iov for argument and add pad
+ * before the buffer to satisfy the alignment requirements
+ * @pad_ptr:         pointer to the pad buffer.
+ * @alignment:       alignment required for the next field
+ * @iov_wrapper_ptr: pointer to a wrapper for an iovec array.
+ *
+ * This may add an iov entry to insert padding bytes from `pad_ptr` to ensure
+ * the next bytes written will be aligned to the specified offset from the start
+ * of the data stream.  If the receiving server reads the message into a
+ * suitably aligned buffer, the alignment of the next bytes can be controlled to
+ * meet DMA hardware or cache-line alignment requirements.
+ */
+static void hwaes_pad_iov_helper(const void* pad_ptr,
+                                 size_t alignment,
+                                 struct hwaes_iov* iov_wrapper_ptr) {
+    size_t pad_size = ROUND_UP(iov_wrapper_ptr->total_len, alignment) -
+                      iov_wrapper_ptr->total_len;
+    if (pad_size > 0) {
+        hwaes_set_iov_helper(pad_ptr, pad_size, iov_wrapper_ptr);
+    }
+}
+
+/**
  * hwaes_set_iov_arg_helper() - helper to set iov for argument
  * @data_ptr:        pointer to the argument data.
  * @len:             length of the argument data.
  * @data_desc_ptr:   pointer to data descriptor.
- * @iov_wrapper_ptr: pointer to a wraaper for an iovec array.
+ * @iov_wrapper_ptr: pointer to a wrapper for an iovec array.
  *
  */
 static void hwaes_set_iov_arg_helper(const void* data_ptr,
@@ -202,7 +226,7 @@ static void hwaes_set_iov_arg_helper(const void* data_ptr,
  * hwaes_set_iov_arg_in() - set iovec for input argument.
  * @arg_ptr:         pointer to the input arg.
  * @data_desc_ptr:   pointer to data descriptor.
- * @iov_wrapper_ptr: pointer to a wraaper for an iovec array.
+ * @iov_wrapper_ptr: pointer to a wrapper for an iovec array.
  *
  */
 static void hwaes_set_iov_arg_in(const struct hwcrypt_arg_in* arg_ptr,
@@ -218,7 +242,7 @@ static void hwaes_set_iov_arg_in(const struct hwcrypt_arg_in* arg_ptr,
  * hwaes_set_iov_arg_out() - set iovec for output argument.
  * @arg_ptr:         pointer to the output arg.
  * @data_desc_ptr:   pointer to data descriptor.
- * @iov_wrapper_ptr: pointer to a wraaper for an iovec array.
+ * @iov_wrapper_ptr: pointer to a wrapper for an iovec array.
  *
  */
 static void hwaes_set_iov_arg_out(const struct hwcrypt_arg_out* arg_ptr,
@@ -375,12 +399,27 @@ static int hwaes_crypt(hwaes_session_t session,
 
     hwaes_set_iov_arg_in(&args->key, &cmd_header.key, &req_iov);
     hwaes_set_iov_arg_in(&args->iv, &cmd_header.iv, &req_iov);
+
+    uint8_t padd_buf[MAX(HWAES_TEXT_IN_BUF_ALIGNMENT,
+                         HWAES_TEXT_OUT_BUF_ALIGNMENT)] = {0};
+    if (cmd_header.aad.shm_idx == HWAES_INVALID_INDEX && args->aad.len != 0) {
+        hwaes_pad_iov_helper(padd_buf, HWAES_TEXT_IN_BUF_ALIGNMENT, &req_iov);
+    }
     hwaes_set_iov_arg_in(&args->aad, &cmd_header.aad, &req_iov);
+
+    if (cmd_header.text_in.shm_idx == HWAES_INVALID_INDEX &&
+        args->text_in.len != 0) {
+        hwaes_pad_iov_helper(padd_buf, HWAES_TEXT_IN_BUF_ALIGNMENT, &req_iov);
+    }
     hwaes_set_iov_arg_in(&args->text_in, &cmd_header.text_in, &req_iov);
     hwaes_set_iov_arg_in(&args->tag_in, &cmd_header.tag_in, &req_iov);
 
     hwaes_set_iov_helper(&resp, sizeof(resp), &resp_iov);
 
+    if (cmd_header.text_out.shm_idx == HWAES_INVALID_INDEX &&
+        args->text_out.len != 0) {
+        hwaes_pad_iov_helper(padd_buf, HWAES_TEXT_OUT_BUF_ALIGNMENT, &resp_iov);
+    }
     hwaes_set_iov_arg_out(&args->text_out, &cmd_header.text_out, &resp_iov);
     hwaes_set_iov_arg_out(&args->tag_out, &cmd_header.tag_out, &resp_iov);
 
