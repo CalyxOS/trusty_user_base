@@ -45,4 +45,7 @@ ifeq (true,$(call TOBOOL,$(APPLOADER_ALLOW_NS_CONNECT)))
 MODULE_COMPILEFLAGS += -DAPPLOADER_ALLOW_NS_CONNECT
 endif
 
+# Indicate to user-tasks.mk that this build supports loadable apps
+TRUSTY_APPLOADER_ENABLED := true
+
 include make/trusted_app.mk
