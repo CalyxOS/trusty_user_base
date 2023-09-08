@@ -27,9 +27,9 @@ MODULE_RUSTFLAGS += \
 	--cfg 'feature="alloc"' \
 
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/const-oid-rust \
-	trusty/user/base/lib/der-rust \
-	trusty/user/base/lib/flagset-rust \
-	trusty/user/base/lib/spki-rust \
+	$(call FIND_CRATE,const-oid) \
+	$(call FIND_CRATE,der) \
+	$(call FIND_CRATE,flagset) \
+	$(call FIND_CRATE,spki) \
 
 include make/library.mk

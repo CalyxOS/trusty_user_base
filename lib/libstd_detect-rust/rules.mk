@@ -30,10 +30,10 @@ MODULE_RUSTFLAGS += \
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libcore-rust \
-	trusty/user/base/lib/libc-rust \
+	$(call FIND_CRATE,libc) \
 	trusty/user/base/lib/liballoc-rust \
 	trusty/user/base/lib/libcompiler_builtins-rust \
-	trusty/user/base/lib/cfg-if-rust \
+	$(call FIND_CRATE,cfg-if) \
 
 MODULE_ADD_IMPLICIT_DEPS := false
 

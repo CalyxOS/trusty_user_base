@@ -27,10 +27,10 @@ MODULE_RUSTFLAGS += \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/bssl-sys-rust \
-	trusty/user/base/lib/foreign-types-rust \
+	$(call FIND_CRATE,foreign-types) \
 	trusty/user/base/lib/keymint-rust/common \
-	trusty/user/base/lib/libc-rust \
-	trusty/user/base/lib/log-rust \
+	$(call FIND_CRATE,libc) \
+	$(call FIND_CRATE,log) \
 	trusty/user/base/lib/openssl-rust \
 	trusty/user/base/lib/keymint-rust/wire \
 

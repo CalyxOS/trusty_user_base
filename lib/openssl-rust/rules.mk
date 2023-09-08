@@ -31,13 +31,13 @@ MODULE_CRATE_NAME := openssl
 MODULE_RUST_EDITION := 2018
 
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/bitflags-rust \
-	trusty/user/base/lib/cfg-if-rust \
-	trusty/user/base/lib/foreign-types-rust \
-	trusty/user/base/lib/libc-rust \
-	trusty/user/base/lib/once_cell-rust \
-	trusty/user/base/host/openssl-macros \
-	trusty/user/base/lib/log-rust \
+	$(call FIND_CRATE,bitflags) \
+	$(call FIND_CRATE,cfg-if) \
+	$(call FIND_CRATE,foreign-types) \
+	$(call FIND_CRATE,libc) \
+	$(call FIND_CRATE,once_cell) \
+	$(call FIND_CRATE,openssl-macros) \
+	$(call FIND_CRATE,log) \
 	trusty/user/base/lib/bssl-sys-rust \
 
 MODULE_RUSTFLAGS += \
