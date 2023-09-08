@@ -31,6 +31,6 @@ MODULE_RUSTFLAGS += \
 	--allow warnings \
 
 MODULE_LIBRARY_DEPS += \
-	$(call FIND_CRATE,cfg-if) \
+	trusty/user/base/lib/cfg-if-rust \
 
 include make/library.mk

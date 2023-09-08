@@ -26,7 +26,7 @@ MODULE_INCLUDES += \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/libc-trusty \
-	$(call FIND_CRATE,log) \
+	trusty/user/base/lib/log-rust \
 	trusty/user/base/lib/trusty-std \
 	trusty/user/base/lib/trusty-sys \
 

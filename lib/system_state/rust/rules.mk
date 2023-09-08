@@ -23,7 +23,7 @@ MODULE_CRATE_NAME := system_state
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/interface/system_state \
-	$(call FIND_CRATE,log) \
+	trusty/user/base/lib/log-rust \
 	trusty/user/base/lib/trusty-std \
 	trusty/user/base/lib/tipc/rust \
 

@@ -32,6 +32,6 @@ MODULE_RUSTFLAGS += \
 	--cfg 'wrap_proc_macro' \
 
 MODULE_LIBRARY_DEPS := \
-	$(call FIND_CRATE,unicode-xid) \
+	trusty/user/base/host/unicode-xid
 
 include make/library.mk

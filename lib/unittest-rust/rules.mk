@@ -22,7 +22,7 @@ MODULE_SRCS := $(LOCAL_DIR)/src/lib.rs
 MODULE_CRATE_NAME := test
 
 MODULE_LIBRARY_DEPS += \
-	$(call FIND_CRATE,log) \
+	trusty/user/base/lib/log-rust \
 	trusty/user/base/lib/trusty-std \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/trusty-log \

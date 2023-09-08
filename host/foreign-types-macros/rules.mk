@@ -26,9 +26,9 @@ MODULE_CRATE_NAME := foreign_types_macros
 MODULE_RUST_EDITION := 2018
 
 MODULE_LIBRARY_DEPS := \
-	$(call FIND_CRATE,proc-macro2) \
-	$(call FIND_CRATE,quote) \
-	$(call FIND_CRATE,syn) \
+	trusty/user/base/host/proc-macro2 \
+	trusty/user/base/host/quote \
+	trusty/user/base/host/syn \
 
 MODULE_RUST_CRATE_TYPES := proc-macro
 

@@ -29,6 +29,6 @@ MODULE_RUSTFLAGS += \
 	--allow rustdoc::broken-intra-doc-links \
 
 MODULE_LIBRARY_DEPS := \
-	$(call FIND_CRATE,proc-macro2) \
+	trusty/user/base/host/proc-macro2 \
 
 include make/library.mk
