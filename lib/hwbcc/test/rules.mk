@@ -13,6 +13,7 @@
 # limitations under the License.
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
+LIBCPPBOR_DIR := $(if $(wildcard system/libcppbor),system/libcppbor,external/libcppbor)
 
 MODULE := $(LOCAL_DIR)
 
@@ -23,7 +24,7 @@ MODULE_SRCS := \
 
 MODULE_LIBRARY_DEPS := \
 	external/boringssl \
-	external/libcppbor \
+	$(LIBCPPBOR_DIR) \
 	external/open-dice \
 	trusty/user/base/lib/hwbcc/client \
 	trusty/user/base/lib/hwbcc/common \

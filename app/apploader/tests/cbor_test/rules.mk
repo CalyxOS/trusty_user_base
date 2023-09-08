@@ -20,7 +20,7 @@ HOST_TEST := cbor_test
 GTEST_DIR := external/googletest/googletest
 PACKAGE_DIR := trusty/user/base/lib/apploader_package
 OPEN_DICE_DIR := external/open-dice
-LIBCPPBOR_DIR := external/libcppbor
+LIBCPPBOR_DIR := $(if $(wildcard system/libcppbor),system/libcppbor,external/libcppbor)
 
 # libcppbor checks if __TRUSTY__ is defined to determine whether it's linked
 # into Android or Trusty; the library uses some Android-specific logging and
