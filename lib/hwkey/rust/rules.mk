@@ -23,7 +23,7 @@ MODULE_CRATE_NAME := hwkey
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/interface/hwkey \
-	trusty/user/base/lib/log-rust \
+	$(call FIND_CRATE,log) \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/trusty-std \
 

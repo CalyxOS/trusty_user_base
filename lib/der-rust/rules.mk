@@ -33,9 +33,9 @@ MODULE_RUSTFLAGS += \
 	--cfg 'feature="zeroize"' \
 
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/host/der_derive \
-	trusty/user/base/lib/const-oid-rust \
-	trusty/user/base/lib/flagset-rust \
-	trusty/user/base/lib/zeroize-rust \
+	$(call FIND_CRATE,der_derive) \
+	$(call FIND_CRATE,const-oid) \
+	$(call FIND_CRATE,flagset) \
+	$(call FIND_CRATE,zeroize) \
 
 include make/library.mk
