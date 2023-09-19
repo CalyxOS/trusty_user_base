@@ -39,9 +39,9 @@ mod serialization;
 mod service;
 
 pub use err::{ConnectResult, MessageResult, Result, TipcError};
-pub use handle::{Handle, MMapFlags, UnsafeSharedBuf};
+pub use handle::{Handle, MMapFlags, UnsafeSharedBuf, MAX_MSG_HANDLES};
 pub use serialization::{Deserialize, Serialize, Serializer};
-pub use service::{Dispatcher, Manager, PortCfg, Service, Uuid};
+pub use service::{Dispatcher, Manager, PortCfg, Service, UnbufferedService, Uuid};
 
 #[cfg(test)]
 mod test {

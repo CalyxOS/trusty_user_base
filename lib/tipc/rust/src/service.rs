@@ -301,6 +301,38 @@ pub trait Service {
     fn on_disconnect(&self, _connection: &Self::Connection) {}
 }
 
+pub trait UnbufferedService {
+    /// Generic type to association with a connection. `on_connect()` should
+    /// create this type for a successful connection.
+    type Connection;
+
+    /// Called when a client connects
+    ///
+    /// Returns either `Ok(Accept(Connection))` if the connection should be
+    /// accepted or `Ok(CloseConnection)` if the connection should be closed.
+    fn on_connect(
+        &self,
+        port: &PortCfg,
+        handle: &Handle,
+        peer: &Uuid,
+    ) -> Result<ConnectResult<Self::Connection>>;
+
+    /// Called when the service receives a message.
+    ///
+    /// The service is responsible for deserializing the message.
+    /// A default implementation is provided that panics, for reasons of backwards
+    /// compatibility with existing code. Any unbuffered service should implement this
+    /// method and also provide a simple implementation for `on_message` that e.g. logs
+    /// or panics.
+    ///
+    /// Should return `Ok(MaintainConnection)` if the connection should be kept open. The
+    /// connection will be closed if `Ok(CloseConnection)` or `Err(_)` is returned.
+    fn on_message(&self, connection: &Self::Connection, handle: &Handle) -> Result<MessageResult>;
+
+    /// Called when the client closes a connection.
+    fn on_disconnect(&self, _connection: &Self::Connection) {}
+}
+
 pub trait Dispatcher {
     /// Generic type to association with a connection. `on_connect()` should
     /// create this type for a successful connection.
@@ -328,8 +360,7 @@ pub trait Dispatcher {
         &self,
         connection: &Self::Connection,
         handle: &Handle,
-        msg: &[u8],
-        msg_handles: &mut [Option<Handle>],
+        buffer: &mut [u8],
     ) -> Result<MessageResult>;
 
     /// Called when the client closes a connection.
@@ -372,13 +403,15 @@ impl<S: Service> Dispatcher for SingleDispatcher<S> {
         &self,
         connection: &Self::Connection,
         handle: &Handle,
-        msg: &[u8],
-        msg_handles: &mut [Option<Handle>],
+        buffer: &mut [u8],
     ) -> Result<MessageResult> {
-        let msg = S::Message::deserialize(msg, msg_handles).map_err(|e| {
-            error!("Could not parse message: {:?}", e);
-            TipcError::InvalidData
-        })?;
+        let mut handles: [Option<Handle>; MAX_MSG_HANDLES] = Default::default();
+        let (byte_count, handle_count) = handle.recv_vectored(&mut [buffer], &mut handles)?;
+        let msg = S::Message::deserialize(&buffer[..byte_count], &mut handles[..handle_count])
+            .map_err(|e| {
+                error!("Could not parse message: {:?}", e);
+                TipcError::InvalidData
+            })?;
         self.service.on_message(connection, handle, msg)
     }
 
@@ -388,6 +421,52 @@ impl<S: Service> Dispatcher for SingleDispatcher<S> {
 
     fn max_message_length(&self) -> usize {
         S::Message::MAX_SERIALIZED_SIZE
+    }
+
+    fn port_configurations(&self) -> &[PortCfg] {
+        &self.ports
+    }
+}
+
+// Implementation of a static dispatcher for unbuffered services.
+pub struct SingleUnbufferedDispatcher<S: UnbufferedService> {
+    service: S,
+    ports: [PortCfg; 1],
+}
+
+impl<S: UnbufferedService> SingleUnbufferedDispatcher<S> {
+    fn new(service: S, port: PortCfg) -> Self {
+        Self { service, ports: [port] }
+    }
+}
+
+impl<S: UnbufferedService> Dispatcher for SingleUnbufferedDispatcher<S> {
+    type Connection = S::Connection;
+
+    fn on_connect(
+        &self,
+        port: &PortCfg,
+        handle: &Handle,
+        peer: &Uuid,
+    ) -> Result<ConnectResult<Self::Connection>> {
+        self.service.on_connect(port, handle, peer)
+    }
+
+    fn on_message(
+        &self,
+        connection: &Self::Connection,
+        handle: &Handle,
+        _buffer: &mut [u8],
+    ) -> Result<MessageResult> {
+        self.service.on_message(connection, handle)
+    }
+
+    fn on_disconnect(&self, connection: &Self::Connection) {
+        self.service.on_disconnect(connection)
+    }
+
+    fn max_message_length(&self) -> usize {
+        0
     }
 
     fn port_configurations(&self) -> &[PortCfg] {
@@ -515,12 +594,16 @@ macro_rules! service_dispatcher {
                 &self,
                 connection: &Self::Connection,
                 handle: &Handle,
-                msg: &[u8],
-                msg_handles: &mut [Option<Handle>],
+                buffer: &mut [u8],
             ) -> $crate::Result<$crate::MessageResult> {
+                let mut handles: [Option<Handle>; $crate::MAX_MSG_HANDLES] = Default::default();
+                let (byte_count, handle_count) = handle.recv_vectored(&mut [buffer], &mut handles)?;
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
-                        let msg = match <$service as $crate::Service>::Message::deserialize(msg, msg_handles) {
+                        let msg = match <$service as $crate::Service>::Message::deserialize(
+                            &buffer[..byte_count],
+                            &mut handles[..handle_count],
+                        ) {
                             Ok(msg) => msg,
 
                             // If the incoming message doesn't parse correctly, log the error and
@@ -635,6 +718,19 @@ impl<
     pub fn new(service: S, port_cfg: PortCfg, buffer: B) -> Result<Self> {
         let dispatcher = SingleDispatcher::new(service, port_cfg);
         Self::new_with_dispatcher(dispatcher, buffer)
+    }
+}
+
+impl<S: UnbufferedService, const PORT_COUNT: usize, const MAX_CONNECTION_COUNT: usize>
+    Manager<SingleUnbufferedDispatcher<S>, [u8; 0], PORT_COUNT, MAX_CONNECTION_COUNT>
+{
+    /// Create a new unbuffered service manager for the given service and port.
+    ///
+    /// The newly created manager will not have an internal buffer.
+    /// The service is responsible for reading messages explicitly from the handler.
+    pub fn new_unbuffered(service: S, port_cfg: PortCfg) -> Result<Self> {
+        let dispatcher = SingleUnbufferedDispatcher::new(service, port_cfg);
+        Self::new_with_dispatcher(dispatcher, [])
     }
 }
 
@@ -834,15 +930,7 @@ impl<
     }
 
     fn handle_message(&mut self, handle: &Handle, data: &D::Connection) -> Result<MessageResult> {
-        let mut handles: [Option<Handle>; MAX_MSG_HANDLES] = Default::default();
-        let (byte_count, handle_count) =
-            handle.recv_vectored(&mut [self.buffer.as_mut()], &mut handles)?;
-        self.dispatcher.on_message(
-            data,
-            handle,
-            &self.buffer.as_ref()[..byte_count],
-            &mut handles[..handle_count],
-        )
+        self.dispatcher.on_message(data, handle, self.buffer.as_mut())
     }
 
     fn handle_disconnect(&mut self, _handle: &Handle, data: &D::Connection) {

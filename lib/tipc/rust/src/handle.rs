@@ -54,7 +54,7 @@ use trusty_sys::{c_int, c_long};
 pub struct Handle(handle_t);
 
 /// Maximum number of handles that can be transferred in an IPC message at once.
-pub(crate) const MAX_MSG_HANDLES: usize = 8;
+pub const MAX_MSG_HANDLES: usize = 8;
 
 impl Handle {
     /// Open a client connection to the given service.
@@ -139,7 +139,7 @@ impl Handle {
     /// Returns a tuple of the number of bytes written into the buffer and the
     /// number of handles received. `handles` should have space for at least
     /// [`MAX_MSG_HANDLES`].
-    pub(crate) fn recv_vectored(
+    pub fn recv_vectored(
         &self,
         buffers: &mut [&mut [u8]],
         handles: &mut [Option<Handle>],
