@@ -34,7 +34,7 @@
 # TRUSTY_APP_SYMTAB_ENABLED : If true do not strip symbols from the resulting app
 # 		binary
 # MANIFEST : App manifest JSON file
-# CONSTANTS : JSON files with constants used for both the manifest and C headers
+# MODULE_CONSTANTS : JSON files with constants used for both the manifest and C headers
 # CLANG_BINDIR : Location of the bin/ directory of the clang to use. (Must be the
 # 		same version used to compile the SDK.) Defaults to `toolchain/clang/bin`
 # 		inside the SDK.

@@ -19,7 +19,7 @@ MODULE := $(LOCAL_DIR)
 
 MANIFEST := $(LOCAL_DIR)/manifest.json
 
-CONSTANTS := $(LOCAL_DIR)/include/scudo_consts.json
+MODULE_CONSTANTS := $(LOCAL_DIR)/include/scudo_consts.json
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/scudo_test.c \
