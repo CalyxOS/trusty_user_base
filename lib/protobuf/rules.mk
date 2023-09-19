@@ -16,7 +16,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-PROTOBUF := prebuilts/libprotobuf/src
+PROTOBUF := $(if $(wildcard external/protobuf),external/protobuf/src,prebuilts/libprotobuf/src)
 
 MODULE_SRCS := \
 	$(PROTOBUF)/google/protobuf/any_lite.cc \
