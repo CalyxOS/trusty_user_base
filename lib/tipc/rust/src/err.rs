@@ -84,7 +84,7 @@ pub enum MessageResult {
 }
 
 impl TipcError {
-    pub(crate) fn from_uapi(rc: c_long) -> Self {
+    pub fn from_uapi(rc: c_long) -> Self {
         let sys_err: Error = rc.into();
         match sys_err {
             Error::BadHandle => TipcError::InvalidHandle,

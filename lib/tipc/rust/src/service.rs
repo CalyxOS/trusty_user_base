@@ -240,6 +240,10 @@ impl Uuid {
     ) -> Self {
         Uuid(trusty_sys::uuid { time_low, time_mid, time_hi_and_version, clock_seq_and_node })
     }
+
+    pub unsafe fn as_ptr(&self) -> *const trusty_sys::uuid {
+        &self.0
+    }
 }
 
 impl fmt::Debug for Uuid {
