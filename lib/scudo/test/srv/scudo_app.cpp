@@ -75,6 +75,21 @@ static void touch(volatile void* a) {
 }
 
 /*
+ * Touch all bytes in a string (up to ARR_SIZE).
+ * String buffer should be at least ARR_SIZE long.
+ */
+static void touch_string(char* arr) {
+    /* make sure we don't go out of the buffer */
+    arr[ARR_SIZE - 1] = '\0';
+
+    while (*arr != '\0') {
+        *(reinterpret_cast<volatile char*>(arr)) =
+                *(reinterpret_cast<volatile char*>(arr));
+        arr++;
+    }
+}
+
+/*
  * In addition to touching arr, it is memset with fill_char
  * and printed as a check that arr points to valid writable memory.
  */
@@ -199,7 +214,10 @@ static int scudo_on_message(const struct tipc_port* port,
             char* arr = reinterpret_cast<char*>(malloc(ARR_SIZE + i));
             touch(arr);
             snprintf(arr, ARR_SIZE, "(%d)!", i);
-            TLOG("arr = %s\n", arr);
+            touch_string(arr);
+            if ((i % 100) == 0) {
+                TLOG("arr = %s\n", arr);
+            }
             free(arr);
         }
         // do some larger allocations to verify the secondary allocator
