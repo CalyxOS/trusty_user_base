@@ -14,6 +14,9 @@
 # limitations under the License.
 #
 
+# Ensure we have frame pointers in Rust, for stack back-tracing and tools
+MODULE_RUSTFLAGS += -C force-frame-pointers=y
+
 ifeq ($(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)),true)
 # Add global library dependencies to the build path
 MODULE_LIBRARY_DEPS += $(GLOBAL_USER_LIBRARY_DEPS)
