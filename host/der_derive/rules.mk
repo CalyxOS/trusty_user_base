@@ -27,7 +27,7 @@ MODULE_LIBRARY_DEPS += \
 	$(call FIND_CRATE,proc-macro2) \
 	$(call FIND_CRATE,proc-macro-error) \
 	$(call FIND_CRATE,quote) \
-	$(call FIND_CRATE,syn) \
+	$(call FIND_CRATE,syn)/1.0.107 \
 
 MODULE_RUST_CRATE_TYPES := proc-macro
 

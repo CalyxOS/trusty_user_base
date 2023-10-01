@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-PROTOBUF_DIR := $(call FIND_EXTERNAL,rust/crates/protobuf)
+PROTOBUF_DIR := $(call FIND_EXTERNAL,rust/crates/protobuf/2.27.1)
 
 MODULE_SRCS := $(PROTOBUF_DIR)/src/lib.rs
 
