@@ -119,12 +119,11 @@ ifeq (false,$(call TOBOOL,$(MODULE_DISABLE_SCS)))
 # a register for the shadow call stack in their toolchain.mk file
 MODULE_COMPILEFLAGS += -fsanitize=shadow-call-stack
 
-ifeq ($(TRUSTY_USER_ARCH),arm64)
-# LLVM reserves x18 by default on AArch64 Android, so rust in AOSP doesn't need
-# to specify this. We aren't using the Android target so we need to explicitly
-# reserve x18 if we want to use SCS.
-MODULE_RUSTFLAGS += -C target-feature=+reserve-x18
-endif
+# The Rust target aarch64-unknown-trusty enables reserve-x18 by default.
+# Doing so through rustc args causes a warning and is unnecessary, so we
+# don't pass it explicitly via MODULE_RUSTFLAGS if TRUSTY_USER_ARCH is arm64.
+# See https://github.com/rust-lang/rust/issues/96472#issuecomment-1200319324
+# for why rustc warns on this and it is not a rustc bug.
 
 endif
 else  # TRUSTY_APP_DISABLE_SCS
