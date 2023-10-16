@@ -27,7 +27,13 @@ SDK structure
   - `$ARCH`
     Sysroot containing the userspace libraries and headers for the corresponding
     architecture.
-- `clang`
+- `clang-version`
   Version information for the clang toolchain used to compile the SDK and
     corresponding version of the Trusty kernel. This toolchain must be used to
     build apps in order to be compatible with this SDK.
+- `toolchain`
+  Optionally included if the SDK was built with `--archive-toolchain`.
+  - `clang`
+    Symbolic link to the clang directory used to compile the SDK.
+  - `clang-r...`
+    The specific clang toolchain used to compile the SDK.
