@@ -59,7 +59,7 @@ MODULE_SRCS += \
 	$(SCUDO_DIR)/standalone/wrappers_c.cpp \
 	$(SCUDO_DIR)/standalone/wrappers_cpp.cpp \
 
-# TODO: Only include rss_limit_checker.cpp if it exists, since upstream
+# TODO (b/305723343): Only include rss_limit_checker.cpp if it exists, since upstream
 # removed it recently. When it's completely gone everywhere, we can
 # come back and delete this.
 ifneq (,$(wildcard $(SCUDO_DIR)/standalone/rss_limit_checker.cpp))
