@@ -776,6 +776,8 @@ static void print_package_info(const char* input_path) {
         exit(EXIT_FAILURE);
     }
 
+    bool package_error = false;
+
     if (content_is_cose_encrypt && content_is_cose_encrypt->value) {
         if (manifest_extracts.requires_encryption) {
             printf("Encrypted: YES, REQUIRED\n");
@@ -794,16 +796,14 @@ static void print_package_info(const char* input_path) {
         size_t package_size;
         coseDecryptAesGcmKeyWrapInPlace(pkg_info.elf_item, print_key_id, {},
                                         false, &package_start, &package_size);
+    } else if (manifest_extracts.requires_encryption) {
+        printf("Encrypted: NO, REQUIRED\n");
+        fprintf(stderr,
+                "Error: app is not encrypted, contrary to manifest requirement.\n");
+        fprintf(stderr,
+                "Either encrypt the app, or remove the manifest requirement.\n");
+        package_error = true;
     } else {
-        if (manifest_extracts.requires_encryption) {
-            printf("Encrypted: NO, REQUIRED\n");
-            fprintf(stderr,
-                    "Error: app is not encrypted, contrary to manifest requirement.\n");
-            fprintf(stderr,
-                    "Either encrypt the app, or remove the manifest requirement.\n");
-            exit(EXIT_FAILURE);
-        }
-
         printf("Encrypted: NO, OPTIONAL\n");
     }
 
@@ -822,6 +822,10 @@ static void print_package_info(const char* input_path) {
 
     // Restore the old silence flag
     coseSetSilenceErrors(oldSilenceErrors);
+
+    if (package_error) {
+        exit(EXIT_FAILURE);
+    }
 }
 
 int main(int argc, char** argv) {
