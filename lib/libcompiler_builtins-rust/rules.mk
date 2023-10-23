@@ -29,6 +29,7 @@ MODULE_LIBRARY_DEPS += \
 MODULE_RUST_EDITION := 2015
 
 MODULE_RUSTFLAGS += \
+	--cfg 'feature="weak-intrinsics"' \
 	--cfg 'feature="compiler-builtins"' \
 	--cfg 'feature="core"' \
 	--cfg 'feature="default"' \
