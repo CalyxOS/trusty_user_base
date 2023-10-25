@@ -21,6 +21,6 @@ MODULE_DTS := \
 	$(LOCAL_DIR)/test.dts
 
 MODULE_DTS_INCLUDES := \
-	$(call FIND_EXTERNAL,linux/include)
+	$(call FIND_EXTERNAL,arm-trusted-firmware/include)
 
 include make/dtb.mk
