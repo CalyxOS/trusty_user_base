@@ -91,6 +91,43 @@ pub fn assert_failed_inner(
 }
 
 #[track_caller]
+#[doc(hidden)]
+pub fn assert_err<E: fmt::Display>(
+    result: &'static str,
+    err: &E,
+    args: Option<fmt::Arguments<'_>>,
+) {
+    assert_err_inner(result, &*err, args);
+}
+
+#[track_caller]
+#[doc(hidden)]
+pub fn assert_err_inner(
+    result: &'static str,
+    err: &dyn fmt::Display,
+    args: Option<fmt::Arguments<'_>>,
+) {
+    match args {
+        Some(args) => eprintln!(
+            r#"assertion failed: `{}` not Ok
+error: `{}` : {}, {}`"#,
+            result,
+            err,
+            args,
+            Location::caller(),
+        ),
+        None => eprintln!(
+            r#"assertion failed: `{}` not Ok
+error: `{}`, {}`"#,
+            result,
+            err,
+            Location::caller(),
+        ),
+    }
+    CONTEXT.fail(false);
+}
+
+#[track_caller]
 pub fn simple_assert_failed(cond: &'static str, args: Option<fmt::Arguments<'_>>) {
     match args {
         Some(args) => eprintln!("assertion failed: {}, {}", args, Location::caller()),

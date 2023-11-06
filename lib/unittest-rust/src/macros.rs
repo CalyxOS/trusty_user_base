@@ -223,6 +223,49 @@ macro_rules! assert_ne {
     });
 }
 
+/// Asserts that a `Result` expression is `Ok`
+///
+/// On failure, this macro will print an error message containing the `Err`
+/// (The `Err` value must implement [`std::fmt::Display`].) value and signal
+/// the failure to the test framework. On success, the macro expression will
+/// evaluate to the unwrapped `Ok` value.
+///
+/// Like [`assert!`], this macro has a second form, where a custom error
+/// message can be provided with or without arguments for formatting. See
+/// [`core::fmt`] for syntax for this form. Expressions used as format arguments
+/// will only be evaluated if the assertion fails.
+///
+/// # Examples
+///
+/// ```
+/// let x: Result<usize, String> = Ok(4);
+/// let x: usize = assert_ok!(x);
+///
+/// let y: Result<usize, String> = Ok(x);
+/// assert_ok!(y, "something went wrong; x was {}", x);
+/// ```
+#[macro_export]
+macro_rules! assert_ok {
+    ($result:expr $(,)?) => ({
+        match ($result) {
+            Ok(t) => t,
+            Err(e) => {
+                $crate::asserts::assert_err(core::stringify!($result), &e, core::option::Option::None);
+                return;
+            }
+        }
+    });
+    ($result:expr, $($arg:tt)+) => ({
+        match ($result) {
+            Ok(t) => t,
+            Err(e) => {
+                $crate::asserts::assert_err(core::stringify!($result), &e, core::option::Option::Some(core::format_args!($($arg)+)));
+                return;
+            }
+        }
+    });
+}
+
 /// Expects that a boolean expression is `true` at runtime.
 ///
 /// On failure, this macro will print an error message and signal the failure to
@@ -288,5 +331,24 @@ macro_rules! assert {
                 }
             }
         }
+    });
+}
+
+/// Fails the test and diverges.
+///
+/// Unlike [`core::panic!`], this macro will not unwind/abort, but instead returns
+/// early from a test function.
+///
+/// This macro can be used with or without providing a custom error message.
+/// Formatting is supported; see [`core::fmt`] for syntax.
+#[macro_export]
+macro_rules! fail {
+    () => ({
+        $crate::asserts::simple_assert_failed("encountered test failure", core::option::Option::None);
+        return;
+    });
+    ($($arg:tt)+) => ({
+        $crate::asserts::simple_assert_failed("encountered test failure", core::option::Option::Some(core::format_args!($($arg)+)));
+        return;
     });
 }
