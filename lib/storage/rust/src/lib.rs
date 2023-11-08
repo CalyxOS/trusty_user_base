@@ -189,13 +189,13 @@ impl Session {
 
         // Convert the `port` enum to the corresponding C string expected by the C API.
         let port = match port {
-            TamperDetect => sys::STORAGE_CLIENT_TD_PORT as *const u8,
-            TamperDetectPersist => sys::STORAGE_CLIENT_TDP_PORT as *const u8,
-            TamperDetectEarlyAccess => sys::STORAGE_CLIENT_TDEA_PORT as *const u8,
-            TamperProof => sys::STORAGE_CLIENT_TP_PORT as *const u8,
+            TamperDetect => sys::STORAGE_CLIENT_TD_PORT.as_ptr().cast(),
+            TamperDetectPersist => sys::STORAGE_CLIENT_TDP_PORT.as_ptr().cast(),
+            TamperDetectEarlyAccess => sys::STORAGE_CLIENT_TDEA_PORT.as_ptr().cast(),
+            TamperProof => sys::STORAGE_CLIENT_TP_PORT.as_ptr().cast(),
 
             #[cfg(test)]
-            TestPortNonExistent => b"com.android.trusty.storage.client.fake\0" as *const u8,
+            TestPortNonExistent => b"com.android.trusty.storage.client.fake\0".as_ptr().cast(),
         };
 
         let flags = if wait_for_port { trusty_sys::IPC_CONNECT_WAIT_FOR_PORT } else { 0 };
@@ -943,7 +943,7 @@ impl DirIter {
                 self.session,
                 self.raw,
                 &mut flags,
-                buf.as_mut_ptr(),
+                buf.as_mut_ptr().cast(),
                 buf.len(),
             );
 
