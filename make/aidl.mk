@@ -54,9 +54,15 @@ endif
 # of MODULE_AIDL_PACKAGE; support multiple packages
 GET_AIDL_PACKAGE_ROOT = $(if $(MODULE_AIDL_PACKAGE),$(firstword $(subst $(MODULE_AIDL_PACKAGE), ,$1)),$(dir $1))
 
+ifneq (,$(wildcard out/host/linux-x86/bin/aidl))
+# Use the aidl tool from the build output if it exists
+AIDL_TOOL := out/host/linux-x86/bin/aidl
+else
+AIDL_TOOL := prebuilts/build-tools/linux-x86/bin/aidl
+endif
+
 MODULE_AIDL_INCLUDES ?=
 AIDL_SRCS := $(call TOBUILDDIR,$(patsubst %.aidl,%.$(AIDL_EXT),$(MODULE_AIDLS)))
-AIDL_TOOL := prebuilts/build-tools/linux-x86/bin/aidl
 AIDL_RUST_GLUE_TOOL := system/tools/aidl/build/aidl_rust_glue.py
 MODULE_AIDL_INCLUDES += $(foreach dir,$(sort $(foreach src,$(MODULE_AIDLS),$(call GET_AIDL_PACKAGE_ROOT,$(src)))), -I $(patsubst %/,%,$(dir)))
 
