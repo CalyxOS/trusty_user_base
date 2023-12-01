@@ -982,7 +982,7 @@ mod test {
     use crate::handle::test::{first_free_handle_index, MAX_USER_HANDLES};
     use crate::{
         ConnectResult, Deserialize, Handle, Manager, MessageResult, Result, Serialize, Serializer,
-        TipcError, Uuid,
+        TipcError, UnbufferedService, Uuid,
     };
     use test::{expect, expect_eq};
     use trusty_std::alloc::FallibleVec;
@@ -1224,16 +1224,42 @@ mod test {
         }
     }
 
+    struct Service3;
+
+    impl UnbufferedService for Service3 {
+        type Connection = ();
+
+        fn on_connect(
+            &self,
+            _port: &PortCfg,
+            _handle: &Handle,
+            _peer: &Uuid,
+        ) -> Result<ConnectResult<Self::Connection>> {
+            Ok(ConnectResult::Accept(()))
+        }
+
+        fn on_message(
+            &self,
+            _connection: &Self::Connection,
+            handle: &Handle,
+            _buffer: &mut [u8],
+        ) -> Result<MessageResult> {
+            handle.send(&3i32)?;
+            Ok(MessageResult::MaintainConnection)
+        }
+    }
+
     service_dispatcher! {
         enum TestServiceDispatcher {
             Service1,
             Service2,
+            Service3,
         }
     }
 
     #[test]
     fn multiple_services() {
-        let mut dispatcher = TestServiceDispatcher::<2>::new().unwrap();
+        let mut dispatcher = TestServiceDispatcher::<3>::new().unwrap();
 
         let path1 = format!("{}.port.{}", SRV_PATH_BASE, "testService1");
         let cfg = PortCfg::new(&path1).unwrap();
@@ -1243,8 +1269,20 @@ mod test {
         let cfg = PortCfg::new(&path2).unwrap();
         dispatcher.add_service(Rc::new(Service2), cfg).expect("Could not add service 2");
 
+        let path = format!("{}.port.{}", SRV_PATH_BASE, "testService3");
+        let cfg = PortCfg::new(&path).unwrap();
+        dispatcher.add_service(Rc::new(Service3), cfg).expect("Could not add service 3");
+
         let buffer = [0u8; 4096];
-        Manager::<_, _, 2, 4>::new_with_dispatcher(dispatcher, buffer)
+        Manager::<_, _, 3, 4>::new_with_dispatcher(dispatcher, buffer)
+            .expect("Could not create service manager");
+    }
+
+    #[test]
+    fn unbuffered_service() {
+        let path = format!("{}.port.{}", SRV_PATH_BASE, "unbufferedService");
+        let cfg = PortCfg::new(&path).unwrap();
+        Manager::<_, _, 1, 4>::new_unbuffered(Service3, cfg)
             .expect("Could not create service manager");
     }
 }
