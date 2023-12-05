@@ -41,15 +41,14 @@ __BEGIN_CDECLS
 /* Defined in libc and libunittest, whichever is statically linked first will be
  * used, so libunittest must always come before libc in the link order. */
 int _tlog(const char* fmt, ...) __PRINTFLIKE(1, 2);
+int _vtlog(const char* fmt, va_list args);
 
 #else
 
 /* TLOG is also called from host code, where we don't provide a definition of
  * _tlog. In this case, just printf */
-#define _tlog(fmt, ...)                      \
-    do {                                     \
-        fprintf(stderr, fmt, ##__VA_ARGS__); \
-    } while (0)
+#define _tlog(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
+#define _vtlog(fmt, args) vfprintf(stderr, fmt, args)
 #endif
 
 __END_CDECLS
