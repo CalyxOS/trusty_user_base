@@ -89,11 +89,38 @@ endif # MODULE_CFI_ENABLED
 endif # !MODULE_DISABLE_LTO
 
 # Branch Target Identification
+MODULE_ENABLE_BTI:=false
 ifeq (true,$(call TOBOOL,$(ARCH_$(ARCH)_SUPPORTS_BTI)))
 ifeq (false,$(call TOBOOL,$(MODULE_DISABLE_BTI)))
+MODULE_ENABLE_BTI:=$(call TOBOOL,$(KERNEL_BTI_ENABLED))
+endif
+endif
+
+# Pointer Authentication Codes
+MODULE_ENABLE_PAC:=false
+ifeq (true,$(call TOBOOL,$(ARCH_$(ARCH)_SUPPORTS_PAC)))
+ifeq (false,$(call TOBOOL,$(MODULE_DISABLE_PAC)))
+MODULE_ENABLE_PAC:=$(call TOBOOL,$(KERNEL_PAC_ENABLED))
+endif
+endif
+
+# Decide on the branch protection scheme
+ifeq (true,$(call TOBOOL,$(MODULE_ENABLE_BTI)))
+ifeq (true,$(call TOBOOL,$(MODULE_ENABLE_PAC)))
+MODULE_COMPILEFLAGS += -mbranch-protection=bti+pac-ret \
+                       -DBTI_ENABLED \
+                       -DPAC_ENABLED
+MODULE_RUSTFLAGS += -Z branch-protection=bti,pac-ret
+else # !MODULE_ENABLE_PAC
 MODULE_COMPILEFLAGS += -mbranch-protection=bti \
                        -DBTI_ENABLED
 MODULE_RUSTFLAGS += -Z branch-protection=bti
+endif
+else # !MODULE_ENABLE_BTI
+ifeq (true,$(call TOBOOL,$(MODULE_ENABLE_PAC)))
+MODULE_COMPILEFLAGS += -mbranch-protection=pac-ret \
+                       -DPAC_ENABLED
+MODULE_RUSTFLAGS += -Z branch-protection=pac-ret
 endif
 endif
 
