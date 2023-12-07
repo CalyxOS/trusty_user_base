@@ -118,11 +118,10 @@ int main(void) {
             hset, METRICS_ISTATS_PORT,
             std::make_shared<const RpcServerTrusty::PortAcl>(portAcl_TA),
             maxMsgSize);
-    if (!srvIStats.ok()) {
-        TLOGE("Failed to create RpcServer (%d)\n", srvIStats.error());
+    if (srvIStats == nullptr) {
         return EXIT_FAILURE;
     }
-    (*srvIStats)->setRootObject(statsRelayer);
+    srvIStats->setRootObject(statsRelayer);
 
     // Add the relayer to binder_discover so connections within the current TA
     // work without problems
@@ -136,11 +135,10 @@ int main(void) {
             hset, METRICS_ISTATS_SETTER_PORT,
             std::make_shared<const RpcServerTrusty::PortAcl>(portAcl_NS),
             maxMsgSize);
-    if (!srvIStatsSetter.ok()) {
-        TLOGE("Failed to create RpcServer (%d)\n", srvIStatsSetter.error());
+    if (srvIStatsSetter == nullptr) {
         return EXIT_FAILURE;
     }
-    (*srvIStatsSetter)->setRootObject(statsSetterNormalWorld);
+    srvIStatsSetter->setRootObject(statsSetterNormalWorld);
 
     rc = add_metrics_consumer_service(hset);
     if (rc != NO_ERROR) {
