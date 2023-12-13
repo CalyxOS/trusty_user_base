@@ -181,7 +181,7 @@ TRUSTY_APP_CONFIG_KEY_PRIORITY = 10
 TRUSTY_APP_CONFIG_KEY_MIN_VERSION = 11
 
 # MEM_MAP ARCH_MMU_FLAGS
-# These values need to be kept in sync with external/lk/include/arch/mmu.h
+# These values need to be kept in sync with $LKROOT/include/arch/mmu.h
 ARCH_MMU_FLAG_CACHED = 0 << 0
 ARCH_MMU_FLAG_UNCACHED = 1 << 0
 ARCH_MMU_FLAG_UNCACHED_DEVICE = 2 << 0
