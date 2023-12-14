@@ -74,7 +74,7 @@ MODULE_COMPILEFLAGS += \
 
 # NOTE eabi_unwind_stubs.c because libgcc pulls in unwinding stuff.
 MODULE_SRCS := \
-	external/lk/lib/libc/eabi_unwind_stubs.c \
+	$(LKROOT)/lib/libc/eabi_unwind_stubs.c \
 	$(LOCAL_DIR)/__dso_handle.c \
 	$(LOCAL_DIR)/__set_thread_area.c \
 	$(LOCAL_DIR)/file_stubs.c \
