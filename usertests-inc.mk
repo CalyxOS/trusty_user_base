@@ -14,11 +14,14 @@
 #
 
 include trusty/user/app/cast-auth/usertests-inc.mk
-include trusty/user/app/confirmationui/usertests-inc.mk
 include trusty/user/app/keymaster/usertests-inc.mk
 include trusty/user/app/keymint/usertests-inc.mk
 include trusty/user/app/sample/usertests-inc.mk
 include trusty/user/app/storage/usertests-inc.mk
+
+ifeq (false,$(call TOBOOL,$(CONFIRMATIONUI_DISABLED)))
+include trusty/user/app/confirmationui/usertests-inc.mk
+endif
 
 TRUSTY_USER_TESTS += \
 	trusty/user/base/app/acvp \
@@ -35,11 +38,15 @@ TRUSTY_USER_TESTS += \
 	trusty/user/base/lib/keymaster/test \
 	trusty/user/base/lib/libc-trusty/test \
 	trusty/user/base/lib/libstdc++-trusty/test \
-	trusty/user/base/lib/secure_fb/test \
 	trusty/user/base/lib/smc/tests \
 	trusty/user/base/lib/tipc/test/main \
 	trusty/user/base/lib/tipc/test/srv \
 	trusty/user/base/lib/uirq/test \
+
+ifeq (false,$(call TOBOOL,$(CONFIRMATIONUI_DISABLED)))
+TRUSTY_USER_TESTS += \
+	trusty/user/base/lib/secure_fb/test
+endif
 
 ifeq (true,$(call TOBOOL,$(USER_COVERAGE_ENABLED)))
 TRUSTY_USER_TESTS += \
