@@ -17,6 +17,7 @@
 use alloc::rc::{Rc, Weak};
 use core::fmt;
 use core::mem::{ManuallyDrop, MaybeUninit};
+use core::num::ParseIntError;
 use log::{debug, error, warn};
 use trusty_std::alloc::{AllocError, Vec};
 use trusty_std::ffi::{CString, FallibleCString};
@@ -233,6 +234,13 @@ pub struct Uuid(trusty_sys::uuid);
 
 impl Uuid {
     const UUID_BYTE_LEN: usize = std::mem::size_of::<trusty_sys::uuid>();
+    // UUID_STR_SIZE is a u32, conversion to usize is correct on our targeted architectures
+    // Subtracting 1 from UUID_STR_SIZE because we don't need the null terminator on the RUST
+    // implementation.
+    const UUID_STR_LEN: usize = (sys::UUID_STR_SIZE as usize) - 1;
+    const HYPHEN_SKIP_POS: [usize; 4] = [8, 4, 4, 4];
+    const CLOCK_SEQ_AND_NODE_NUM_BYTES: usize = 8;
+
     pub const fn new(
         time_low: u32,
         time_mid: u16,
@@ -257,6 +265,79 @@ impl Uuid {
     pub unsafe fn as_ptr(&self) -> *const trusty_sys::uuid {
         &self.0
     }
+
+    pub fn new_from_string(uuid_str: &str) -> Result<Self> {
+        // Helper function that first tries to convert the `uuid_element` bytes into a string and
+        // then uses the provided `conversion_fn` to try to convert it into an integer, interpreting
+        // the string as a hex number
+        fn convert_uuid_element<T>(
+            uuid_element: Option<&str>,
+            conversion_fn: fn(&str, u32) -> core::result::Result<T, ParseIntError>,
+        ) -> Result<T> {
+            let uuid_element = uuid_element.ok_or(TipcError::InvalidData)?;
+            conversion_fn(uuid_element, 16).map_err(|_| TipcError::InvalidData)
+        }
+        // Splitting a string into chunks using only std Rust facilities is not stable yet, so
+        // providing a function for `Uuid` usage until it is stabilized.
+        fn split_convert_string_byte_chunks(
+            string_to_split: &str,
+            result_buffer: &mut [u8],
+        ) -> Result<()> {
+            // Because our input is in hexadecimal format, to get a byte we need a string of size 2.
+            let chunk_size = 2;
+            if (string_to_split.len() % chunk_size) != 0 {
+                return Err(TipcError::InvalidData);
+            }
+            let mut chunk;
+            let mut remainder = string_to_split;
+            for i in 0..(string_to_split.len() / chunk_size) {
+                (chunk, remainder) = remainder.split_at(chunk_size);
+                let converted_byte = convert_uuid_element(Some(chunk), u8::from_str_radix)?;
+                result_buffer[i] = converted_byte;
+            }
+            Ok(())
+        }
+        // checking first that provided string is ASCII, so we can later split clock_seq_and_node in
+        // byte chunks.
+        if !uuid_str.is_ascii() {
+            return Err(TipcError::InvalidData);
+        }
+        // Check that string has the correct length
+        if uuid_str.len() != Self::UUID_STR_LEN {
+            return Err(TipcError::InvalidData);
+        }
+        // Check that hyphens are in the correct positions.
+        let mut uuid_chr_itr = uuid_str.chars();
+        for skip_pos in Self::HYPHEN_SKIP_POS {
+            if uuid_chr_itr.nth(skip_pos) != Some('-') {
+                return Err(TipcError::InvalidData);
+            }
+        }
+        // Splitting by the hyphens and checking that we do not end up with more elements than
+        // expected. This checks that we didn't have some unexpected hyphens in the middle of the
+        // string. This, along with the previous 2 checks should also check that all the elements
+        // have the correct number of digits.
+        let uuid_elements = uuid_str.split(|c| c == '-');
+        if uuid_elements.count() != 5 {
+            return Err(TipcError::InvalidData);
+        }
+        // separating uuid at the '-' now that we know that the string is of the correct length and
+        // has the expected number of hyphens.
+        let mut uuid_elements = uuid_str.split(|c| c == '-');
+        let time_low = convert_uuid_element(uuid_elements.next(), u32::from_str_radix)?;
+        let time_mid = convert_uuid_element(uuid_elements.next(), u16::from_str_radix)?;
+        let time_hi_and_version = convert_uuid_element(uuid_elements.next(), u16::from_str_radix)?;
+        // The last 8 bytes are split in 2 elements. RFC 4122 states that it is stored in Big Endian
+        // format, so we are just going to concatenate the individual byte chunks of the 2 elements.
+        let mut clock_seq_and_node = [0u8; Self::CLOCK_SEQ_AND_NODE_NUM_BYTES];
+        let clock_seq = uuid_elements.next().ok_or(TipcError::InvalidData)?;
+        // clock_seq contains the first 2 bytes
+        split_convert_string_byte_chunks(clock_seq, &mut clock_seq_and_node[..2])?;
+        let node = uuid_elements.next().ok_or(TipcError::InvalidData)?;
+        // node contains the remaining 6 bytes
+        split_convert_string_byte_chunks(node, &mut clock_seq_and_node[2..])?;
+        Ok(Self::new(time_low, time_mid, time_hi_and_version, clock_seq_and_node))
+    }
 }
 
 impl fmt::Debug for Uuid {
@@ -273,6 +354,12 @@ impl fmt::Debug for Uuid {
             }
         }
         Ok(())
+    }
+}
+
+impl alloc::string::ToString for Uuid {
+    fn to_string(&self) -> String {
+        format!("{:?}", self)
     }
 }
 
@@ -1517,5 +1604,38 @@ mod multiservice_with_lifetimes_tests {
         let buffer = [0u8; 4096];
         Manager::<_, _, 2, 4>::new_with_dispatcher(dispatcher, buffer)
             .expect("Could not create service manager");
+    }
+}
+
+#[cfg(test)]
+mod uuid_tests {
+    use super::Uuid;
+    use test::{expect, expect_eq};
+
+    #[test]
+    fn uuid_parsing() {
+        let uuid = Uuid::new(0, 0, 0, [0; 8]);
+        let uuid_string = "00000000-0000-0000-0000-000000000000".to_string();
+        expect_eq!(uuid.to_string(), uuid_string);
+        let uuid_from_str = Uuid::new_from_string(&uuid_string);
+        expect!(uuid_from_str.is_ok(), "couldn't parse uuid string");
+        let uuid_from_str = uuid_from_str.unwrap();
+        expect_eq!(uuid, uuid_from_str, "uuid should match");
+        let uuid2 = Uuid::new(1262561249, 51804, 17255, [189, 181, 5, 22, 64, 5, 183, 196]);
+        let uuid_string_2 = "4b4127e1-ca5c-4367-bdb5-05164005b7c4".to_string();
+        let uuid2_from_str = Uuid::new_from_string(&uuid_string_2);
+        expect!(uuid2_from_str.is_ok(), "couldn't parse uuid string");
+        let uuid2_from_str = uuid2_from_str.unwrap();
+        expect_eq!(uuid2, uuid2_from_str, "uuid should match");
+        let bad_uuid_from_str = Uuid::new_from_string("4b4127e1-ca5c-4367-bdb5-05164005b7c45");
+        expect!(bad_uuid_from_str.is_err(), "shouldn't be able to parse string");
+        let bad_uuid_from_str = Uuid::new_from_string("4b4127e1-ca5c-4367-bdbq-05164005b7c4");
+        expect!(bad_uuid_from_str.is_err(), "shouldn't be able to parse string");
+        let bad_uuid_from_str = Uuid::new_from_string("4b4127e1-ca5c-4367-bdb5005164005b7c4");
+        expect!(bad_uuid_from_str.is_err(), "shouldn't be able to parse string");
+        let bad_uuid_from_str = Uuid::new_from_string("4b41-7e1-ca5c-4367-bdb5-05164005b7c4");
+        expect!(bad_uuid_from_str.is_err(), "shouldn't be able to parse string");
+        let bad_uuid_from_str = Uuid::new_from_string("4b4127e1-ca5c-4367-bd-b505164005b7c4");
+        expect!(bad_uuid_from_str.is_err(), "shouldn't be able to parse string");
     }
 }
