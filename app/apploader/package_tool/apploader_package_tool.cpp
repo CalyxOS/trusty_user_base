@@ -23,14 +23,10 @@
 #include <getopt.h>
 #include <interface/apploader/apploader_package.h>
 #include <inttypes.h>
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-#include <lib/apploader_policy_engine/apploader_policy_engine.h>
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <uapi/err.h>
 #include <unistd.h>
 #include <array>
 #include <fstream>
@@ -41,11 +37,6 @@
 
 #include "../app_manifest_parser.h"
 
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-/* Global variable to support apploader policy mocking */
-bool host_mock_state_app_loading_unlocked = false;
-#endif
-
 enum class Mode {
     UNKNOWN,
     BUILD,
@@ -54,9 +45,6 @@ enum class Mode {
     ENCRYPT,
     DECRYPT,
     INFO,
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-    KEYS,
-#endif
 };
 
 static Mode mode = Mode::UNKNOWN;
@@ -85,18 +73,11 @@ static void print_usage_and_exit(const char* prog, int code) {
     fprintf(stderr, "\t%s --mode decrypt [options] <output> <input> <key>\n",
             prog);
     fprintf(stderr, "\t%s --mode info [options] <input>\n", prog);
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-    fprintf(stderr, "\t%s --mode keys\n", prog);
-#endif
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "\t-h, --help            prints this message and exit\n");
     fprintf(stderr,
             "\t-m, --mode            mode; one of: build, sign, verify, encrypt, decrypt, info\n");
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-    fprintf(stderr, "\t                                    keys\n");
-
-#endif
     fprintf(stderr,
             "\t-s, --strict          verify signature in strict mode\n");
     fprintf(stderr, "\n");
@@ -142,10 +123,6 @@ static void parse_options(int argc, char** argv) {
                 mode = Mode::DECRYPT;
             } else if (!strcmp(optarg, "info")) {
                 mode = Mode::INFO;
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-            } else if (!strcmp(optarg, "keys")) {
-                mode = Mode::KEYS;
-#endif
             } else {
                 fprintf(stderr, "Unrecognized command mode: %s\n", optarg);
                 /*
@@ -753,9 +730,6 @@ static void decrypt_package(const char* output_path,
 }
 
 static void print_package_info(const char* input_path) {
-    struct apploader_policy_data ap_data = {.force_store_min_version = false};
-    uint8_t package_key_id = UINT8_MAX;
-
     // We call into some COSE functions to retrieve the
     // key ids, and we don't want them to print any errors
     // (which they do since we pass them invalid keys)
@@ -769,11 +743,10 @@ static void print_package_info(const char* input_path) {
                      &signature_length)) {
         printf("Signed: YES\n");
 
-        // Call into cose.cpp with a callback that prints and saves the key id
-        auto print_key_id = [&](uint8_t key_id)
-                -> std::tuple<std::unique_ptr<uint8_t[]>, size_t> {
+        // Call into cose.cpp with a callback that prints the key id
+        auto print_key_id = [
+        ](uint8_t key_id) -> std::tuple<std::unique_ptr<uint8_t[]>, size_t> {
             printf("Signature key id: %" PRIu8 "\n", key_id);
-            package_key_id = key_id;
             return {};
         };
         strictCheckEcDsaSignature(
@@ -795,9 +768,10 @@ static void print_package_info(const char* input_path) {
         exit(EXIT_FAILURE);
     }
 
+    struct manifest_extracts manifest_extracts;
     if (!apploader_parse_manifest(
                 reinterpret_cast<const char*>(pkg_info.manifest.data()),
-                pkg_info.manifest.size(), &ap_data.manifest_extracts)) {
+                pkg_info.manifest.size(), &manifest_extracts)) {
         fprintf(stderr, "Unable to extract manifest fields\n");
         exit(EXIT_FAILURE);
     }
@@ -805,7 +779,7 @@ static void print_package_info(const char* input_path) {
     bool package_error = false;
 
     if (content_is_cose_encrypt && content_is_cose_encrypt->value) {
-        if (ap_data.manifest_extracts.requires_encryption) {
+        if (manifest_extracts.requires_encryption) {
             printf("Encrypted: YES, REQUIRED\n");
         } else {
             printf("Encrypted: YES, OPTIONAL\n");
@@ -822,7 +796,7 @@ static void print_package_info(const char* input_path) {
         size_t package_size;
         coseDecryptAesGcmKeyWrapInPlace(pkg_info.elf_item, print_key_id, {},
                                         false, &package_start, &package_size);
-    } else if (ap_data.manifest_extracts.requires_encryption) {
+    } else if (manifest_extracts.requires_encryption) {
         printf("Encrypted: NO, REQUIRED\n");
         fprintf(stderr,
                 "Error: app is not encrypted, contrary to manifest requirement.\n");
@@ -833,7 +807,7 @@ static void print_package_info(const char* input_path) {
         printf("Encrypted: NO, OPTIONAL\n");
     }
 
-    const uuid_t* uuid = &ap_data.manifest_extracts.uuid;
+    const uuid_t* uuid = &manifest_extracts.uuid;
     printf("UUID: %08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 "-%02" PRIx8
            "%02" PRIx8 "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
            "%02" PRIx8 "%02" PRIx8 "\n",
@@ -843,67 +817,16 @@ static void print_package_info(const char* input_path) {
            uuid->clock_seq_and_node[4], uuid->clock_seq_and_node[5],
            uuid->clock_seq_and_node[6], uuid->clock_seq_and_node[7]);
 
-    printf("Version: %" PRIu32 "\n", ap_data.manifest_extracts.version);
-    printf("Min version: %" PRIu32 "\n", ap_data.manifest_extracts.min_version);
+    printf("Version: %" PRIu32 "\n", manifest_extracts.version);
+    printf("Min version: %" PRIu32 "\n", manifest_extracts.min_version);
 
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-    printf("App loading policy checks\n");
-
-    for (int i = 0; i < 2; i++) {
-        bool can_load = false;
-
-        // Set the mocked apploading state
-        host_mock_state_app_loading_unlocked = !i;
-
-        // Check if the key can be retrieved
-        int rc = apploader_policy_engine_get_key(
-                package_key_id, &ap_data.public_key, &ap_data.public_key_size);
-        if (rc != NO_ERROR) {
-            printf("Apploading policy: FAILED, the signing key is invalid.\n");
-        } else {
-            if (!apploader_policy_engine_validate(&ap_data)) {
-                printf("Apploading policy: FAILED, policy did not pass\n");
-            } else {
-                printf("Apploading policy: PASS (apploading %s)\n",
-                       host_mock_state_app_loading_unlocked ? "unlocked"
-                                                            : "locked");
-                can_load = true;
-            }
-
-            apploader_policy_engine_put_key(ap_data.public_key);
-        }
-
-        if (!can_load && !host_mock_state_app_loading_unlocked) {
-            fprintf(stderr,
-                    "Error: package cannot load on a production device.\n");
-            package_error = true;
-        }
-    }
-#endif
     // Restore the old silence flag
     coseSetSilenceErrors(oldSilenceErrors);
 
     if (package_error) {
-        fprintf(stderr, "Exiting with error status.\n");
         exit(EXIT_FAILURE);
     }
 }
-
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-static void print_key_info(void) {
-    for (uint8_t kid = 0; kid < UINT8_MAX; kid++) {
-        const uint8_t* public_key;
-        unsigned int public_key_size;
-
-        if (apploader_policy_engine_get_key(kid, &public_key,
-                                            &public_key_size) == NO_ERROR) {
-            printf("Key %" PRIu8 "\n", kid);
-
-            apploader_policy_engine_put_key(public_key);
-        }
-    }
-}
-#endif
 
 int main(int argc, char** argv) {
     parse_options(argc, argv);
@@ -952,14 +875,7 @@ int main(int argc, char** argv) {
         }
         print_package_info(argv[optind]);
         break;
-#ifdef WITH_APPLOADER_POLICY_ENGINE
-    case Mode::KEYS:
-        if (optind != argc) {
-            print_usage_and_exit(argv[0], EXIT_FAILURE);
-        }
-        print_key_info();
-        break;
-#endif
+
     default:
         print_usage_and_exit(argv[0], EXIT_FAILURE);
         break;
