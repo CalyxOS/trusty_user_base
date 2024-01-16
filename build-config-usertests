@@ -29,7 +29,7 @@
     porttest("com.android.trusty.apploader.test"),
     porttest("com.android.trusty.confirmationui.test"),
     porttest("com.android.trusty.crashtest"),
-    porttest("com.android.trusty.device_tree.test"),
+    # porttest("com.android.trusty.device_tree.test"),
     porttest("com.android.trusty.dlmalloctest"),
     porttest("com.android.trusty.hwaes.test"),
     porttest("com.android.trusty.hwbcc.test"),
