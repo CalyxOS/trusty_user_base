@@ -22,6 +22,8 @@ MODULE_SRCS := $(LOCAL_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := hwbcc
 
+MODULE_SDK_LIB_NAME := hwbcc-rust
+
 MODULE_LIBRARY_DEPS += \
 	external/boringssl \
 	$(LIBCPPBOR_DIR) \

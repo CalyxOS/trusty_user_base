@@ -21,6 +21,8 @@ MODULE_SRCS := $(LOCAL_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := tipc
 
+MODULE_SDK_LIB_NAME := tipc-rust
+
 MODULE_INCLUDES += \
 	trusty/user/base/lib/tipc/test/include \
 
