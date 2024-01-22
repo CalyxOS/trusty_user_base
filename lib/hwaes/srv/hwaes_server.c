@@ -209,8 +209,19 @@ static int hwaes_set_arg_out(struct hwaes_data_desc* data_desc_ptr,
                     shms[data_desc_ptr->shm_idx].base + data_desc_ptr->offset;
         } else {
             if (offset != data_desc_ptr->offset) {
-                TLOGE("offset is not equal to the one specified by data_desc\n");
-                return ERR_INVALID_ARGS;
+                /* Some buffers may have buffer alignment requirements.
+                 * For inlined buffers, the offsets should be adjusted
+                 * on the client side to achieve the required alignment.
+                 * If this has been done, the offset needs updating here
+                 * also, read it from the descriptor (it should be
+                 * not less than end of the previous entry, though).
+                 */
+                if (data_desc_ptr->offset < offset) {
+                    TLOGE("invalid descriptor offset (%" PRIu64 " < %zu)\n",
+                          data_desc_ptr->offset, offset);
+                    return ERR_INVALID_ARGS;
+                }
+                offset = data_desc_ptr->offset;
             }
 
             if (__builtin_add_overflow(offset, data_desc_ptr->len, &offset)) {
@@ -336,28 +347,12 @@ static int hwaes_handle_aes_cmd(handle_t chan,
         goto out;
     }
 
-    /* aad, text_in and text_out buffers may have buffer alignment requirements.
-     * For inline buffers, the offsets should be adjusted on the client side to
-     * achieve the required alignment.  If this has been done, the offset needs
-     * updating here also.
-     */
-    if (cmd_header->aad.shm_idx == HWAES_INVALID_INDEX &&
-        cmd_header->aad.len != 0 && cmd_header->aad.offset != req_offset) {
-        req_offset = ROUND_UP(req_offset, HWAES_TEXT_IN_BUF_ALIGNMENT);
-    }
-
     rc = hwaes_set_arg_in(&cmd_header->aad, PROT_READ, shms, num_handles,
                           req_msg_buf, req_msg_size, &req_offset, &args.aad);
     if (rc != NO_ERROR) {
         TLOGE("failed to set aad\n");
         resp_header->result = tipc_err_to_hwaes_err(rc);
         goto out;
-    }
-
-    if (cmd_header->text_in.shm_idx == HWAES_INVALID_INDEX &&
-        cmd_header->text_in.len != 0 &&
-        cmd_header->text_in.offset != req_offset) {
-        req_offset = ROUND_UP(req_offset, HWAES_TEXT_IN_BUF_ALIGNMENT);
     }
 
     rc = hwaes_set_arg_in(&cmd_header->text_in, PROT_READ, shms, num_handles,
@@ -375,12 +370,6 @@ static int hwaes_handle_aes_cmd(handle_t chan,
         TLOGE("failed to set tag_in\n");
         resp_header->result = tipc_err_to_hwaes_err(rc);
         goto out;
-    }
-
-    if (cmd_header->text_out.shm_idx == HWAES_INVALID_INDEX &&
-        cmd_header->text_out.len != 0 &&
-        cmd_header->text_out.offset != resp_offset) {
-        resp_offset = ROUND_UP(resp_offset, HWAES_TEXT_OUT_BUF_ALIGNMENT);
     }
 
     rc = hwaes_set_arg_out(&cmd_header->text_out, PROT_READ | PROT_WRITE, shms,
