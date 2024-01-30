@@ -195,7 +195,9 @@ impl Service for TestService {
     ) -> tipc::Result<ConnectResult<Self::Connection>> {
         LOGGER.connect(handle)?;
 
+        let mut passed_tests = 0;
         let mut failed_tests = 0;
+        let mut skipped_tests = 0;
         let mut total_ran = 0;
         for test in &self.tests {
             CONTEXT.reset();
@@ -206,8 +208,12 @@ impl Service for TestService {
                 StaticBenchFn(_f) => panic!("Test harness does not support benchmarking"),
                 _ => panic!("non-static tests passed to test::test_main_static"),
             }
-            if CONTEXT.all_ok() {
+            if CONTEXT.skipped() {
+                print_status(&test.desc, " SKIPPED");
+                skipped_tests += 1;
+            } else if CONTEXT.all_ok() {
                 print_status(&test.desc, "      OK");
+                passed_tests += 1;
             } else {
                 print_status(&test.desc, " FAILED ");
                 failed_tests += 1;
@@ -218,8 +224,11 @@ impl Service for TestService {
         }
 
         log::info!("[==========] {} tests ran.", total_ran);
-        if failed_tests < total_ran {
-            log::info!("[  PASSED  ] {} tests.", total_ran - failed_tests);
+        if passed_tests > 0 {
+            log::info!("[  PASSED  ] {} tests.", passed_tests);
+        }
+        if skipped_tests > 0 {
+            log::info!("[  SKIPPED ] {} tests.", skipped_tests);
         }
         if failed_tests > 0 {
             log::info!("[  FAILED  ] {} tests.", failed_tests);
@@ -290,3 +299,8 @@ fn make_owned_test(test: &&TestDescAndFn) -> TestDescAndFn {
 /// Invoked when unit tests terminate. The normal Rust test harness supports
 /// tests which return values, we don't, so we require the test to return unit.
 pub fn assert_test_result(_result: ()) {}
+
+/// Skip the current test case.
+pub fn skip() {
+    CONTEXT.skip();
+}
