@@ -232,6 +232,7 @@ impl<D: Dispatcher> Channel<D> {
 pub struct Uuid(trusty_sys::uuid);
 
 impl Uuid {
+    const UUID_BYTE_LEN: usize = std::mem::size_of::<trusty_sys::uuid>();
     pub const fn new(
         time_low: u32,
         time_mid: u16,
@@ -239,6 +240,18 @@ impl Uuid {
         clock_seq_and_node: [u8; 8],
     ) -> Self {
         Uuid(trusty_sys::uuid { time_low, time_mid, time_hi_and_version, clock_seq_and_node })
+    }
+
+    pub fn from_bytes(bytes: &[u8; Self::UUID_BYTE_LEN]) -> Self {
+        // SAFETY: `bytes` has the exact same size size as `trusty_sys::uuid`, so this transmute
+        //         copy is safe.
+        let uuid = unsafe { std::mem::transmute_copy(bytes) };
+        Uuid(uuid)
+    }
+
+    pub fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
+        let bytes: &[u8; Self::UUID_BYTE_LEN] = bytes.try_into().or(Err(TipcError::OutOfBounds))?;
+        Ok(Self::from_bytes(bytes))
     }
 
     pub unsafe fn as_ptr(&self) -> *const trusty_sys::uuid {
