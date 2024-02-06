@@ -352,3 +352,20 @@ macro_rules! fail {
         return;
     });
 }
+
+/// Marks the test as skipped.
+///
+/// This macro can be used with or without providing a custom error message.
+/// Formatting is supported; see [`core::fmt`] for syntax.
+#[macro_export]
+macro_rules! skip {
+    () => ({
+        $crate::skip();
+        return;
+    });
+    ($($arg:tt)+) => ({
+        std::eprintln!("test skipped: {}, {}", core::format_args!($($arg)+), std::panic::Location::caller());
+        $crate::skip();
+        return;
+    });
+}
