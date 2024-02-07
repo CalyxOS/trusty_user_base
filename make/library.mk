@@ -88,6 +88,11 @@
 #
 # include make/library.mk
 
+# if QUERY_MODULE is set, the rules.mk that included us was itself included not
+# to define a module's make targets but to query the variables it sets for the
+# rest of the build. in this case, skip all further processing
+ifeq ($(QUERY_MODULE),)
+
 ifeq ($(call TOBOOL,$(TRUSTY_NEW_MODULE_SYSTEM)),false)
 
 MODULE_LOG_NAME := $(MODULE)
@@ -652,3 +657,5 @@ MODULE_EXPORT_LDFLAGS :=
 MODULE_EXPORT_SDK_HEADERS :=
 MODULE_EXPORT_SRCDEPS :=
 MODULE_UNIQUE_LIBRARY_DEPS :=
+
+endif # QUERY_MODULE (this line should stay after all other processing)
