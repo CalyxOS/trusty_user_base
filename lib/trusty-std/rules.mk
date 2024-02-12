@@ -24,7 +24,13 @@ MODULE_CRATE_NAME := trusty_std
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/liballoc-rust \
 	$(call FIND_CRATE,libc) \
+
+ifeq ($(call TOBOOL,$(TRUSTY_USERSPACE)),true)
+
+MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/trusty-sys \
+
+endif
 
 MODULE_ADD_IMPLICIT_DEPS := false
 
