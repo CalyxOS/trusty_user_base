@@ -30,8 +30,10 @@ ifeq ($(call TOBOOL,$(TRUSTY_USERSPACE)),true)
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/trusty-sys \
 
-endif
-
+# In userspace (non-`#[no_std]`), we don't want to depend on `std`.
+# However, we do want implicit deps on `core`.
 MODULE_ADD_IMPLICIT_DEPS := false
+
+endif
 
 include make/library.mk
