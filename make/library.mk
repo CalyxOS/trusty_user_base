@@ -560,6 +560,7 @@ $(SDK_MAKEFILE):
 	$(NOECHO)echo ASMFLAGS += $(call prepare-sdk-flags,$(MODULE_EXPORT_ASMFLAGS)) >> $@.tmp
 	$(NOECHO)echo LDFLAGS += $(call prepare-sdk-flags,$(MODULE_EXPORT_LDFLAGS)) >> $@.tmp
 	$(NOECHO)echo 'TRUSTY_APP_OBJECTS += $(OTHER_SDK_OBJS)' >> $@.tmp
+	$(NOECHO)sed -i 's/ \+$$//' $@.tmp
 	@$(call TESTANDREPLACEFILE,$@.tmp,$@)
 	@$(call ECHO_DONE_SILENT,sdk,generating makefile,for $(MODULE_SDK_LIB_NAME))
 
