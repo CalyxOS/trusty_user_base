@@ -690,32 +690,28 @@ macro_rules! service_dispatcher {
         /// different servers can be bound to different ports using the same event loop
         /// in the manager.
         struct $name<$($elt,)? const PORT_COUNT: usize> {
-            // ports and services should always be kept in sync, i.e. the
-            // service at index `i` services port `i`.
-            ports: alloc::vec::Vec<$crate::PortCfg>,
-            services: alloc::vec::Vec<ServiceKind$(<$elt>)?>,
+            ports: arrayvec::ArrayVec::<$crate::PortCfg, PORT_COUNT>,
+            services: arrayvec::ArrayVec::<ServiceKind$(<$elt>)?, PORT_COUNT>,
         }
 
         impl<$($elt,)? const PORT_COUNT: usize> $name<$($elt,)? PORT_COUNT> {
-            fn new() -> core::result::Result<Self, alloc::collections::TryReserveError> {
-                use trusty_std::alloc::FallibleVec;
+            fn new() -> $crate::Result<Self> {
                 Ok(Self {
-                    ports: alloc::vec::Vec::try_with_capacity(PORT_COUNT)?,
-                    services: alloc::vec::Vec::try_with_capacity(PORT_COUNT)?,
+                    ports: arrayvec::ArrayVec::<_, PORT_COUNT>::new(),
+                    services: arrayvec::ArrayVec::<_, PORT_COUNT>::new(),
                 })
             }
 
             fn add_service<T>(&mut self, service: alloc::rc::Rc<T>, port: $crate::PortCfg) -> $crate::Result<()>
             where ServiceKind$(<$elt>)? : From<alloc::rc::Rc<T>> {
-                if self.ports.len() >= PORT_COUNT || self.services.len() >= PORT_COUNT {
+                if self.ports.is_full() || self.services.is_full() {
                     return Err($crate::TipcError::OutOfBounds);
                 }
-                use trusty_std::alloc::FallibleVec;
-                // We unwrap here because we already checked capacity and we
-                // don't want to allow ports and services to get out of sync,
-                // e.g. the port was pushed but the service was not.
-                self.ports.try_push(port).unwrap();
-                self.services.try_push(service.into()).unwrap();
+                // SAFETY: We check the size above
+                unsafe {
+                    self.ports.push_unchecked(port);
+                    self.services.push_unchecked(service.into());
+                }
                 Ok(())
             }
         }
@@ -745,8 +741,9 @@ macro_rules! service_dispatcher {
                 handle: &$crate::Handle,
                 peer: &$crate::Uuid,
             ) -> $crate::Result<$crate::ConnectResult<Self::Connection>> {
-                let port_idx = self.ports.iter().position(|cfg| cfg == port)
-                                                .ok_or($crate::TipcError::InvalidPort)?;
+                let port_idx = self.ports.iter()
+                                         .position(|cfg| cfg == port)
+                                         .ok_or($crate::TipcError::InvalidPort)?;
 
                 match &self.services[port_idx] {
                     $(ServiceKind::$service(s) => {
@@ -784,7 +781,7 @@ macro_rules! service_dispatcher {
             }
 
             fn port_configurations(&self) -> &[$crate::PortCfg] {
-                &self.ports
+                self.ports.as_slice()
             }
 
             fn max_message_length(&self) -> usize {
