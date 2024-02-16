@@ -137,11 +137,12 @@ ifeq (true,$(call TOBOOL,$(USER_COVERAGE_ENABLED)))
 ifeq (false,$(call TOBOOL, $(MODULE_DISABLE_COVERAGE)))
 MODULE_LIBRARY_DEPS += trusty/user/base/lib/sancov
 
-# -fno-optimize-sibling-calls is necessary to get correct caller information in
-# the sancov instrumentation.
+# -fno-optimize-sibling-calls/-fno-inline is necessary to get correct caller
+# information in the sancov instrumentation.
 MODULE_COMPILEFLAGS += \
 	-fsanitize-coverage-ignorelist=trusty/user/base/lib/sancov/exemptlist \
 	-fsanitize-coverage=trace-pc-guard \
+	-fno-inline \
 	-fno-optimize-sibling-calls
 
 endif
