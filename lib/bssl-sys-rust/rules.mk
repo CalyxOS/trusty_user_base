@@ -18,33 +18,54 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 MODULE := $(LOCAL_DIR)
 
 BSSL_SRC_DIR := external/boringssl/src
-
-# BoringSSL moved the sources under src/rust/bssl-sys,
-# but they used to be one level higher so we use the old path
-# for compatibility
 BSSL_RUST_DIR := $(BSSL_SRC_DIR)/rust/bssl-sys
-ifeq ($(wildcard $(BSSL_RUST_DIR)),)
-BSSL_RUST_DIR := $(BSSL_SRC_DIR)/rust
-endif
 
-# Generate our `lib.rs` from the template provided with BoringSSL.
-BSSL_LIB_RS_TEMPLATE := $(BSSL_RUST_DIR)/src/lib.rs
-MODULE_LIB_RS_FILE := $(call TOBUILDDIR,$(BSSL_LIB_RS_TEMPLATE))
-$(warning MODULE_LIB_RS_FILE $(MODULE_LIB_RS_FILE))
-$(MODULE_LIB_RS_FILE): $(BSSL_LIB_RS_TEMPLATE)
-	mkdir -p $(dir $@)
-	cat "$(BSSL_LIB_RS_TEMPLATE)" > $@
-	sed 's@^include!(env!(\"BINDGEN_RS_FILE\"));@pub use bssl_sys_raw::*;@' "$(BSSL_LIB_RS_TEMPLATE)" > $@
-
-MODULE_SRCDEPS += $(MODULE_LIB_RS_FILE)
-
-MODULE_SRCS := $(MODULE_LIB_RS_FILE)
+MODULE_SRCS := $(BSSL_RUST_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := bssl_sys
 
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/bssl-sys-raw-rust \
+	external/boringssl \
 	trusty/user/base/lib/bssl-rust-support \
+	trusty/user/base/lib/trusty-sys \
+
+MODULE_BINDGEN_SRC_HEADER := $(BSSL_RUST_DIR)/wrapper.h
+
+MODULE_BINDGEN_FLAGS += \
+	--no-derive-default \
+	--enable-function-attribute-detection \
+	--default-macro-constant-type="signed" \
+	--rustified-enum="point_conversion_form_t" \
+
+# These are not BoringSSL symbols, they are from glibc
+# and are not relevant to the build besides throwing warnings
+# about their 'long double' (aka u128) not being FFI safe.
+# We block those functions so that the build doesn't
+# spam warnings.
+#
+# https://github.com/rust-lang/rust-bindgen/issues/1549 describes the current problem
+# and other folks' solutions.
+MODULE_BINDGEN_FLAGS += \
+	--blocklist-function="strtold" \
+	--blocklist-function="qecvt" \
+	--blocklist-function="qecvt_r" \
+	--blocklist-function="qgcvt" \
+	--blocklist-function="qfcvt" \
+	--blocklist-function="qfcvt_r" \
+
+# Specifying the correct clang target results in __builtin_va_list being
+# declared as a 4 item array of u64 for aarch64 targets. This is not FFI-safe,
+# so we can't declare va_list functions for aarch64 until bindgen supports
+# mapping va_list to its Rust equivalent
+# (https://github.com/rust-lang/rust/issues/44930)
+MODULE_BINDGEN_FLAGS += \
+	--blocklist-function="v.*printf.*" \
+	--blocklist-function="v.*scanf.*" \
+	--blocklist-function="BIO_vsnprintf" \
+	--blocklist-function="OPENSSL_vasprintf" \
+
+# bssl-sys expects the bindgen output to be placed in BINDGEN_RS_FILE.
+MODULE_BINDGEN_OUTPUT_ENV_VAR := BINDGEN_RS_FILE
 
 MODULE_INCLUDES += \
 	$(BSSL_SRC_DIR)/include \
