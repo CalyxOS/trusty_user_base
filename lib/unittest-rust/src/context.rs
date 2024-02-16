@@ -22,11 +22,16 @@ pub static CONTEXT: TestContext = TestContext::new();
 pub struct TestContext {
     all_ok: AtomicBool,
     hard_fail: AtomicBool,
+    skipped: AtomicBool,
 }
 
 impl TestContext {
     const fn new() -> Self {
-        Self { all_ok: AtomicBool::new(true), hard_fail: AtomicBool::new(false) }
+        Self {
+            all_ok: AtomicBool::new(true),
+            hard_fail: AtomicBool::new(false),
+            skipped: AtomicBool::new(false),
+        }
     }
 
     pub fn fail(&self, hard_fail: bool) {
@@ -34,9 +39,17 @@ impl TestContext {
         self.hard_fail.fetch_or(hard_fail, Ordering::Relaxed);
     }
 
+    pub fn skip(&self) {
+        self.skipped.store(true, Ordering::Relaxed);
+    }
+
     pub(crate) fn reset(&self) {
         self.all_ok.store(true, Ordering::Relaxed);
         self.hard_fail.store(false, Ordering::Relaxed);
+    }
+
+    pub(crate) fn skipped(&self) -> bool {
+        self.skipped.load(Ordering::Relaxed)
     }
 
     pub(crate) fn all_ok(&self) -> bool {
