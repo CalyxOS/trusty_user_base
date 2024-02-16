@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include <lib/coverage/common/cov_shm.h>
+#include <interface/line-coverage/aggregator.h>
+#include <lib/line-coverage/shm.h>
+#include <lib/coverage/common/ipc.h>
 #include <assert.h>
 #include <lk/err_ptr.h>
 #include <lk/list.h>
@@ -132,6 +137,8 @@ static void chan_event_handler_proc(const struct uevent* ev, void* chan_ctx) {
 
     tipc_handle_chan_errors(ev);
 
+    setup_shm();
+
     if (ev->event & IPC_HANDLE_POLL_MSG) {
         rc = srv->ops->on_message(chan->port->cfg, chan->handle,
                                   chan->user_ctx);
@@ -140,6 +147,7 @@ static void chan_event_handler_proc(const struct uevent* ev, void* chan_ctx) {
             TLOGE("failed (%d) to handle event on channel %d\n", rc,
                   ev->handle);
             tipc_chan_close(chan);
+            dump_shm();
             return;
         }
     }
@@ -147,7 +155,7 @@ static void chan_event_handler_proc(const struct uevent* ev, void* chan_ctx) {
     if (ev->event & IPC_HANDLE_POLL_HUP) {
         /* closed by peer. */
         TLOGD("close connection\n");
-
+        dump_shm();
         if (srv->ops->on_disconnect) {
             srv->ops->on_disconnect(chan->port->cfg, chan->handle,
                                     chan->user_ctx);
@@ -352,7 +360,7 @@ int tipc_add_service(struct tipc_hset* hset,
             goto err_hset_add;
         }
     }
-
+    setup_mailbox(ports, num_ports);
     return 0;
 
 err_hset_add:

@@ -34,7 +34,7 @@ MODULE_SRCS += \
 
 MODULE_LIBRARY_DEPS := \
 	trusty/user/base/lib/line-coverage \
-	trusty/user/base/interface/coverage \
+	trusty/user/base/interface/line-coverage \
 	trusty/user/base/lib/coverage/common \
 
 include make/library.mk
