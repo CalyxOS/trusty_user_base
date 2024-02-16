@@ -119,7 +119,7 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/lazy_static-rust \
 
 # The AIDL compiler marks an aidl_data variable as mutable and rustc complains
-MODULE_RUSTFLAGS += -Aunused-mut
+MODULE_RUSTFLAGS += -Aunused-mut -Aunused-variables
 
 MODULE_SRCS += $(AIDL_ROOT_RS)
 MODULE_EXPORT_SRCDEPS += $(AIDL_ROOT_RS)
