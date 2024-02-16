@@ -404,6 +404,7 @@ endif
 # Make sure the headers this module requires are copied before the module is
 # compiled
 MODULE_SRCDEPS += $(MODULE_SDK_HEADERS)
+MODULE_EXPORT_SRCDEPS += $(MODULE_SDK_HEADERS)
 
 # Generate constant headers and manifest, if needed.
 include make/gen_manifest.mk
