@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <dice/android/bcc.h>
+#include <dice/android.h>
 #include <dice/dice.h>
 #include <lk/compiler.h>
 #include <stddef.h>
@@ -43,7 +43,7 @@ typedef void* swbcc_session_t;
 int swbcc_glob_init(const uint8_t FRS[DICE_HIDDEN_SIZE],
                     const uint8_t code_hash[DICE_HASH_SIZE],
                     const uint8_t authority_hash[DICE_HASH_SIZE],
-                    const BccConfigValues* config_descriptor);
+                    const DiceAndroidConfigValues* config_descriptor);
 
 int swbcc_init(swbcc_session_t* s, const struct uuid* client);
 
