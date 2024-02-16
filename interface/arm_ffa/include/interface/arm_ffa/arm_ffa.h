@@ -178,6 +178,11 @@ typedef uint8_t ffa_mem_flag8_t;
  *     Used by @SMC_FC_FFA_MEM_RETRIEVE_RESP to indicate that memory came from
  *     @SMC_FC_FFA_MEM_LEND and by @SMC_FC_FFA_MEM_RETRIEVE_REQ to specify that
  *     it must have.
+ * * @FFA_MTD_FLAG_TYPE_DONATE_MEMORY
+ *     Donate memory transaction flag.
+ *     Used by @SMC_FC_FFA_MEM_RETRIEVE_RESP to indicate that memory came from
+ *     @SMC_FC_FFA_MEM_DONATE and by @SMC_FC_FFA_MEM_RETRIEVE_REQ to specify
+ *     that it must have.
  * * @FFA_MTD_FLAG_ADDRESS_RANGE_ALIGNMENT_HINT_MASK
  *     Not supported by this implementation.
  */
@@ -188,7 +193,20 @@ typedef uint32_t ffa_mtd_flag32_t;
 #define FFA_MTD_FLAG_TYPE_MASK (3U << 3)
 #define FFA_MTD_FLAG_TYPE_SHARE_MEMORY (1U << 3)
 #define FFA_MTD_FLAG_TYPE_LEND_MEMORY (2U << 3)
+#define FFA_MTD_FLAG_TYPE_DONATE_MEMORY (3U << 3)
 #define FFA_MTD_FLAG_ADDRESS_RANGE_ALIGNMENT_HINT_MASK (0x1FU << 5)
+
+/**
+ * typedef ffa_mem_relinquish_flag32_t - Memory relinquish descriptor flags
+ *
+ * * @FFA_MEM_RELINQUISH_FLAG_ZERO_MEMORY
+ *     Zero memory after unmapping from sender (must be 0 for share).
+ * * @FFA_MEM_RELINQUISH_FLAG_TIME_SLICING
+ *     Not supported by this implementation.
+ */
+typedef uint32_t ffa_mem_relinquish_flag32_t;
+#define FFA_MEM_RELINQUISH_FLAG_ZERO_MEMORY (1U << 0)
+#define FFA_MEM_RELINQUISH_FLAG_TIME_SLICING (1U << 1)
 
 /**
  * struct ffa_mapd - Memory access permissions descriptor
@@ -261,9 +279,8 @@ STATIC_ASSERT(sizeof(struct ffa_mtd) == 32);
  * @handle:
  *         Id of shared memory object to relinquish.
  * @flags:
- *         If bit 0 is set clear memory after unmapping from borrower. Must be 0
- *         for share. Bit[1]: Time slicing. Not supported, must be 0. All other
- *         bits are reserved 0.
+ *         FFA_MEM_RELINQUISH_FLAG_* values or'ed together
+ *         (&typedef ffa_mem_relinquish_flag32_t).
  * @endpoint_count:
  *         Number of entries in @endpoint_array.
  * @endpoint_array:
@@ -324,17 +341,30 @@ typedef uint32_t ffa_features3_t;
  *         Invalid parameters. Conditions function specific.
  * @FFA_ERROR_NO_MEMORY:
  *         Not enough memory.
+ * @FFA_ERROR_BUSY:
+ *         Operation temporarily not possible. Conditions function specific.
+ * @FFA_ERROR_INTERRUPTED:
+ *         This error code is not specified in the FF-A specification.
  * @FFA_ERROR_DENIED:
  *         Operation not allowed. Conditions function specific.
+ * @FFA_ERROR_RETRY:
+ *         Operation temporarily not possible. Conditions function specific.
+ * @FFA_ERROR_ABORTED:
+ *         Operation aborted. Reason for abort is implementation specific.
+ * @FFA_ERROR_NO_DATA:
+ *         Requested information not available.
  *
- * FF-A 1.0 EAC defines other error codes as well but the current implementation
- * does not use them.
  */
 enum ffa_error {
     FFA_ERROR_NOT_SUPPORTED = -1,
     FFA_ERROR_INVALID_PARAMETERS = -2,
     FFA_ERROR_NO_MEMORY = -3,
+    FFA_ERROR_BUSY = -4,
+    FFA_ERROR_INTERRUPTED = -5,
     FFA_ERROR_DENIED = -6,
+    FFA_ERROR_RETRY = -7,
+    FFA_ERROR_ABORTED = -8,
+    FFA_ERROR_NO_DATA = -9,
 };
 
 /**
