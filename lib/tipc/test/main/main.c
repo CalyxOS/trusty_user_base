@@ -52,6 +52,19 @@ static const uintptr_t COOKIE_BASE = 100;
 #define EXPECT_GT_ZERO(val, args...) EXPECT_GT(val, 0, ##args)
 #define EXPECT_GE_ZERO(val, args...) EXPECT_GE(val, 0, ##args)
 
+/*
+ * TODO(b/294212953): Fix the inherent issue and enable tests
+ * With source based code coverage for unit test enabled, the
+ * coverage aggregator and potentially the coverage daemon
+ * have extra handles that upset the calculation of the first
+ * free handle, so disable these tests.
+ */
+#if UNITTEST_COVERAGE
+#define DISABLED_WITH_COVERAGE(name) DISABLED_##name
+#else
+#define DISABLED_WITH_COVERAGE(name) name
+#endif
+
 /****************************************************************************/
 
 /*
@@ -99,7 +112,7 @@ int sync_connect(const char* path, unsigned int timeout) {
 /*
  *  wait on handle negative test
  */
-TEST(ipc, wait_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(wait_negative)) {
     int rc;
     uevent_t event;
     uint32_t timeout = 1000;  // 1 sec
@@ -137,7 +150,7 @@ TEST(ipc, wait_negative) {
 /*
  *  Close handle unittest
  */
-TEST(ipc, close_handle_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(close_handle_negative)) {
     int rc;
 
     /* closing an invalid (negative value) handle. */
@@ -173,7 +186,7 @@ TEST(ipc, close_handle_negative) {
 /*
  *  Set cookie negative unittest
  */
-TEST(ipc, set_cookie_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(set_cookie_negative)) {
     int rc;
 
     /* set cookie for invalid (negative value) handle. */
@@ -209,7 +222,7 @@ TEST(ipc, set_cookie_negative) {
 /*
  *  Duplicate handle unittest
  */
-TEST(ipc, dup_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(dup_negative)) {
     int rc;
 
     /* duplicating an invalid (negative value) handle. */
@@ -287,7 +300,7 @@ TEST(ipc, port_create_negative) {
     EXPECT_EQ(ERR_BAD_HANDLE, rc, "close port");
 }
 
-TEST(ipc, port_create) {
+TEST(ipc, DISABLED_WITH_COVERAGE(port_create)) {
     int rc;
     unsigned int i;
     char path[MAX_PORT_PATH_LEN];
@@ -338,7 +351,7 @@ TEST(ipc, port_create) {
 /*
  *
  */
-TEST(ipc, wait_on_port) {
+TEST(ipc, DISABLED_WITH_COVERAGE(wait_on_port)) {
     int rc;
     uevent_t event;
     char path[MAX_PORT_PATH_LEN];
@@ -418,7 +431,7 @@ TEST(ipc, connect_negative) {
     EXPECT_EQ(ERR_BAD_HANDLE, rc, "close channel");
 }
 
-TEST(ipc, connect_close) {
+TEST(ipc, DISABLED_WITH_COVERAGE(connect_close)) {
     int rc;
     char path[MAX_PORT_PATH_LEN];
     handle_t chans[16];
@@ -755,7 +768,7 @@ TEST(ipc, connect_access) {
 /*
  *  Accept negative test
  */
-TEST(ipc, accept_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(accept_negative)) {
     int rc, rc1;
     char path[MAX_PORT_PATH_LEN];
     handle_t chan;
@@ -911,7 +924,7 @@ TEST(ipc, DISABLED_accept) {
 
 /****************************************************************************/
 
-TEST(ipc, get_msg_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(get_msg_negative)) {
     int rc;
     ipc_msg_info_t inf;
     handle_t port;
@@ -971,7 +984,7 @@ TEST(ipc, get_msg_negative) {
     EXPECT_EQ(NO_ERROR, rc, "close channnel");
 }
 
-TEST(ipc, put_msg_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(put_msg_negative)) {
     int rc;
     handle_t port;
     handle_t chan;
@@ -1084,7 +1097,7 @@ TEST(ipc, send_msg) {
     }
 }
 
-TEST(ipc, send_msg_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(send_msg_negative)) {
     int rc;
     handle_t port;
     handle_t chan;
@@ -1194,7 +1207,7 @@ TEST(ipc, send_msg_negative) {
     EXPECT_EQ(NO_ERROR, rc, "close channel");
 }
 
-TEST(ipc, read_msg_negative) {
+TEST(ipc, DISABLED_WITH_COVERAGE(read_msg_negative)) {
     int rc;
     handle_t port;
     handle_t chan;
@@ -1761,7 +1774,7 @@ abort_test:
     close(hset2_dup);
 }
 
-TEST(ipc, dup_no_resources) {
+TEST(ipc, DISABLED_WITH_COVERAGE(dup_no_resources)) {
     int rc;
     handle_t hsets[MAX_USER_HANDLES];
 
