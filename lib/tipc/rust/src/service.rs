@@ -532,24 +532,25 @@ macro_rules! service_dispatcher {
         struct $name<$($elt,)? const PORT_COUNT: usize> {
             // ports and services should always be kept in sync, i.e. the
             // service at index `i` services port `i`.
-            ports: Vec<PortCfg>,
-            services: Vec<ServiceKind$(<$elt>)?>,
+            ports: alloc::vec::Vec<$crate::PortCfg>,
+            services: alloc::vec::Vec<ServiceKind$(<$elt>)?>,
         }
 
         impl<$($elt,)? const PORT_COUNT: usize> $name<$($elt,)? PORT_COUNT> {
             fn new() -> core::result::Result<Self, alloc::collections::TryReserveError> {
                 use trusty_std::alloc::FallibleVec;
                 Ok(Self {
-                    ports: Vec::try_with_capacity(PORT_COUNT)?,
-                    services: Vec::try_with_capacity(PORT_COUNT)?,
+                    ports: alloc::vec::Vec::try_with_capacity(PORT_COUNT)?,
+                    services: alloc::vec::Vec::try_with_capacity(PORT_COUNT)?,
                 })
             }
 
-            fn add_service<T>(&mut self, service: Rc<T>, port: PortCfg) -> $crate::Result<()>
-            where ServiceKind$(<$elt>)? : From<Rc<T>> {
+            fn add_service<T>(&mut self, service: alloc::rc::Rc<T>, port: $crate::PortCfg) -> $crate::Result<()>
+            where ServiceKind$(<$elt>)? : From<alloc::rc::Rc<T>> {
                 if self.ports.len() >= PORT_COUNT || self.services.len() >= PORT_COUNT {
-                    return Err(TipcError::OutOfBounds);
+                    return Err($crate::TipcError::OutOfBounds);
                 }
+                use trusty_std::alloc::FallibleVec;
                 // We unwrap here because we already checked capacity and we
                 // don't want to allow ports and services to get out of sync,
                 // e.g. the port was pushed but the service was not.
@@ -560,12 +561,12 @@ macro_rules! service_dispatcher {
         }
 
         enum ServiceKind$(<$elt>)? {
-            $($service(Rc<$service$(<$slt>)?>)),+
+            $($service(alloc::rc::Rc<$service$(<$slt>)?>)),+
         }
 
         $(
-            impl$(<$slt>)? From<Rc<$service$(<$slt>)?>> for ServiceKind$(<$slt>)? {
-                fn from(service: Rc<$service$(<$slt>)?>) -> Self {
+            impl$(<$slt>)? From<alloc::rc::Rc<$service$(<$slt>)?>> for ServiceKind$(<$slt>)? {
+                fn from(service: alloc::rc::Rc<$service$(<$slt>)?>) -> Self {
                     ServiceKind::$service(service)
                 }
             }
@@ -580,12 +581,12 @@ macro_rules! service_dispatcher {
 
             fn on_connect(
                 &self,
-                port: &PortCfg,
-                handle: &Handle,
-                peer: &Uuid,
+                port: &$crate::PortCfg,
+                handle: &$crate::Handle,
+                peer: &$crate::Uuid,
             ) -> $crate::Result<$crate::ConnectResult<Self::Connection>> {
                 let port_idx = self.ports.iter().position(|cfg| cfg == port)
-                                                .ok_or(TipcError::InvalidPort)?;
+                                                .ok_or($crate::TipcError::InvalidPort)?;
 
                 match &self.services[port_idx] {
                     $(ServiceKind::$service(s) => {
@@ -597,11 +598,13 @@ macro_rules! service_dispatcher {
             fn on_message(
                 &self,
                 connection: &Self::Connection,
-                handle: &Handle,
+                handle: &$crate::Handle,
                 buffer: &mut [u8],
             ) -> $crate::Result<$crate::MessageResult> {
-                let mut handles: [Option<Handle>; $crate::MAX_MSG_HANDLES] = Default::default();
+                let mut handles: [Option<$crate::Handle>; $crate::MAX_MSG_HANDLES] = Default::default();
                 let (byte_count, handle_count) = handle.recv_vectored(&mut [buffer], &mut handles)?;
+                #[allow(unused)]
+                use $crate::Deserialize;
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
                         let msg = match <$service as $crate::Service>::Message::deserialize(
@@ -612,16 +615,15 @@ macro_rules! service_dispatcher {
 
                             // If the incoming message doesn't parse correctly, log the error and
                             // then close the connection.
-                            Err(e) => {
-                                eprintln!("Could not parse message: {:?}", e);
-                                return Ok(MessageResult::CloseConnection);
+                            Err(_) => {
+                                return Ok($crate::MessageResult::CloseConnection);
                             }
                         };
 
                         if let ConnectionKind::$service(conn) = &connection.1 {
                             $crate::Service::on_message(&**s, conn, handle, msg)
                         } else {
-                            Err(TipcError::InvalidData)
+                            Err($crate::TipcError::InvalidData)
                         }
                     })*
                 }
@@ -632,18 +634,17 @@ macro_rules! service_dispatcher {
                     $(ServiceKind::$service(s) => {
                         if let ConnectionKind::$service(conn) = &connection.1 {
                             $crate::Service::on_disconnect(&**s, conn)
-                        } else {
-                            eprintln!("Expected a connection with kind {}", stringify!($service));
                         }
                     })*
                 }
             }
 
-            fn port_configurations(&self) -> &[PortCfg] {
+            fn port_configurations(&self) -> &[$crate::PortCfg] {
                 &self.ports
             }
 
             fn max_message_length(&self) -> usize {
+                use $crate::Deserialize;
                 self.services.iter().map(|s| {
                     match s {
                         $(ServiceKind::$service(_) => {
@@ -1219,6 +1220,7 @@ mod test {
 mod multiservice_with_lifetimes_tests {
     use super::*;
     use core::marker::PhantomData;
+    #[allow(unused)]
     use trusty_std::alloc::FallibleVec;
 
     const SRV_PATH_BASE: &str = "com.android.ipc-unittest-lifetimes";
