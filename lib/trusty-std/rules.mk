@@ -23,7 +23,7 @@ MODULE_CRATE_NAME := trusty_std
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/liballoc-rust \
-	trusty/user/base/lib/libc-rust \
+	$(call FIND_CRATE,libc) \
 	trusty/user/base/lib/trusty-sys \
 
 MODULE_ADD_IMPLICIT_DEPS := false

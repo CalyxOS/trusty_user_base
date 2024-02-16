@@ -25,18 +25,18 @@ MODULE_RUSTFLAGS += \
 	--allow rustdoc::broken-intra-doc-links \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
-	trusty/user/base/host/enumn-rust \
+	$(call FIND_CRATE,enumn) \
 	trusty/user/base/host/keymint-rust/derive \
-	trusty/user/base/lib/ciborium-io-rust \
-	trusty/user/base/lib/ciborium-rust \
-	trusty/user/base/lib/coset-rust \
-	trusty/user/base/lib/der-rust \
+	$(call FIND_CRATE,ciborium-io) \
+	$(call FIND_CRATE,ciborium) \
+	$(call FIND_CRATE,coset) \
+	$(call FIND_CRATE,der) \
 	trusty/user/base/lib/keymint-rust/wire \
-	trusty/user/base/lib/log-rust \
-	trusty/user/base/lib/pkcs1-rust \
-	trusty/user/base/lib/pkcs8-rust \
-	trusty/user/base/lib/sec1-rust \
-	trusty/user/base/lib/spki-rust \
-	trusty/user/base/lib/zeroize-rust \
+	$(call FIND_CRATE,log) \
+	$(call FIND_CRATE,pkcs1) \
+	$(call FIND_CRATE,pkcs8) \
+	$(call FIND_CRATE,sec1) \
+	$(call FIND_CRATE,spki) \
+	$(call FIND_CRATE,zeroize) \
 
 include make/library.mk

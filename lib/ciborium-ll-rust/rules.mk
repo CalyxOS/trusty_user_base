@@ -28,7 +28,7 @@ MODULE_RUSTFLAGS += \
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/liballoc-rust \
-	trusty/user/base/lib/ciborium-io-rust \
-	trusty/user/base/lib/half-rust \
+	$(call FIND_CRATE,ciborium-io) \
+	$(call FIND_CRATE,half) \
 
 include make/library.mk

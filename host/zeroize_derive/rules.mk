@@ -24,10 +24,10 @@ MODULE_CRATE_NAME := zeroize_derive
 MODULE_RUST_EDITION := 2018
 
 MODULE_LIBRARY_DEPS += \
-	trusty/user/base/host/proc-macro2 \
-	trusty/user/base/host/quote \
-	trusty/user/base/host/syn \
-	trusty/user/base/host/synstructure \
+	$(call FIND_CRATE,proc-macro2) \
+	$(call FIND_CRATE,quote) \
+	$(call FIND_CRATE,syn) \
+	$(call FIND_CRATE,synstructure) \
 
 MODULE_RUST_CRATE_TYPES := proc-macro
 
