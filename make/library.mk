@@ -90,7 +90,8 @@
 
 ifeq ($(call TOBOOL,$(TRUSTY_NEW_MODULE_SYSTEM)),false)
 
-$(info Building kernel library: $(MODULE))
+MODULE_LOG_NAME := $(MODULE)
+$(call INFO,$(MODULE_LOG_NAME),processing,kernel library)
 
 GLOBAL_INCLUDES += $(MODULE_EXPORT_INCLUDES)
 GLOBAL_COMPILEFLAGS += $(MODULE_EXPORT_COMPILEFLAGS)
@@ -116,6 +117,8 @@ endif
 # lk module system.
 include make/module.mk
 
+$(call INFO_DONE_SILENT,$(MODULE_LOG_NAME),processing)
+
 else  # TRUSTY_NEW_MODULE_SYSTEM is true
 
 ifeq ($(call TOBOOL,$(BUILD_AS_RUST_TEST_MODULE)),true)
@@ -123,7 +126,11 @@ ifeq ($(call TOBOOL,$(BUILD_AS_RUST_TEST_MODULE)),true)
 ifeq ($(call TOBOOL,$(ARCH_$(ARCH)_SUPPORTS_RUST)),true)
 # Allow a project to disable rust tests
 ifeq ($(call TOBOOL,$(TRUSTY_DISABLE_RUST_TESTS)),false)
-$(info Building $(MODULE) as a rust test service)
+
+MODULE_RUST_LOG_NAME := $(MODULE)
+
+$(call INFO,$(MODULE_RUST_LOG_NAME),processing,as a rust test service)
+
 MODULE := $(MODULE)-test
 MODULE_RUSTFLAGS += --test
 MODULE_RUST_CRATE_TYPES := bin
@@ -138,13 +145,15 @@ TRUSTY_RUST_USER_TESTS += $(MODULE)
 
 include make/trusted_app.mk
 
+$(call INFO_DONE_SILENT,$(MODULE_RUST_LOG_NAME),processing)
+
 endif
 endif
 else # Not building rust test app
 
 # Build with the new module system. Currently, the Trusty userspace libraries
 # and apps use the new module system, as does the bootloader/test-runner binary.
-$(info Building library or app: $(MODULE))
+$(call INFO,$(MODULE),processing,library or app)
 
 # Reset new module system marker. This will be set again in dependencies by
 # userspace_recurse.mk
@@ -277,7 +286,7 @@ define copy-headers-rule
 # those symlinks and copy their targets instead so SDK users
 # can still include the symlink sources.
 HEADERS := $$(shell cd "$(1)" 2>/dev/null && find . -xtype f)
-OUTPUT_HEADERS := $$(addprefix $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/,$$(HEADERS))
+OUTPUT_HEADERS := $$(filter-out $$(MODULE_EXPORT_SDK_HEADERS),$$(addprefix $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/,$$(HEADERS)))
 MODULE_EXPORT_SDK_HEADERS += $$(OUTPUT_HEADERS)
 $$(OUTPUT_HEADERS): $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/% : $(1)/% $(MODULE_SRCDEPS)
 	@$$(MKDIR)
@@ -439,7 +448,7 @@ endef
 RUST_ANALYZER_CRATES := $(RUST_ANALYZER_CRATES)$(CRATE_CONFIG)
 CRATE_CONFIG :=
 
-endif
+endif # MODULE_IS_RUST
 
 # Save our current module because module.mk clears it.
 LIB_SAVED_MODULE := $(MODULE)
@@ -506,8 +515,8 @@ OTHER_SDK_OBJS := $(addprefix $(TRUSTY_SDK_LIB_DIR)/,$(notdir $(ALLMODULE_OBJS))
 $(SDK_LIB): OTHER_OBJS := $(ALLMODULE_OBJS)
 $(SDK_LIB): $(LIBRARY_ARCHIVE) $(ALLMODULE_OBJS)
 	@$(MKDIR)
-	cp $< $@
-	[ -z "$(OTHER_OBJS)" ] || cp $(OTHER_OBJS) $(TRUSTY_SDK_LIB_DIR)/
+	@cp $< $@
+	@[ -z "$(OTHER_OBJS)" ] || cp $(OTHER_OBJS) $(TRUSTY_SDK_LIB_DIR)/
 
 # Ensure that any extra SDK objects are copied if they are missing
 $(OTHER_SDK_OBJS): $(SDK_LIB)
@@ -529,10 +538,11 @@ $(SDK_MAKEFILE): MODULE_EXPORT_CXXFLAGS := \
 $(SDK_MAKEFILE): MODULE_EXPORT_ASMFLAGS := \
 	$(MODULE_EXPORT_OPTFLAGS) $(MODULE_EXPORT_COMPILEFLAGS) $(MODULE_EXPORT_ASMFLAGS)
 $(SDK_MAKEFILE): MODULE_EXPORT_LDFLAGS := $(MODULE_EXPORT_LDFLAGS)
+$(SDK_MAKEFILE): MODULE_SDK_LIB_NAME := $(MODULE_SDK_LIB_NAME)
 $(SDK_MAKEFILE): OTHER_SDK_OBJS := $(addprefix $$(SDK_SYSROOT_DIR)/usr/lib/,$(notdir $(OTHER_SDK_OBJS)))
 $(SDK_MAKEFILE):
 	@$(MKDIR)
-	@echo Generating SDK makefile for $(MODULE_SDK_LIB_NAME)
+	@$(call ECHO,sdk,generating makefile,for $(MODULE_SDK_LIB_NAME))
 	$(NOECHO)rm -f $@.tmp
 	$(NOECHO)echo DEFINES += $(call prepare-sdk-flags,$(MODULE_EXPORT_DEFINES)) >> $@.tmp
 	$(NOECHO)echo CFLAGS += $(call prepare-sdk-flags,$(MODULE_EXPORT_CFLAGS)) >> $@.tmp
@@ -540,7 +550,8 @@ $(SDK_MAKEFILE):
 	$(NOECHO)echo ASMFLAGS += $(call prepare-sdk-flags,$(MODULE_EXPORT_ASMFLAGS)) >> $@.tmp
 	$(NOECHO)echo LDFLAGS += $(call prepare-sdk-flags,$(MODULE_EXPORT_LDFLAGS)) >> $@.tmp
 	$(NOECHO)echo 'TRUSTY_APP_OBJECTS += $(OTHER_SDK_OBJS)' >> $@.tmp
-	$(call TESTANDREPLACEFILE,$@.tmp,$@)
+	@$(call TESTANDREPLACEFILE,$@.tmp,$@)
+	@$(call ECHO_DONE_SILENT,sdk,generating makefile,for $(MODULE_SDK_LIB_NAME))
 
 ALL_SDK_EXTRA_FILES += $(SDK_MAKEFILE)
 
@@ -584,9 +595,11 @@ DEPENDENCY_MODULE := $(MODULE)-test
 DEPENDENCY_MODULE_PATH := $(MODULE)
 include make/userspace_recurse.mk
 endif
-
 endif # module is not disabled
 endif # not building rust test app
+
+$(call INFO_DONE_SILENT,$(MODULE),processing,library or app)
+
 endif # building userspace module
 
 # Reset all variables for the next module

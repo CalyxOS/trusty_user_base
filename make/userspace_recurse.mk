@@ -45,7 +45,7 @@ ifeq ($(strip $(DEPENDENCY_MODULE_PATH)),)
 DEPENDENCY_MODULE_PATH := $(DEPENDENCY_MODULE)
 endif
 
-$(info Building $(DEPENDENCY_MODULE) for $(MODULE))
+$(call INFO,$(MODULE),processing dependencies,$(DEPENDENCY_MODULE))
 
 # SAVED_MODULE_STACK contains a stack of the current dependency chain. We need
 # to recursively keep track of this chain so that we can restore our parent
@@ -430,6 +430,8 @@ $(call append-export-flags,SDK_LIBS,true)
 # the SDK before we try to use them. There's no harm in things being copied
 # earlier than they are needed.
 $(call append-export-flags,SDK_HEADERS,true)
+
+$(call INFO_DONE_SILENT,$(MODULE),processing dependencies,$(DEPENDENCY_MODULE))
 
 DEPENDENCY_MODULE :=
 DEPENDENCY_MODULE_PATH :=
