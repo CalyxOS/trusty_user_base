@@ -387,6 +387,116 @@ impl<T, U: Deserialize, V: Service<Connection = T, Message = U>> UnbufferedServi
     }
 }
 
+/// Wrap a service in a newtype.
+///
+/// This macro wraps an existing service in a newtype
+/// that forwards the service trait implementation
+/// (either [`Service`] or [`UnbufferedService`]) to
+/// the wrapped service. This is useful when passing the
+/// same service multiple times to the [`service_dispatcher!`]
+/// macro, which requires that all the service types are distinct.
+/// The wrapper(s) can be used to serve multiple ports using
+/// the same service implementation.
+///
+/// [`service_dispatcher!`]: crate::service_dispatcher
+///
+/// # Examples
+///
+/// ```
+/// // Create a new Service2 type that wraps Service1
+/// wrap_service!(Service2(Service1: Service));
+/// service_dispatcher! {
+///     enum ServiceDispatcher {
+///         Service1,
+///         Service2,
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! wrap_service {
+    ($vis:vis $wrapper:ident ($inner:ty: Service)) => {
+        $crate::wrap_service!(@common $vis $wrapper $inner);
+        $crate::wrap_service!(@buffered $wrapper $inner);
+    };
+
+    ($vis:vis $wrapper:ident ($inner:ty: UnbufferedService)) => {
+        $crate::wrap_service!(@common $vis $wrapper $inner);
+        $crate::wrap_service!(@unbuffered $wrapper $inner);
+    };
+
+    (@common $vis:vis $wrapper:ident $inner:ty) => {
+        $vis struct $wrapper($inner);
+
+        #[allow(dead_code)] // These might not be used by anything
+        impl $wrapper {
+            $vis fn new(inner: $inner) -> Self { Self(inner) }
+            $vis fn inner(&self) -> &$inner { &self.0 }
+            $vis fn inner_mut(&mut self) -> &mut $inner { &mut self.0 }
+        }
+    };
+
+    (@buffered $wrapper:ident $inner:ty) => {
+        impl $crate::Service for $wrapper {
+            type Connection = <$inner as $crate::Service>::Connection;
+            type Message = <$inner as $crate::Service>::Message;
+
+            fn on_connect(
+                &self,
+                port: &$crate::PortCfg,
+                handle: &$crate::Handle,
+                peer: &$crate::Uuid,
+            ) -> $crate::Result<$crate::ConnectResult<Self::Connection>> {
+                <$inner as $crate::Service>::on_connect(&self.0, port, handle, peer)
+            }
+
+            fn on_message(
+                &self,
+                connection: &Self::Connection,
+                handle: &$crate::Handle,
+                msg: Self::Message,
+            ) -> $crate::Result<$crate::MessageResult> {
+                <$inner as $crate::Service>::on_message(&self.0, connection, handle, msg)
+            }
+
+            fn on_disconnect(&self, connection: &Self::Connection) {
+                <$inner as $crate::Service>::on_disconnect(&self.0, connection)
+            }
+        }
+    };
+
+    (@unbuffered $wrapper:ident $inner:ty) => {
+        impl $crate::UnbufferedService for $wrapper {
+            type Connection = <$inner as $crate::UnbufferedService>::Connection;
+
+            fn on_connect(
+                &self,
+                port: &$crate::PortCfg,
+                handle: &$crate::Handle,
+                peer: &$crate::Uuid,
+            ) -> $crate::Result<$crate::ConnectResult<Self::Connection>> {
+                <$inner as $crate::UnbufferedService>::on_connect(&self.0, port, handle, peer)
+            }
+
+            fn on_message(
+                &self,
+                connection: &Self::Connection,
+                handle: &$crate::Handle,
+                buffer: &mut [u8],
+            ) -> $crate::Result<$crate::MessageResult> {
+                <$inner as $crate::UnbufferedService>::on_message(&self.0, connection, handle, buffer)
+            }
+
+            fn on_disconnect(&self, connection: &Self::Connection) {
+                <$inner as $crate::UnbufferedService>::on_disconnect(&self.0, connection)
+            }
+
+            fn max_message_length(&self) -> usize {
+                <$inner as $crate::UnbufferedService>::max_message_length(&self.0)
+            }
+        }
+    };
+}
+
 pub trait Dispatcher {
     /// Generic type to association with a connection. `on_connect()` should
     /// create this type for a successful connection.
@@ -788,6 +898,8 @@ impl<
     ///
     /// See [`service_dispatcher!`] for details on how to create a dispatcher
     /// for use with this API.
+    ///
+    /// [`service_dispatcher!`]: crate::service_dispatcher
     ///
     /// # Examples
     /// ```
@@ -1249,17 +1361,22 @@ mod test {
         }
     }
 
+    wrap_service!(WrappedService2(Service2: Service));
+    wrap_service!(WrappedService3(Service3: UnbufferedService));
+
     service_dispatcher! {
         enum TestServiceDispatcher {
             Service1,
             Service2,
             Service3,
+            WrappedService2,
+            WrappedService3,
         }
     }
 
     #[test]
     fn multiple_services() {
-        let mut dispatcher = TestServiceDispatcher::<3>::new().unwrap();
+        let mut dispatcher = TestServiceDispatcher::<5>::new().unwrap();
 
         let path1 = format!("{}.port.{}", SRV_PATH_BASE, "testService1");
         let cfg = PortCfg::new(&path1).unwrap();
@@ -1273,8 +1390,20 @@ mod test {
         let cfg = PortCfg::new(&path).unwrap();
         dispatcher.add_service(Rc::new(Service3), cfg).expect("Could not add service 3");
 
+        let path = format!("{}.port.{}", SRV_PATH_BASE, "testWrappedService2");
+        let cfg = PortCfg::new(&path).unwrap();
+        dispatcher
+            .add_service(Rc::new(WrappedService2(Service2)), cfg)
+            .expect("Could not add wrapped service 2");
+
+        let path = format!("{}.port.{}", SRV_PATH_BASE, "testWrappedService3");
+        let cfg = PortCfg::new(&path).unwrap();
+        dispatcher
+            .add_service(Rc::new(WrappedService3(Service3)), cfg)
+            .expect("Could not add wrapped service 3");
+
         let buffer = [0u8; 4096];
-        Manager::<_, _, 3, 4>::new_with_dispatcher(dispatcher, buffer)
+        Manager::<_, _, 5, 4>::new_with_dispatcher(dispatcher, buffer)
             .expect("Could not create service manager");
     }
 
