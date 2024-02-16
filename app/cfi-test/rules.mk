@@ -21,7 +21,7 @@ MODULE_INCLUDES += $(LOCAL_DIR)/include/
 
 MANIFEST := $(LOCAL_DIR)/manifest.json
 
-CONSTANTS := $(LOCAL_DIR)/include/cfi_crasher_consts.json
+MODULE_CONSTANTS := $(LOCAL_DIR)/include/cfi_crasher_consts.json
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/cfi-test.c \
