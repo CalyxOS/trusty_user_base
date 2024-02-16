@@ -1,12 +1,25 @@
+#
+# Copyright (c) 2023, Google, Inc. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 ifeq ($(call TOBOOL,$(MODULE_ADD_IMPLICIT_DEPS)),true)
 # Add global library dependencies to the build path
 MODULE_LIBRARY_DEPS += $(GLOBAL_USER_LIBRARY_DEPS)
 
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
-MODULE_LIBRARY_DEPS += \
-	trusty/user/base/lib/libstd-rust \
-
+MODULE_LIBRARY_DEPS += trusty/user/base/lib/libstd-rust
 else
 MODULE_LIBRARY_DEPS += trusty/user/base/lib/libc-trusty
 endif
@@ -26,8 +39,8 @@ endif
 
 # If ASLR is disabled, don't make PIEs, it burns space
 ifneq ($(ASLR), false)
-    # Generate PIE code to allow ASLR to be applied
-    MODULE_COMPILEFLAGS += -fPIC
+	# Generate PIE code to allow ASLR to be applied
+	MODULE_COMPILEFLAGS += -fPIC
 	MODULE_RUSTFLAGS += -C relocation-model=pic
 else
 	MODULE_RUSTFLAGS += -C relocation-model=static
@@ -101,16 +114,13 @@ ifeq (false,$(call TOBOOL,$(TRUSTY_APP_DISABLE_SCS)))
 ifeq (false,$(call TOBOOL,$(MODULE_DISABLE_SCS)))
 # architectures that support SCS should set the flag that reserves
 # a register for the shadow call stack in their toolchain.mk file
-MODULE_COMPILEFLAGS += \
-	-fsanitize=shadow-call-stack \
+MODULE_COMPILEFLAGS += -fsanitize=shadow-call-stack
 
 ifeq ($(TRUSTY_USER_ARCH),arm64)
 # LLVM reserves x18 by default on AArch64 Android, so rust in AOSP doesn't need
 # to specify this. We aren't using the Android target so we need to explicitly
 # reserve x18 if we want to use SCS.
-MODULE_RUSTFLAGS += \
-	-C target-feature=+reserve-x18 \
-
+MODULE_RUSTFLAGS += -C target-feature=+reserve-x18
 endif
 
 endif
