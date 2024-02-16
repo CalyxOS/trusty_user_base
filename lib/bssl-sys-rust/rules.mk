@@ -40,7 +40,7 @@ MODULE_SRCDEPS += $(MODULE_LIB_RS_FILE)
 
 MODULE_SRCS := $(MODULE_LIB_RS_FILE)
 
-MODULE_CRATE_NAME := bssl_ffi
+MODULE_CRATE_NAME := bssl_sys
 
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/bssl-sys-raw-rust \
