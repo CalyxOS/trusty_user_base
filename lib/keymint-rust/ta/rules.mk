@@ -25,14 +25,14 @@ MODULE_RUSTFLAGS += \
 	--allow rustdoc::broken-intra-doc-links \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
-	trusty/user/base/lib/ciborium-rust \
-	trusty/user/base/lib/ciborium-io-rust \
-	trusty/user/base/lib/der-rust \
-	trusty/user/base/lib/flagset-rust \
+	$(call FIND_CRATE,ciborium) \
+	$(call FIND_CRATE,ciborium-io) \
+	$(call FIND_CRATE,der) \
+	$(call FIND_CRATE,flagset) \
 	trusty/user/base/lib/keymint-rust/common \
 	trusty/user/base/lib/keymint-rust/wire \
-	trusty/user/base/lib/log-rust \
-	trusty/user/base/lib/spki-rust \
-	trusty/user/base/lib/x509-cert-rust \
+	$(call FIND_CRATE,log) \
+	$(call FIND_CRATE,spki) \
+	$(call FIND_CRATE,x509-cert) \
 
 include make/library.mk

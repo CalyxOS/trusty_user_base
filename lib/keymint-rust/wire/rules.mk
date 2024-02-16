@@ -22,12 +22,12 @@ MODULE_SRCS := system/keymint/wire/src/lib.rs
 MODULE_CRATE_NAME := kmr_wire
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
-    trusty/user/base/host/enumn-rust \
+    $(call FIND_CRATE,enumn) \
 	trusty/user/base/host/keymint-rust/derive \
-	trusty/user/base/lib/ciborium-io-rust \
-	trusty/user/base/lib/ciborium-rust \
-	trusty/user/base/lib/coset-rust \
-	trusty/user/base/lib/log-rust \
-	trusty/user/base/lib/zeroize-rust \
+	$(call FIND_CRATE,ciborium-io) \
+	$(call FIND_CRATE,ciborium) \
+	$(call FIND_CRATE,coset) \
+	$(call FIND_CRATE,log) \
+	$(call FIND_CRATE,zeroize) \
 
 include make/library.mk

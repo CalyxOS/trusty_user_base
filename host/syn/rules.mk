@@ -38,8 +38,8 @@ MODULE_RUSTFLAGS += \
 	--allow rustdoc::broken-intra-doc-links \
 
 MODULE_LIBRARY_DEPS := \
-	trusty/user/base/host/proc-macro2 \
-	trusty/user/base/host/quote \
-	trusty/user/base/host/unicode-xid \
+	$(call FIND_CRATE,proc-macro2) \
+	$(call FIND_CRATE,quote) \
+	$(call FIND_CRATE,unicode-xid) \
 
 include make/library.mk
