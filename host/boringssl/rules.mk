@@ -25,7 +25,7 @@ endif
 include $(BORINGSSL_DIR)/sources.mk
 HOST_LIB_SRCS := \
 	$(addprefix external/boringssl/,$(crypto_sources)) \
-	$(addprefix external/boringssl/,$(linux_$(HOST_ARCH)_sources)) \
+	$(addprefix external/boringssl/,$(crypto_sources_asm)) \
 
 HOST_INCLUDE_DIRS += \
 	external/boringssl/src/include \
