@@ -38,9 +38,6 @@ MODULE_BINDGEN_OUTPUT_FILE := $(call TOBUILDDIR,$(patsubst %.h,%.rs,$(MODULE_BIN
 # Trusty rust is all no_std
 MODULE_BINDGEN_FLAGS += --use-core --ctypes-prefix 'trusty_sys'
 
-# We build for both 32- and 64-bit arches, best to use usize
-MODULE_BINDGEN_FLAGS += --size_t-is-usize
-
 ifneq ($(strip $(MODULE_BINDGEN_CTYPES_PREFIX)),)
 MODULE_BINDGEN_FLAGS += --ctypes-prefix $(MODULE_BINDGEN_CTYPES_PREFIX)
 endif
