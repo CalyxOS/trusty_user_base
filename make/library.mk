@@ -59,6 +59,8 @@
 # 		headers into.
 # MODULE_LICENSES : Any additional license files for the library other than
 # 		$(MODULE)/LICENSE and $(MODULE)/NOTICE
+# MODULE_RUST_STEM: The stem of the output .rlib file for this library.
+# 	Defaults to $(MODULE_CRATE_NAME) if left empty.
 # MANIFEST : App manifest JSON file, only applicable if this module is an app
 # MANIFEST_OVERLAY : Additional manifest overlay JSON files(s)
 #
@@ -300,6 +302,11 @@ ALL_SDK_INCLUDES += $(MODULE_EXPORT_SDK_HEADERS)
 
 endif # SDK MODULE
 
+# Stem defaults to the crate name
+ifeq ($(MODULE_RUST_STEM),)
+MODULE_RUST_STEM := $(MODULE_CRATE_NAME)
+endif
+
 # Register the module in a global registry. This is used to avoid repeatedly
 # generating rules for this module from modules that depend on it.
 _MODULES_$(MODULE) := T
@@ -316,6 +323,7 @@ _MODULES_$(MODULE)_SRCDEPS := $(MODULE_EXPORT_SRCDEPS)
 ifeq ($(filter $(MODULE),$(TRUSTY_SDK_MODULES)),)
 ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
 _MODULES_$(MODULE)_CRATE_NAME := $(MODULE_CRATE_NAME)
+_MODULES_$(MODULE)_RUST_STEM := $(MODULE_RUST_STEM)
 
 # Memorize the output headers for this module so that we can add them as srcdeps
 # to dependencies
@@ -324,8 +332,8 @@ _MODULES_$(MODULE)_SDK_HEADERS := $(MODULE_EXPORT_SDK_HEADERS)
 # We need to populate rlibs here, before recursing, in case we have a circular
 # dependency. This is analogous to _INCLUDES above.
 ifneq ($(filter rlib,$(MODULE_RUST_CRATE_TYPES)),)
-_MODULES_$(MODULE)_LIBRARIES := $(call TOBUILDDIR,lib$(MODULE_CRATE_NAME)).rlib
-_MODULES_$(MODULE)_RLIBS := $(MODULE_CRATE_NAME)=$(call TOBUILDDIR,lib$(MODULE_CRATE_NAME).rlib)
+_MODULES_$(MODULE)_LIBRARIES := $(call TOBUILDDIR,lib$(MODULE_RUST_STEM)).rlib
+_MODULES_$(MODULE)_RLIBS := $(MODULE_CRATE_NAME)=$(call TOBUILDDIR,lib$(MODULE_RUST_STEM).rlib)
 endif
 
 else
@@ -431,6 +439,10 @@ endif
 
 MODULE_RUSTFLAGS += --crate-name=$(MODULE_CRATE_NAME)
 
+# Throw the module name into the stable crate id so rustc distinguishes
+# between different crates with the same name
+MODULE_RUSTFLAGS += -C metadata=$(MODULE_RUST_STEM)
+
 # Default Rust edition unless otherwise specified
 ifeq ($(MODULE_RUST_EDITION),)
 MODULE_RUST_EDITION := 2021
@@ -453,7 +465,7 @@ endif
 MODULE_RSOBJS :=
 
 ifneq ($(filter proc-macro,$(MODULE_RUST_CRATE_TYPES)),)
-MODULE_CRATE_OUTPUT := $(call TOBUILDDIR,lib$(MODULE_CRATE_NAME).so)
+MODULE_CRATE_OUTPUT := $(call TOBUILDDIR,lib$(MODULE_RUST_STEM).so)
 MODULE_RSOBJS += $(MODULE_CRATE_OUTPUT)
 $(MODULE_CRATE_OUTPUT): MODULE_RUSTFLAGS := $(MODULE_RUSTFLAGS) \
 	--crate-type=proc-macro --extern proc_macro -C prefer-dynamic
@@ -463,14 +475,14 @@ MODULE_RUSTDOCFLAGS += --crate-type=proc-macro --extern proc_macro
 endif # proc-macro crate
 
 ifneq ($(filter rlib,$(MODULE_RUST_CRATE_TYPES)),)
-MODULE_CRATE_OUTPUT := $(call TOBUILDDIR,lib$(MODULE_CRATE_NAME).rlib)
+MODULE_CRATE_OUTPUT := $(call TOBUILDDIR,lib$(MODULE_RUST_STEM).rlib)
 MODULE_RSOBJS += $(MODULE_CRATE_OUTPUT)
 $(MODULE_CRATE_OUTPUT): MODULE_RUSTFLAGS := $(MODULE_RUSTFLAGS) --crate-type=rlib
 MODULE_EXPORT_RLIBS += $(MODULE_CRATE_NAME)=$(MODULE_CRATE_OUTPUT)
 endif
 
 ifneq ($(filter staticlib,$(MODULE_RUST_CRATE_TYPES)),)
-MODULE_CRATE_OUTPUT := $(call TOBUILDDIR,lib$(MODULE_CRATE_NAME).a)
+MODULE_CRATE_OUTPUT := $(call TOBUILDDIR,lib$(MODULE_RUST_STEM).a)
 MODULE_RSOBJS += $(MODULE_CRATE_OUTPUT)
 $(MODULE_CRATE_OUTPUT): MODULE_RUSTFLAGS := $(MODULE_RUSTFLAGS) --crate-type=staticlib
 endif
@@ -483,7 +495,7 @@ TRUSTY_APP_RUST_SRCDEPS := $(MODULE_SRCDEPS)
 endif
 
 ifeq ($(call TOBOOL,$(MODULE_SKIP_DOCS)),false)
-MODULE_RUSTDOC_OBJECT := $(TRUSTY_SDK_LIB_DIR)/doc/built/$(MODULE_CRATE_NAME)
+MODULE_RUSTDOC_OBJECT := $(TRUSTY_SDK_LIB_DIR)/doc/built/$(MODULE_RUST_STEM)
 else
 MODULE_RUSTDOC_OBJECT :=
 endif
@@ -495,12 +507,12 @@ GLOBAL_CRATE_COUNT := $(shell echo $$(($(GLOBAL_CRATE_COUNT)+1)))
 
 define CRATE_CONFIG :=
 {
-	"display_name": "$(MODULE_CRATE_NAME)",
+	"display_name": "$(MODULE_RUST_STEM)",
 	"root_module": "$(filter %.rs,$(MODULE_SRCS))",
 	"edition": "$(MODULE_RUST_EDITION)",
 	"deps": [
 		$(call STRIP_TRAILING_COMMA,$(foreach dep,$(sort $(MODULE_LIBRARY_DEPS)),\
-				$(if $(_MODULES_$(dep)_CRATE_NAME),{"name": "$(_MODULES_$(dep)_CRATE_NAME)"$(COMMA) "crate": $(_MODULES_$(dep)_CRATE_INDEX)}$(COMMA))))
+				$(if $(_MODULES_$(dep)_RUST_STEM),{"name": "$(_MODULES_$(dep)_RUST_STEM)"$(COMMA) "crate": $(_MODULES_$(dep)_CRATE_INDEX)}$(COMMA))))
 	]
 },
 
@@ -535,6 +547,7 @@ $(MODULE_RSOBJS) $(MODULE_RUSTDOC_OBJECT): MODULE_RUST_ENV := $(MODULE_RUST_ENV)
 endif
 
 $(MODULE_RSOBJS): MODULE_CRATE_NAME := $(MODULE_CRATE_NAME)
+$(MODULE_RSOBJS): MODULE_RUST_STEM := $(MODULE_RUST_STEM)
 
 $(MODULE_RUSTDOC_OBJECT): RUSTDOC := $(RUST_BINDIR)/rustdoc
 $(MODULE_RUSTDOC_OBJECT): MODULE_RUSTDOC_OUT_DIR := $(TRUSTY_SDK_LIB_DIR)/doc
@@ -676,6 +689,7 @@ endif # building userspace module
 # Reset all variables for the next module
 MODULE :=
 MODULE_CRATE_NAME :=
+MODULE_RUST_STEM :=
 MODULE_SRCDEPS :=
 MODULE_LIBRARY_DEPS :=
 MODULE_LIBRARY_EXPORTED_DEPS :=
