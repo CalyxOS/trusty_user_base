@@ -20,7 +20,7 @@
 #include <interface/coverage/aggregator.h>
 #include <lib/coverage/common/ipc.h>
 #include <lib/coverage/common/record.h>
-#include <lib/coverage/common/shm.h>
+#include <lib/coverage/common/cov_shm.h>
 #include <lib/tipc/tipc.h>
 #include <lk/macros.h>
 #include <stdbool.h>
@@ -37,8 +37,8 @@ typedef uint8_t counter_t;
 struct sancov_ctx {
     handle_t coverage_srv;
     size_t idx;
-    struct shm mailbox;
-    struct shm data;
+    struct cov_shm mailbox;
+    struct cov_shm data;
     volatile struct coverage_record_header* headers;
     volatile counter_t* counters;
     volatile uintptr_t* pcs;
@@ -115,7 +115,7 @@ static int init(struct sancov_ctx* ctx, size_t num_counters) {
         goto err_rpc;
     }
 
-    rc = shm_mmap(&ctx->mailbox, memref, resp.register_args.mailbox_len);
+    rc = cov_shm_mmap(&ctx->mailbox, memref, resp.register_args.mailbox_len);
     if (rc != NO_ERROR) {
         TLOGE("failed to mmap() mailbox shared memory\n");
         goto err_mmap;
@@ -143,8 +143,8 @@ static int get_record(struct sancov_ctx* ctx) {
     struct coverage_aggregator_resp resp;
     size_t shm_len;
 
-    if (shm_is_mapped(&ctx->data)) {
-        shm_munmap(&ctx->data);
+    if (cov_shm_is_mapped(&ctx->data)) {
+        cov_shm_munmap(&ctx->data);
     }
     ctx->counters = NULL;
     ctx->pcs = NULL;
@@ -165,7 +165,7 @@ static int get_record(struct sancov_ctx* ctx) {
         goto out;
     }
 
-    rc = shm_mmap(&ctx->data, memref, resp.get_record_args.shm_len);
+    rc = cov_shm_mmap(&ctx->data, memref, resp.get_record_args.shm_len);
     if (rc != NO_ERROR) {
         TLOGE("failed to mmap() coverage record shared memory\n");
         goto out;
@@ -257,7 +257,7 @@ __attribute__((__weak__)) void __sanitizer_cov_trace_pc_guard(uint32_t* guard) {
         abort();
     }
 
-    if (shm_is_mapped(&ctx.data)) {
+    if (cov_shm_is_mapped(&ctx.data)) {
         uintptr_t ret_address = (uintptr_t)__builtin_return_address(0);
         /* The sancov tool expects the address of the instruction before the
          * call to this function on ARM and AArch64. */

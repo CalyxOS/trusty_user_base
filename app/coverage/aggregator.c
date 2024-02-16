@@ -20,7 +20,7 @@
 
 #include <interface/coverage/aggregator.h>
 #include <lib/coverage/common/ipc.h>
-#include <lib/coverage/common/shm.h>
+#include <lib/coverage/common/cov_shm.h>
 #include <lib/tipc/tipc_srv.h>
 #include <stdlib.h>
 #include <trusty_log.h>
@@ -31,7 +31,7 @@ static size_t ta_idx = 0;
 static int handle_register(handle_t chan,
                            struct coverage_aggregator_req* req,
                            struct coverage_record* record,
-                           struct shm* mailbox) {
+                           struct cov_shm* mailbox) {
     int rc;
     struct coverage_aggregator_resp resp;
 

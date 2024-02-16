@@ -17,7 +17,7 @@
 #define TLOG_TAG "coverage-common-shm"
 
 #include <assert.h>
-#include <lib/coverage/common/shm.h>
+#include <lib/coverage/common/cov_shm.h>
 #include <lk/macros.h>
 #include <stdlib.h>
 #include <sys/auxv.h>
@@ -29,7 +29,7 @@
 #define PAGE_SIZE getauxval(AT_PAGESZ)
 #define MMAP_FLAG_PROT_RW (MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE)
 
-int shm_alloc(struct shm* shm, size_t len) {
+int cov_shm_alloc(struct cov_shm* shm, size_t len) {
     int rc;
     void* base;
     size_t shm_len;
@@ -52,11 +52,11 @@ int shm_alloc(struct shm* shm, size_t len) {
     shm->base = base;
     shm->len = shm_len;
 
-    shm_clear(shm);
+    cov_shm_clear(shm);
     return NO_ERROR;
 }
 
-void shm_free(struct shm* shm) {
+void cov_shm_free(struct cov_shm* shm) {
     /*
      * TODO: HACK: No way to safely deallocate memory that has already been
      * shared, but works in practice.
@@ -68,7 +68,7 @@ void shm_free(struct shm* shm) {
     shm->len = 0;
 }
 
-int shm_mmap(struct shm* shm, handle_t memref, size_t len) {
+int cov_shm_mmap(struct cov_shm* shm, handle_t memref, size_t len) {
     void* base = mmap(0, len, MMAP_FLAG_PROT_RW, 0, memref, 0);
     if (base == MAP_FAILED) {
         TLOGE("failed to mmap() shared memory\n");
@@ -81,8 +81,8 @@ int shm_mmap(struct shm* shm, handle_t memref, size_t len) {
     return NO_ERROR;
 }
 
-void shm_munmap(struct shm* shm) {
-    assert(shm_is_mapped(shm));
+void cov_shm_munmap(struct cov_shm* shm) {
+    assert(cov_shm_is_mapped(shm));
 
     munmap(shm->base, shm->len);
     close(shm->memref);
@@ -91,8 +91,8 @@ void shm_munmap(struct shm* shm) {
     shm->len = 0;
 }
 
-void shm_clear(struct shm* shm) {
-    assert(shm_is_mapped(shm));
+void cov_shm_clear(struct cov_shm* shm) {
+    assert(cov_shm_is_mapped(shm));
 
     for (size_t i = 0; i < shm->len; i++) {
         WRITE_ONCE(*((uint8_t*)(shm->base) + i), 0);

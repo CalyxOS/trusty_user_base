@@ -20,7 +20,7 @@
 
 #include <interface/coverage/client.h>
 #include <lib/coverage/common/ipc.h>
-#include <lib/coverage/common/shm.h>
+#include <lib/coverage/common/cov_shm.h>
 #include <lib/tipc/tipc_srv.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -32,7 +32,7 @@ struct chan_ctx {
     struct coverage_record* record;
 };
 
-static void broadcast_event(struct shm* mailbox, size_t idx, int event) {
+static void broadcast_event(struct cov_shm* mailbox, size_t idx, int event) {
     int* app_mailbox = (int*)(mailbox->base) + idx;
     WRITE_ONCE(*app_mailbox, event);
 }
@@ -69,7 +69,7 @@ static int handle_share_record(handle_t chan,
                                struct coverage_client_req* req,
                                struct coverage_record* record,
                                handle_t memref,
-                               struct shm* mailbox) {
+                               struct cov_shm* mailbox) {
     int rc;
     struct coverage_client_resp resp;
 
@@ -85,7 +85,7 @@ static int handle_share_record(handle_t chan,
         return rc;
     }
 
-    shm_init(&record->data, memref, NULL, req->share_record_args.shm_len);
+    cov_shm_init(&record->data, memref, NULL, req->share_record_args.shm_len);
 
     broadcast_event(mailbox, record->idx, COVERAGE_MAILBOX_RECORD_READY);
 

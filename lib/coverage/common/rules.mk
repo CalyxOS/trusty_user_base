@@ -18,7 +18,7 @@ MODULE := $(LOCAL_DIR)
 
 MODULE_SRCS := \
 	$(LOCAL_DIR)/ipc.c \
-	$(LOCAL_DIR)/shm.c \
+	$(LOCAL_DIR)/cov_shm.c \
 
 MODULE_EXPORT_INCLUDES := \
 	$(LOCAL_DIR)/include \
