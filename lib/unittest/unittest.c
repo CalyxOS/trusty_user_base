@@ -91,7 +91,7 @@ enum test_message_header {
     TEST_MESSAGE_HEADER_COUNT = 3,
 };
 
-int _tlog(const char* fmt, ...) {
+int _vtlog(const char* fmt, va_list args) {
     char buf[256];
     struct iovec tx_iov = {buf, 1};
     ipc_msg_t tx_msg = {1, &tx_iov, 0, NULL};
@@ -100,7 +100,7 @@ int _tlog(const char* fmt, ...) {
     int slen;
 
     /* Print to stderr as normal */
-    va_start(ap, fmt);
+    va_copy(ap, args);
     ret = vfprintf(stderr, fmt, ap);
     va_end(ap);
     if (ret < 0) {
@@ -112,7 +112,7 @@ int _tlog(const char* fmt, ...) {
         return 0;
     }
 
-    va_start(ap, fmt);
+    va_copy(ap, args);
     /* use filtered version for consistency with stderr logging */
     ret = vsnprintf_filtered(buf + 1, sizeof(buf) - 1, fmt, ap);
     va_end(ap);

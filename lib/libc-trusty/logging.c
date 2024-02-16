@@ -19,11 +19,15 @@
 #include <trusty_log.h>
 
 /* Should be preempted by the definition in libunittest, if available. */
-__attribute__((__weak__)) int _tlog(const char* fmt, ...) {
+__attribute__((__weak__)) int _vtlog(const char* fmt, va_list args) {
+    return vfprintf(stderr, fmt, args);
+}
+
+int _tlog(const char* fmt, ...) {
     int rc;
     va_list ap;
     va_start(ap, fmt);
-    rc = vfprintf(stderr, fmt, ap);
+    rc = _vtlog(fmt, ap);
     va_end(ap);
     return rc;
 }
