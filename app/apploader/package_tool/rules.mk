@@ -53,9 +53,6 @@ ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_CIPHER_A256)))
 HOST_FLAGS += -DAPPLOADER_PACKAGE_CIPHER_A256
 endif
 
-# Build as a static binary for portability
-HOST_STATIC_LINK := true
-
 HOST_LIBS := \
 	c++ \
 
@@ -65,13 +62,5 @@ HOST_LIBS := \
 HOST_DEPS := \
 	trusty/user/base/host/boringssl \
 	trusty/kernel/lib/app_manifest/host \
-
-# If requested, the apploader can be built with the policy engine for key
-# checking functionality.  This requires the policy engine API be
-# implemented in a host library.
-ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_TOOL_WITH_POLICY_ENGINE)))
-HOST_FLAGS += -DWITH_APPLOADER_POLICY_ENGINE
-HOST_DEPS += $(TRUSTY_APPLOADER_POLICY_ENGINE)/host
-endif
 
 include make/host_tool.mk
