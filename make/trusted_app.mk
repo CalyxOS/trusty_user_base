@@ -177,6 +177,14 @@ else
 TRUSTY_APP_STRIPFLAGS := -s
 endif
 
+ifeq (true,$(call TOBOOL,$(UNITTEST_COVERAGE_ENABLED)))
+TRUSTY_APP_STRIPFLAGS += \
+    --remove-section=__llvm_covfun \
+    --remove-section=__llvm_prf_names \
+    --remove-section=__llvm_prf_data \
+    --remove-section=__llvm_covmap
+endif
+
 # And strip it and pad with zeros to be page aligned
 $(TRUSTY_APP_ELF): TRUSTY_APP_STRIP := $(TRUSTY_APP_STRIP)
 $(TRUSTY_APP_ELF): TRUSTY_APP_ALIGNMENT := $(TRUSTY_APP_ALIGNMENT)
