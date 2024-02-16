@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <arch/defines.h>
 #include <lk/compiler.h>
 #include <stdint.h>
 
@@ -26,18 +27,26 @@
 #define HWAES_MAX_MSG_SIZE 0x1000
 #define HWAES_INVALID_INDEX UINT32_MAX
 
+/* For input buffers it is enough to align by AES_BLOCK_SIZE. */
+#define HWAES_TEXT_IN_BUF_ALIGNMENT AES_BLOCK_SIZE
+
+/* For output buffers it should be also CACHE_LINE aligned
+ * to avoid cache issues in prepare_dma.
+ */
+#define HWAES_TEXT_OUT_BUF_ALIGNMENT CACHE_LINE
+
 /*
  * The number of parts on tipc request message:
  * hwaes_req, hwaes_aes_req, array of hwaes_shm_desc,
- * and input payloads for key, iv, aad, text_in, tag_in.
+ * and input payloads for key, iv, aad, aad_padd, text_in, text_in_padd, tag_in.
  */
-#define TIPC_REQ_MSG_PARTS (1 + 1 + 1 + 5)
+#define TIPC_REQ_MSG_PARTS (1 + 1 + 1 + 7)
 
 /*
  * The number of parts on tipc response message:
- * hwaes_resp and input payloads for text_out, tag_out.
+ * hwaes_resp and input payloads for text_out, test_out_padd, tag_out.
  */
-#define TIPC_RESP_MSG_PARTS (1 + 1 + 1)
+#define TIPC_RESP_MSG_PARTS (1 + 3)
 
 /*
  * The max number of TIPC_REQ_MSG_PARTS and TIPC_RESP_MSG_PARTS
