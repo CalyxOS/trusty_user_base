@@ -19,4 +19,12 @@ MODULE := $(LOCAL_DIR)
 MODULE_SRCS := \
 	$(LOCAL_DIR)/shm.c \
 
+MODULE_EXPORT_INCLUDES := \
+	$(LOCAL_DIR)/include \
+
+MODULE_LIBRARY_DEPS := \
+	trusty/user/base/lib/tipc \
+	trusty/user/base/interface/coverage \
+	trusty/user/base/lib/coverage/common \
+
 include make/library.mk

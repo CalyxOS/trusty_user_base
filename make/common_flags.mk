@@ -137,8 +137,8 @@ endif
 # Source based code coverage
 ifeq (true,$(call TOBOOL,$(UNITTEST_COVERAGE_ENABLED)))
 ifeq (false,$(call TOBOOL, $(MODULE_DISABLE_COVERAGE)))
-MODULE_LIBRARY_DEPS += trusty/user/base/lib/line-coverage
-MODULE_COMPILEFLAGS += -fprofile-instr-generate \
+MODULE_COMPILEFLAGS += -DUNITTEST_COVERAGE  \
+	-fprofile-instr-generate \
 	-fcoverage-mapping \
 	-mllvm \
 	-enable-value-profiling=false
