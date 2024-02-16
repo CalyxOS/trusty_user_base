@@ -31,7 +31,7 @@ MODULE_CRATE_NAME := openssl
 MODULE_RUST_EDITION := 2018
 
 MODULE_LIBRARY_DEPS += \
-	$(call FIND_CRATE,bitflags) \
+	$(call FIND_CRATE,bitflags)/1.3.2 \
 	$(call FIND_CRATE,cfg-if) \
 	$(call FIND_CRATE,foreign-types) \
 	$(call FIND_CRATE,libc) \
