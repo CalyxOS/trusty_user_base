@@ -24,7 +24,7 @@ MODULE_CRATE_NAME := kmr_common
 MODULE_RUSTFLAGS += \
 	--allow rustdoc::broken-intra-doc-links \
 
-MODULE_LIBRARY_DEPS += \
+MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/host/enumn-rust \
 	trusty/user/base/host/keymint-rust/derive \
 	trusty/user/base/lib/ciborium-io-rust \

@@ -24,7 +24,7 @@ MODULE_CRATE_NAME := tipc
 MODULE_INCLUDES += \
 	trusty/user/base/lib/tipc/test/include \
 
-MODULE_LIBRARY_DEPS += \
+MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/libc-trusty \
 	trusty/user/base/lib/log-rust \
 	trusty/user/base/lib/trusty-std \

@@ -24,7 +24,7 @@ MODULE_CRATE_NAME := kmr_ta
 MODULE_RUSTFLAGS += \
 	--allow rustdoc::broken-intra-doc-links \
 
-MODULE_LIBRARY_DEPS += \
+MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/ciborium-rust \
 	trusty/user/base/lib/ciborium-io-rust \
 	trusty/user/base/lib/der-rust \

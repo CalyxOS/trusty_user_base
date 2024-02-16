@@ -21,7 +21,7 @@ MODULE_SRCS := system/keymint/wire/src/lib.rs
 
 MODULE_CRATE_NAME := kmr_wire
 
-MODULE_LIBRARY_DEPS += \
+MODULE_LIBRARY_EXPORTED_DEPS += \
     trusty/user/base/host/enumn-rust \
 	trusty/user/base/host/keymint-rust/derive \
 	trusty/user/base/lib/ciborium-io-rust \

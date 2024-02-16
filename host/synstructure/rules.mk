@@ -31,5 +31,6 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/host/proc-macro-error \
 	trusty/user/base/host/quote \
 	trusty/user/base/host/syn \
+	trusty/user/base/host/unicode-xid \
 
 include make/library.mk

@@ -366,6 +366,10 @@ $(call append-export-flags,CPPFLAGS,$(REEXPORT))
 $(call append-export-flags,ASMFLAGS,$(REEXPORT))
 $(call append-export-flags,SRCDEPS,$(REEXPORT))
 
+# RLIBS need to re-exported explicitly in case we have multiple versions
+# of the same crate.
+$(call append-export-flags,RLIBS,$(REEXPORT))
+
 # We always re-export LDFLAGS and LIBRARIES. This is safe to do in the prescence
 # of recursive deps because libraries and link flags are additive and do not
 # affect the compiliation. If we have a dependency chain like A -> B -> C -> A,
@@ -375,7 +379,6 @@ $(call append-export-flags,EXTRA_OBJECTS,true)
 $(call append-export-flags,WHOLE_ARCHIVES,true)
 $(call append-export-flags,LDFLAGS,true)
 $(call append-export-flags,LIBRARIES,true)
-$(call append-export-flags,RLIBS,true)
 $(call append-export-flags,SDK_LIBS,true)
 
 # We always want to make sure that all necessary headers have been copied into

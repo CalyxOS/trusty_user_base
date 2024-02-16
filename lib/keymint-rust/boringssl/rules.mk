@@ -25,7 +25,7 @@ MODULE_RUSTFLAGS += \
 	--cfg 'soong' \
 	--allow rustdoc::broken-intra-doc-links \
 
-MODULE_LIBRARY_DEPS += \
+MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/bssl-sys-rust \
 	trusty/user/base/lib/foreign-types-rust \
 	trusty/user/base/lib/keymint-rust/common \

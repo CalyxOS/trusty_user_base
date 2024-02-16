@@ -25,7 +25,8 @@ MODULE_CRATE_NAME := std
 
 MODULE_RUST_EDITION := 2018
 
-MODULE_LIBRARY_DEPS += \
+MODULE_LIBRARY_EXPORTED_DEPS += \
+	trusty/user/base/lib/cfg-if-rust \
 	trusty/user/base/lib/libcore-rust \
 	trusty/user/base/lib/libc-rust \
 	trusty/user/base/lib/liballoc-rust \
