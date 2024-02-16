@@ -29,7 +29,6 @@ HOST_LIB_SRCS := \
 
 HOST_INCLUDE_DIRS += \
 	external/boringssl/src/include \
-	external/boringssl/src/crypto \
 
 include make/host_lib.mk
 
