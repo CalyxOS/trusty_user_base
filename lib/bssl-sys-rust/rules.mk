@@ -34,8 +34,7 @@ $(warning MODULE_LIB_RS_FILE $(MODULE_LIB_RS_FILE))
 $(MODULE_LIB_RS_FILE): $(BSSL_LIB_RS_TEMPLATE)
 	mkdir -p $(dir $@)
 	cat "$(BSSL_LIB_RS_TEMPLATE)" > $@
-	sed 's@^.{INCLUDES}@pub use bssl_sys_raw::*;@' "$(BSSL_LIB_RS_TEMPLATE)" > $@
-
+	sed 's@^include!(env!(\"BINDGEN_RS_FILE\"));@pub use bssl_sys_raw::*;@' "$(BSSL_LIB_RS_TEMPLATE)" > $@
 
 MODULE_SRCDEPS += $(MODULE_LIB_RS_FILE)
 
