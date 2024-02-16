@@ -88,16 +88,20 @@ else # we are not building an app
 ifneq ($(strip $(MODULE_CONSTANTS)),)
 
 # generate shared constants headers if only constants and no manifest provided
-$(CONSTANTS_HEADER_DIR): MANIFEST_COMPILER := $(MANIFEST_COMPILER)
-$(CONSTANTS_HEADER_DIR): PY3 := $(PY3)
-$(CONSTANTS_HEADER_DIR): CONFIG_CONSTANTS := $(MODULE_CONSTANTS)
-$(CONSTANTS_HEADER_DIR): HEADER_DIR := $(CONSTANTS_HEADER_DIR)
-$(CONSTANTS_HEADER_DIR): $(MANIFEST_COMPILER) $(MODULE_CONSTANTS)
+# generate also a hidden generated for each module that will
+# say that constants are already generated for this module
+$(CONSTANTS_HEADER_DIR)/.generated/$(MODULE): MANIFEST_COMPILER := $(MANIFEST_COMPILER)
+$(CONSTANTS_HEADER_DIR)/.generated/$(MODULE): PY3 := $(PY3)
+$(CONSTANTS_HEADER_DIR)/.generated/$(MODULE): MODULE := $(MODULE)
+$(CONSTANTS_HEADER_DIR)/.generated/$(MODULE): CONFIG_CONSTANTS := $(MODULE_CONSTANTS)
+$(CONSTANTS_HEADER_DIR)/.generated/$(MODULE): HEADER_DIR := $(CONSTANTS_HEADER_DIR)
+$(CONSTANTS_HEADER_DIR)/.generated/$(MODULE): $(MANIFEST_COMPILER) $(MODULE_CONSTANTS)
 	@$(MKDIR)
 	@echo compiling constants for $(MODULE)
 	$(PY3) $(MANIFEST_COMPILER) $(addprefix -c,$(CONFIG_CONSTANTS)) --header-dir $(HEADER_DIR)
+	@touch $(HEADER_DIR)/.generated/$(MODULE)
 
-MODULE_SRCDEPS += $(CONSTANTS_HEADER_DIR)
+MODULE_SRCDEPS += $(CONSTANTS_HEADER_DIR)/.generated/$(MODULE)
 
 endif # MODULE_CONSTANTS is non-empty
 
