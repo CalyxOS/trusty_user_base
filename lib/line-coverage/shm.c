@@ -17,7 +17,8 @@
 #define TLOG_TAG "cov-shm"
 
 #include <lib/coverage/common/cov_shm.h>
-#include <interface/coverage/aggregator.h>
+#include <interface/line-coverage/aggregator.h>
+#include <interface/line-coverage/client.h>
 #include <lib/coverage/common/ipc.h>
 #include <lib/line-coverage/shm.h>
 #include <lib/tipc/tipc.h>
@@ -124,14 +125,14 @@ int setup_mailbox(const struct tipc_port* ports, uint32_t num_ports) {
 
     for (i = 0; i < num_ports; i++) {
         // Skip for coverage aggregator and client
-        if (strcmp(ports[i].name, COVERAGE_AGGREGATOR_PORT) == 0 ||
-              strcmp(ports[i].name, COVERAGE_CLIENT_PORT) == 0) {
+        if (strcmp(ports[i].name, LINE_COVERAGE_AGGREGATOR_PORT) == 0 ||
+                strcmp(ports[i].name, LINE_COVERAGE_CLIENT_PORT) == 0) {
             ctx.mailbox.base = NULL;
             return -1;
         }
     }
 
-    rc = tipc_connect(&chan, COVERAGE_AGGREGATOR_PORT);
+    rc = tipc_connect(&chan, LINE_COVERAGE_AGGREGATOR_PORT);
     if (rc != NO_ERROR) {
         TLOGE("failed (%d) to connect to coverage aggregator service\n", rc);
         return rc;

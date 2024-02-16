@@ -24,7 +24,7 @@ MODULE_EXPORT_INCLUDES := \
 
 MODULE_LIBRARY_DEPS := \
 	trusty/user/base/lib/tipc \
-	trusty/user/base/interface/coverage \
+	trusty/user/base/interface/line-coverage \
 	trusty/user/base/lib/coverage/common \
 
 include make/library.mk
