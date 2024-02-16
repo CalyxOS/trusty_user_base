@@ -20,6 +20,7 @@
     include("trusty/user/app/keymaster/build-config-usertests"),
     include("trusty/user/app/keymint/build-config-usertests"),
     include("trusty/user/app/sample/build-config-usertests"),
+    include("trusty/user/app/secretkeeper/build-config-usertests"),
     include("trusty/user/app/storage/build-config-usertests"),
 
     # userspace tests that don't use storage
