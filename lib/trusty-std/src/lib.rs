@@ -31,16 +31,12 @@
 #![feature(allocator_api)]
 #![feature(alloc_error_handler)]
 #![feature(alloc_layout_extra)]
-// Used in println! and eprintln!
-#![feature(allow_internal_unstable)]
 #![feature(core_intrinsics)]
-#![feature(lang_items)]
 // min_specialization is only used to optimize CString::try_new(), so we can
 // remove it if needed
 #![feature(min_specialization)]
 #![feature(new_uninit)]
 #![feature(panic_info_message)]
-#![feature(rustc_attrs)]
 #![feature(slice_internals)]
 #![feature(slice_ptr_get)]
 
