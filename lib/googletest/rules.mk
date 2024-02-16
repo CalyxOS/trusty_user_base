@@ -24,11 +24,6 @@ MODULE_COMPILEFLAGS += \
 	-DGTEST_HAS_STREAM_REDIRECTION=0 \
 	-DGTEST_LINKED_AS_SHARED_LIBRARY=0 \
 	-DGTEST_CREATE_SHARED_LIBRARY=0 \
-	-DGTEST_HAS_DEATH_TEST=0 \
-
-# Horrible hack for preventing OS detection.
-# If we don't prevent OS detection, gtest-port.h will try to enable death tests.
-MODULE_COMPILEFLAGS += -DGTEST_INCLUDE_GTEST_INTERNAL_GTEST_PORT_ARCH_H_=1
 
 # After disabling a bunch of features, there are dead constants.
 MODULE_COMPILEFLAGS += -Wno-unused-const-variable
@@ -50,6 +45,19 @@ MODULE_SRCS := \
 	$(GTEST_DIR)/src/gtest-printers.cc \
 	$(GTEST_DIR)/src/gtest-test-part.cc \
 	$(GTEST_DIR)/src/gtest-typed-test.cc \
+
+# aosp/2765314 updated googletest to a more recent version.
+# The update brought two significant changes:
+# * A new file called gtest-assertion-result.cc, and
+# * Changes to GTEST_HAS_DEATH_TEST where it's checked using #ifdef;
+#   This means that instead of defining it to 0,
+#   we now need to not define it at all.
+ifneq ($(wildcard $(GTEST_DIR)/src/gtest-assertion-result.cc),)
+	MODULE_SRCS += $(GTEST_DIR)/src/gtest-assertion-result.cc
+else
+	# Define the macro the old way to get past presubmit
+	MODULE_COMPILEFLAGS += -DGTEST_HAS_DEATH_TEST=0
+endif
 
 MODULE_EXPORT_INCLUDES += \
 	$(LOCAL_DIR)/include \
