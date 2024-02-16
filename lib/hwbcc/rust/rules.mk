@@ -14,6 +14,7 @@
 #
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
+LIBCPPBOR_DIR := $(if $(wildcard system/libcppbor),system/libcppbor,external/libcppbor)
 
 MODULE := $(LOCAL_DIR)
 
@@ -23,7 +24,7 @@ MODULE_CRATE_NAME := hwbcc
 
 MODULE_LIBRARY_DEPS += \
 	external/boringssl \
-	external/libcppbor \
+	$(LIBCPPBOR_DIR) \
 	external/open-dice \
 	trusty/user/base/interface/hwbcc \
 	trusty/user/base/lib/trusty-std \

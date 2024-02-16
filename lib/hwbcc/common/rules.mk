@@ -13,6 +13,7 @@
 # limitations under the License.
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
+LIBCPPBOR_DIR := $(if $(wildcard system/libcppbor),system/libcppbor,external/libcppbor)
 
 MODULE := $(LOCAL_DIR)
 
@@ -25,7 +26,7 @@ MODULE_EXPORT_INCLUDES := \
 
 MODULE_LIBRARY_DEPS := \
 	external/open-dice \
-	external/libcppbor \
+	$(LIBCPPBOR_DIR) \
 	external/boringssl \
 	trusty/user/base/lib/unittest \
 	trusty/user/base/lib/libstdc++-trusty \
