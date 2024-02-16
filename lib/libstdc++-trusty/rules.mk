@@ -58,6 +58,7 @@ MODULE_SRCS := \
         $(LIBCXX_DIR)/src/optional.cpp \
         $(LIBCXX_DIR)/src/regex.cpp \
         $(LIBCXX_DIR)/src/shared_mutex.cpp \
+        $(LIBCXX_DIR)/src/stdexcept.cpp \
         $(LIBCXX_DIR)/src/string.cpp \
         $(LIBCXX_DIR)/src/strstream.cpp \
         $(LIBCXX_DIR)/src/system_error.cpp \
