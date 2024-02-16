@@ -46,6 +46,7 @@ impl TestContext {
     pub(crate) fn reset(&self) {
         self.all_ok.store(true, Ordering::Relaxed);
         self.hard_fail.store(false, Ordering::Relaxed);
+        self.skipped.store(false, Ordering::Relaxed);
     }
 
     pub(crate) fn skipped(&self) -> bool {
