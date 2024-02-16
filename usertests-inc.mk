@@ -17,6 +17,7 @@ include trusty/user/app/cast-auth/usertests-inc.mk
 include trusty/user/app/keymaster/usertests-inc.mk
 include trusty/user/app/keymint/usertests-inc.mk
 include trusty/user/app/sample/usertests-inc.mk
+include trusty/user/app/secretkeeper/usertests-inc.mk
 include trusty/user/app/storage/usertests-inc.mk
 
 ifeq (false,$(call TOBOOL,$(CONFIRMATIONUI_DISABLED)))
