@@ -70,7 +70,7 @@ static constexpr char kAdditionalConfig[] = R"(,
         }]
 },
 {
-        "algorithm": "KAS-KDF",
+        "algorithm": "KDA",
         "mode": "TwoStep",
         "revision": "Sp800-56Cr2",
         "capabilities": [{
