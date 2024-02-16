@@ -760,3 +760,23 @@ enum ffa_error {
  * * w1/x1-w5/x5:    See opcode in w0.
  */
 #define SMC_FC_FFA_MEM_FRAG_TX SMC_FASTCALL_NR_SHARED_MEMORY(0x7B)
+
+/* FF-A v1.1 */
+/**
+ * SMC_FC64_FFA_SECONDARY_EP_REGISTER - SMC opcode to register secondary
+ * core entrypoint.
+ *
+ * Register arguments:
+ *
+ * * x1:     Entry point address of a secondary execution context
+ *
+ * Return:
+ * * x0:     &SMC_FC64_FFA_SUCCESS
+ *
+ * or
+ *
+ * * x0:     &SMC_FC_FFA_ERROR
+ * * x2:     %FFA_ERROR_NOT_SUPPORTED Not supported
+ *           %FFA_ERROR_INVALID_PARAMETERS Invalid entry point specified
+ */
+#define SMC_FC64_FFA_SECONDARY_EP_REGISTER SMC_FASTCALL64_NR_SHARED_MEMORY(0x87)
