@@ -53,6 +53,9 @@ ifeq (true,$(call TOBOOL,$(APPLOADER_PACKAGE_CIPHER_A256)))
 HOST_FLAGS += -DAPPLOADER_PACKAGE_CIPHER_A256
 endif
 
+# Build as a static binary for portability
+HOST_STATIC_LINK := true
+
 HOST_LIBS := \
 	c++ \
 
