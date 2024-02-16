@@ -331,10 +331,60 @@ pub trait UnbufferedService {
     ///
     /// Should return `Ok(MaintainConnection)` if the connection should be kept open. The
     /// connection will be closed if `Ok(CloseConnection)` or `Err(_)` is returned.
-    fn on_message(&self, connection: &Self::Connection, handle: &Handle) -> Result<MessageResult>;
+    fn on_message(
+        &self,
+        connection: &Self::Connection,
+        handle: &Handle,
+        buffer: &mut [u8],
+    ) -> Result<MessageResult>;
 
     /// Called when the client closes a connection.
     fn on_disconnect(&self, _connection: &Self::Connection) {}
+
+    /// Get the maximum possible length of any message handled by this service
+    fn max_message_length(&self) -> usize {
+        0
+    }
+}
+
+impl<T, U: Deserialize, V: Service<Connection = T, Message = U>> UnbufferedService for V {
+    type Connection = <Self as Service>::Connection;
+
+    fn on_connect(
+        &self,
+        port: &PortCfg,
+        handle: &Handle,
+        peer: &Uuid,
+    ) -> Result<ConnectResult<<Self as UnbufferedService>::Connection>> {
+        <Self as Service>::on_connect(self, port, handle, peer)
+    }
+
+    fn on_message(
+        &self,
+        connection: &<Self as UnbufferedService>::Connection,
+        handle: &Handle,
+        buffer: &mut [u8],
+    ) -> Result<MessageResult> {
+        let mut handles: [Option<Handle>; MAX_MSG_HANDLES] = Default::default();
+        let (byte_count, handle_count) = handle.recv_vectored(&mut [buffer], &mut handles)?;
+        let msg = <Self as Service>::Message::deserialize(
+            &buffer[..byte_count],
+            &mut handles[..handle_count],
+        )
+        .map_err(|e| {
+            error!("Could not parse message: {:?}", e);
+            TipcError::InvalidData
+        })?;
+        <Self as Service>::on_message(self, connection, handle, msg)
+    }
+
+    fn on_disconnect(&self, connection: &<Self as UnbufferedService>::Connection) {
+        <Self as Service>::on_disconnect(self, connection)
+    }
+
+    fn max_message_length(&self) -> usize {
+        <Self as Service>::Message::MAX_SERIALIZED_SIZE
+    }
 }
 
 pub trait Dispatcher {
@@ -460,9 +510,9 @@ impl<S: UnbufferedService> Dispatcher for SingleUnbufferedDispatcher<S> {
         &self,
         connection: &Self::Connection,
         handle: &Handle,
-        _buffer: &mut [u8],
+        buffer: &mut [u8],
     ) -> Result<MessageResult> {
-        self.service.on_message(connection, handle)
+        self.service.on_message(connection, handle, buffer)
     }
 
     fn on_disconnect(&self, connection: &Self::Connection) {
@@ -470,7 +520,7 @@ impl<S: UnbufferedService> Dispatcher for SingleUnbufferedDispatcher<S> {
     }
 
     fn max_message_length(&self) -> usize {
-        0
+        self.service.max_message_length()
     }
 
     fn port_configurations(&self) -> &[PortCfg] {
@@ -573,7 +623,7 @@ macro_rules! service_dispatcher {
         )+
 
         enum ConnectionKind$(<$elt>)?  {
-            $($service(<$service$(<$slt>)? as $crate::Service>::Connection)),+
+            $($service(<$service$(<$slt>)? as $crate::UnbufferedService>::Connection)),+
         }
 
         impl<$($elt,)? const PORT_COUNT: usize> $crate::Dispatcher for $name<$($elt,)? PORT_COUNT> {
@@ -590,7 +640,8 @@ macro_rules! service_dispatcher {
 
                 match &self.services[port_idx] {
                     $(ServiceKind::$service(s) => {
-                        $crate::Service::on_connect(&**s, port, handle, peer).map(|c| c.map(|c| (port_idx, ConnectionKind::$service(c))))
+                        $crate::UnbufferedService::on_connect(&**s, port, handle, peer)
+                            .map(|c| c.map(|c| (port_idx, ConnectionKind::$service(c))))
                     })+
                 }
             }
@@ -601,27 +652,10 @@ macro_rules! service_dispatcher {
                 handle: &$crate::Handle,
                 buffer: &mut [u8],
             ) -> $crate::Result<$crate::MessageResult> {
-                let mut handles: [Option<$crate::Handle>; $crate::MAX_MSG_HANDLES] = Default::default();
-                let (byte_count, handle_count) = handle.recv_vectored(&mut [buffer], &mut handles)?;
-                #[allow(unused)]
-                use $crate::Deserialize;
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
-                        let msg = match <$service as $crate::Service>::Message::deserialize(
-                            &buffer[..byte_count],
-                            &mut handles[..handle_count],
-                        ) {
-                            Ok(msg) => msg,
-
-                            // If the incoming message doesn't parse correctly, log the error and
-                            // then close the connection.
-                            Err(_) => {
-                                return Ok($crate::MessageResult::CloseConnection);
-                            }
-                        };
-
                         if let ConnectionKind::$service(conn) = &connection.1 {
-                            $crate::Service::on_message(&**s, conn, handle, msg)
+                            $crate::UnbufferedService::on_message(&**s, conn, handle, buffer)
                         } else {
                             Err($crate::TipcError::InvalidData)
                         }
@@ -633,7 +667,7 @@ macro_rules! service_dispatcher {
                 match &self.services[connection.0] {
                     $(ServiceKind::$service(s) => {
                         if let ConnectionKind::$service(conn) = &connection.1 {
-                            $crate::Service::on_disconnect(&**s, conn)
+                            $crate::UnbufferedService::on_disconnect(&**s, conn)
                         }
                     })*
                 }
@@ -644,11 +678,10 @@ macro_rules! service_dispatcher {
             }
 
             fn max_message_length(&self) -> usize {
-                use $crate::Deserialize;
                 self.services.iter().map(|s| {
                     match s {
-                        $(ServiceKind::$service(_) => {
-                            <$service as $crate::Service>::Message::MAX_SERIALIZED_SIZE
+                        $(ServiceKind::$service(service) => {
+                            <$service as $crate::UnbufferedService>::max_message_length(&**service)
                         })+
                     }
                 }).max().unwrap_or(0usize)
