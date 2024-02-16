@@ -136,6 +136,13 @@ __NO_INLINE static int crasher_not_entry_func(int arg) {
      * the response message and channel closed event as separate events.
      */
     trusty_nanosleep(0, 0, 100 * 1000 * 1000);
+
+    /* Log point to prevent tail-call optimisation to trusty_nanosleep(),
+     * which can cause a crash before the sleep with certain CFI techniques
+     * such as PAC.
+     */
+    TLOGI("crasher_not_entry_func done\n");
+
     return arg;
 }
 
