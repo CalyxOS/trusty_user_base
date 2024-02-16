@@ -31,12 +31,15 @@ ifeq ($(filter $(words $(MODULE_AIDL_PACKAGE)),0 1),)
 $(error $(MODULE) has the following packages $(MODULE_AIDL_PACKAGE), but only one is supported)
 endif
 
-# TODO: this implies all sources are under the same package; support multiple packages
+# TODO: this implies all sources are in MODULE_AIDL_PACKAGE or are subpackages
+# of MODULE_AIDL_PACKAGE; support multiple packages
+GET_AIDL_PACKAGE_ROOT = $(if $(MODULE_AIDL_PACKAGE),$(firstword $(subst $(MODULE_AIDL_PACKAGE), ,$1)),$(dir $1))
+
 MODULE_AIDL_INCLUDES ?=
 MODULE_SRCS := $(call TOBUILDDIR,$(patsubst %.aidl,%.cpp,$(MODULE_AIDLS)))
 AIDL_HEADER_DIR := $(BUILDDIR)/include
 AIDL_TOOL := prebuilts/build-tools/linux-x86/bin/aidl
-MODULE_AIDL_INCLUDES += $(subst $(if $(MODULE_AIDL_PACKAGE),/$(MODULE_AIDL_PACKAGE)/,),,$(foreach dir,$(sort $(foreach src,$(MODULE_AIDLS),$(dir $(src)))), -I $(dir)))
+MODULE_AIDL_INCLUDES += $(foreach dir,$(sort $(foreach src,$(MODULE_AIDLS),$(call GET_AIDL_PACKAGE_ROOT,$(src)))), -I $(patsubst %/,%,$(dir)))
 
 # TODO: support multiple, disparate packages; for AIDL interfaces with package paths,
 # the output directory for the tool should be at the root of
@@ -49,13 +52,12 @@ $(MODULE_SRCS): AIDL_TOOL := $(AIDL_TOOL)
 $(MODULE_SRCS): AIDL_HEADER_DIR := $(AIDL_HEADER_DIR)
 $(MODULE_SRCS): MODULE_AIDL_INCLUDES := $(MODULE_AIDL_INCLUDES)
 $(MODULE_SRCS): MODULE_AIDL_FLAGS := $(MODULE_AIDL_FLAGS)
-$(MODULE_SRCS): MODULE_AIDL_OUT_DIR := $(sort $(dir $(subst $(MODULE_AIDL_PACKAGE),,$(MODULE_SRCS))))
 $(MODULE_SRCS): $(BUILDDIR)/%.cpp: %.aidl
 	@$(MKDIR)
 	@mkdir -p $(AIDL_HEADER_DIR)
 	@echo generating $@ from AIDL
 	$(NOECHO)$(AIDL_TOOL) --lang=cpp --structured $(MODULE_AIDL_INCLUDES) \
-		-h $(AIDL_HEADER_DIR) -o $(MODULE_AIDL_OUT_DIR) $(MODULE_AIDL_FLAGS) $<
+		-h $(AIDL_HEADER_DIR) -o $(call GET_AIDL_PACKAGE_ROOT,$@) $(MODULE_AIDL_FLAGS) $<
 
 # AIDL generates .cpp files which depend on the binder and C++ modules
 ifeq ($(call TOBOOL,$(TRUSTY_NEW_MODULE_SYSTEM)),false)
