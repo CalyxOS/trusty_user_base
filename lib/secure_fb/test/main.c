@@ -118,11 +118,11 @@ test_abort:;
 }
 
 TEST(secure_fb, stress) {
-    int rc;
-    secure_fb_handle_t session;
+    secure_fb_handle_t session = NULL;
     struct secure_fb_info fb_info;
+    int i, rc;
 
-    for (int i = 0; i < 256; i++) {
+    for (i = 0; i < 256; i++) {
         rc = secure_fb_open(&session, &fb_info, 0);
         ASSERT_EQ(rc, 0);
 
@@ -130,12 +130,20 @@ TEST(secure_fb, stress) {
         memset(fb_info.buffer, i, fb_info.size);
 
         rc = secure_fb_display_next(session, &fb_info);
-        EXPECT_EQ(rc, 0);
+        ASSERT_EQ(rc, 0);
 
         secure_fb_close(session);
+        session = NULL;
     }
 
-test_abort:;
+    return;
+
+test_abort:
+    trusty_unittest_printf("[   INFO   ] failed after %d iterations\n", i);
+
+    if (session) {
+        secure_fb_close(session);
+    }
 }
 
 PORT_TEST(secure_fb, "com.android.trusty.secure_fb.test");
