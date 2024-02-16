@@ -280,22 +280,42 @@ TEST(CborTest, MustCallEncodeArrayTagOrMap) {
     const char* err =
             "Call encodeArray, encodeTag, or encodeMap before this method";
 
-    cbor::VectorCborEncoder bstrEnc;
-    const std::basic_string_view<uint8_t> empty = {nullptr, 0};
-    EXPECT_DEATH({ bstrEnc.encodeBstr(empty); }, err);
+    EXPECT_DEBUG_DEATH(
+            {
+                cbor::VectorCborEncoder bstrEnc;
+                const std::basic_string_view<uint8_t> empty;
+                bstrEnc.encodeBstr(empty);
+            },
+            err);
 
-    cbor::VectorCborEncoder emptyBstrEnc;
-    EXPECT_DEATH({ emptyBstrEnc.encodeEmptyBstr(); }, err);
+    EXPECT_DEBUG_DEATH(
+            {
+                cbor::VectorCborEncoder emptyBstrEnc;
+                emptyBstrEnc.encodeEmptyBstr();
+            },
+            err);
 
-    const char* testStr = "Carsten Bormann";
-    cbor::VectorCborEncoder tstrEnc;
-    EXPECT_DEATH({ tstrEnc.encodeBstr(testStr); }, err);
+    EXPECT_DEBUG_DEATH(
+            {
+                const char* testStr = "Carsten Bormann";
+                cbor::VectorCborEncoder tstrEnc;
+                tstrEnc.encodeBstr(testStr);
+            },
+            err);
 
-    cbor::VectorCborEncoder intEnc;
-    EXPECT_DEATH({ intEnc.encodeInt(42); }, err);
+    EXPECT_DEBUG_DEATH(
+            {
+                cbor::VectorCborEncoder intEnc;
+                intEnc.encodeInt(42);
+            },
+            err);
 
-    cbor::VectorCborEncoder uintEnc;
-    EXPECT_DEATH({ uintEnc.encodeUint(42u); }, err);
+    EXPECT_DEBUG_DEATH(
+            {
+                cbor::VectorCborEncoder uintEnc;
+                uintEnc.encodeUint(42u);
+            },
+            err);
 }
 
 TEST(CborTest, EncodeArrayOfTstr) {
