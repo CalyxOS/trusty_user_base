@@ -98,7 +98,11 @@ impl Handle {
         Self::from_raw(rc.try_into().or(Err(TipcError::InvalidHandle))?)
     }
 
-    pub(crate) fn from_raw(fd: i32) -> crate::Result<Self> {
+    /// Construct a Handle from a raw file descriptor
+    ///
+    /// Conditionally creates a Handle from the return value of a C FFI function.
+    /// If the integer value is < 0, then we will refuse to create the Handle.
+    pub fn from_raw(fd: i32) -> crate::Result<Self> {
         if fd < 0 {
             Err(TipcError::from_uapi(fd as c_long))
         } else {
