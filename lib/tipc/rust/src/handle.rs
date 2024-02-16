@@ -131,7 +131,6 @@ impl Handle {
     ///
     /// TODO: Support a timeout for the wait.
     pub fn recv<T: Deserialize>(&self, buffer: &mut [u8]) -> Result<T, T::Error> {
-        let _ = self.wait(None)?;
         let mut handles: [Option<Handle>; MAX_MSG_HANDLES] = Default::default();
         let (byte_count, handle_count) = self.recv_vectored(&mut [buffer], &mut handles)?;
 
@@ -148,6 +147,8 @@ impl Handle {
         buffers: &mut [&mut [u8]],
         handles: &mut [Option<Handle>],
     ) -> crate::Result<(usize, usize)> {
+        let _ = self.wait(None)?;
+
         let mut raw_handles = [-1; MAX_MSG_HANDLES];
 
         let (buf_len, handles_len) = self.get_msg(|msg_info| {
