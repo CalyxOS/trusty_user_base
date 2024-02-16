@@ -17,8 +17,14 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_PROTOC_PLUGIN := \
+# If we are inside the Android source tree, use the plugin binary from
+# the build output. Otherwise, run the source script directly.
+PROTOC_PLUGIN_SOURCE := \
 	trusty/host/common/scripts/metrics_atoms_protoc_plugin/metrics_atoms_protoc_plugin.py
+PROTOC_PLUGIN_BINARY := \
+	out/host/linux-x86/bin/trusty_metrics_atoms_protoc_plugin
+MODULE_PROTOC_PLUGIN := \
+	$(if $(wildcard $(PROTOC_PLUGIN_BINARY)),$(PROTOC_PLUGIN_BINARY),$(PROTOC_PLUGIN_SOURCE))
 
 MODULE_PROTO_PACKAGE := android/frameworks/stats
 
