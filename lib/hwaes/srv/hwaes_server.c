@@ -336,12 +336,13 @@ static int hwaes_handle_aes_cmd(handle_t chan,
         goto out;
     }
 
-    /* aad buffer has alignment requirements.
-     * Its offset should be adjusted on client side, align the offset also here
-     * padding is applied only if the buffer is mapped directly to req message
+    /* aad, text_in and text_out buffers may have buffer alignment requirements.
+     * For inline buffers, the offsets should be adjusted on the client side to
+     * achieve the required alignment.  If this has been done, the offset needs
+     * updating here also.
      */
     if (cmd_header->aad.shm_idx == HWAES_INVALID_INDEX &&
-        cmd_header->aad.len != 0) {
+        cmd_header->aad.len != 0 && cmd_header->aad.offset != req_offset) {
         req_offset = ROUND_UP(req_offset, HWAES_TEXT_IN_BUF_ALIGNMENT);
     }
 
@@ -353,12 +354,9 @@ static int hwaes_handle_aes_cmd(handle_t chan,
         goto out;
     }
 
-    /* text_in buffer has alignment requirements.
-     * Its offset should be adjusted on client side, align the offset also here
-     * padding is applied only if the buffer is mapped directly to req message
-     */
     if (cmd_header->text_in.shm_idx == HWAES_INVALID_INDEX &&
-        cmd_header->text_in.len != 0) {
+        cmd_header->text_in.len != 0 &&
+        cmd_header->text_in.offset != req_offset) {
         req_offset = ROUND_UP(req_offset, HWAES_TEXT_IN_BUF_ALIGNMENT);
     }
 
@@ -379,12 +377,9 @@ static int hwaes_handle_aes_cmd(handle_t chan,
         goto out;
     }
 
-    /* text_out buffer has alignment requirements.
-     * Its offset should be adjusted on client side, align the offset also here
-     * padding is applied only if the buffer is mapped directly to resp message
-     */
     if (cmd_header->text_out.shm_idx == HWAES_INVALID_INDEX &&
-        cmd_header->text_out.len != 0) {
+        cmd_header->text_out.len != 0 &&
+        cmd_header->text_out.offset != resp_offset) {
         resp_offset = ROUND_UP(resp_offset, HWAES_TEXT_OUT_BUF_ALIGNMENT);
     }
 
