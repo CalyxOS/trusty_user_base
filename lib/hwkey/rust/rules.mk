@@ -21,6 +21,8 @@ MODULE_SRCS := $(LOCAL_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := hwkey
 
+MODULE_SDK_LIB_NAME := hwkey-rust
+
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/interface/hwkey \
 	$(call FIND_CRATE,log) \

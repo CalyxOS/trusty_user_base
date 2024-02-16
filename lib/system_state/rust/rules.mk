@@ -21,6 +21,8 @@ MODULE_SRCS := $(LOCAL_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := system_state
 
+MODULE_SDK_LIB_NAME := system_state-rust
+
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/interface/system_state \
 	$(call FIND_CRATE,log) \
