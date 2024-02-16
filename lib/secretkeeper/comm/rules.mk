@@ -19,18 +19,12 @@ MODULE := $(LOCAL_DIR)
 
 MODULE_SRCS := system/secretkeeper/comm/src/lib.rs
 
-MODULE_CRATE_NAME := secretkeeper_comn
+MODULE_CRATE_NAME := secretkeeper_comm
 
-# TODO: remove the direct dependency on authgraph_boringssl once identity
-# support is included
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	$(call FIND_CRATE,enumn) \
 	$(call FIND_CRATE,ciborium) \
 	$(call FIND_CRATE,coset) \
-	trusty/user/base/lib/authgraph-rust/boringssl \
-	trusty/user/base/lib/authgraph-rust/core \
-	trusty/user/base/lib/authgraph-rust/wire \
-	$(call FIND_CRATE,log) \
 	$(call FIND_CRATE,zeroize) \
 
 include make/library.mk
