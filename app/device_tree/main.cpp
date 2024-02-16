@@ -66,8 +66,7 @@ int main(void) {
             hset, IDeviceTree::PORT().c_str(),
             std::make_shared<const android::RpcServerTrusty::PortAcl>(port_acl),
             max_msg_size);
-    if (!srv.ok()) {
-        TLOGE("Failed to create RpcServer (%d)\n", srv.error());
+    if (srv == nullptr) {
         return EXIT_FAILURE;
     }
 
@@ -77,7 +76,7 @@ int main(void) {
         TLOGE("Failed to create DeviceTree server\n");
         return EXIT_FAILURE;
     }
-    (*srv)->setRootObject(test_srv);
+    srv->setRootObject(test_srv);
 
     return tipc_run_event_loop(hset);
 }
