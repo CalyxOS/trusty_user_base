@@ -74,6 +74,10 @@ endif
 endif
 endif
 
+ifeq (true,$(call TOBOOL,$(UNITTEST_COVERAGE_ENABLED)))
+MODULE_LIBRARY_DEPS += trusty/user/base/lib/line-coverage
+endif
+
 MANIFEST_ALLOCATOR := $(subst .json,-$(TRUSTY_APP_ALLOCATOR).json,$(MANIFEST) $(MANIFEST_OVERLAY))
 # append allocator-based manifest to the end, so it overrides base manifest values
 MANIFEST_OVERLAY += $(wildcard $(MANIFEST_ALLOCATOR))
