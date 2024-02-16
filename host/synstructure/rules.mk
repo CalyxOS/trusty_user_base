@@ -27,10 +27,10 @@ MODULE_RUSTFLAGS += \
 	--cfg 'feature="proc-macro"' \
 
 MODULE_LIBRARY_DEPS += \
-	$(call FIND_CRATE,proc-macro2) \
-	$(call FIND_CRATE,proc-macro-error) \
-	$(call FIND_CRATE,quote) \
-	$(call FIND_CRATE,syn) \
-	$(call FIND_CRATE,unicode-xid) \
+	trusty/user/base/host/proc-macro2 \
+	trusty/user/base/host/proc-macro-error \
+	trusty/user/base/host/quote \
+	trusty/user/base/host/syn \
+	trusty/user/base/host/unicode-xid \
 
 include make/library.mk

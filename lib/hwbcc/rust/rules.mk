@@ -28,7 +28,7 @@ MODULE_LIBRARY_DEPS += \
 	external/open-dice \
 	trusty/user/base/interface/hwbcc \
 	trusty/user/base/lib/trusty-std \
-	$(call FIND_CRATE,log) \
+	trusty/user/base/lib/log-rust \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/system_state/rust \
 	trusty/user/base/lib/hwbcc/common \

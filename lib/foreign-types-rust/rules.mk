@@ -26,6 +26,6 @@ MODULE_CRATE_NAME := foreign_types
 MODULE_RUST_EDITION := 2018
 
 MODULE_LIBRARY_DEPS += \
-	$(call FIND_CRATE,foreign-types-shared) \
+	trusty/user/base/lib/foreign-types-shared-rust \
 
 include make/library.mk

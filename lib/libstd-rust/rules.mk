@@ -26,9 +26,9 @@ MODULE_CRATE_NAME := std
 MODULE_RUST_EDITION := 2018
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
-	$(call FIND_CRATE,cfg-if) \
+	trusty/user/base/lib/cfg-if-rust \
 	trusty/user/base/lib/libcore-rust \
-	$(call FIND_CRATE,libc) \
+	trusty/user/base/lib/libc-rust \
 	trusty/user/base/lib/liballoc-rust \
 	trusty/user/base/lib/libunwind-rust \
 	trusty/user/base/lib/libhashbrown-rust \

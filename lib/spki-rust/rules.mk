@@ -27,6 +27,6 @@ MODULE_RUSTFLAGS += \
 	--cfg 'feature="alloc"' \
 
 MODULE_LIBRARY_DEPS += \
-	$(call FIND_CRATE,der) \
+	trusty/user/base/lib/der-rust \
 
 include make/library.mk

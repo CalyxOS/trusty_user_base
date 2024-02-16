@@ -28,9 +28,9 @@ MODULE_RUSTFLAGS += \
 	--cfg 'underscore_consts' \
 
 MODULE_LIBRARY_DEPS += \
-	$(call FIND_CRATE,proc-macro2) \
-	$(call FIND_CRATE,quote) \
-	$(call FIND_CRATE,syn) \
+	trusty/user/base/host/proc-macro2 \
+	trusty/user/base/host/quote \
+	trusty/user/base/host/syn \
 
 MODULE_RUST_CRATE_TYPES := proc-macro
 

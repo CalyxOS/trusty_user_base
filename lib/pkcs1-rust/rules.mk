@@ -29,9 +29,9 @@ MODULE_RUSTFLAGS += \
 	--cfg 'feature="zeroize"' \
 
 MODULE_LIBRARY_DEPS += \
-	$(call FIND_CRATE,der) \
-	$(call FIND_CRATE,pkcs8) \
-	$(call FIND_CRATE,spki) \
-	$(call FIND_CRATE,zeroize) \
+	trusty/user/base/lib/der-rust \
+	trusty/user/base/lib/pkcs8-rust \
+	trusty/user/base/lib/spki-rust \
+	trusty/user/base/lib/zeroize-rust \
 
 include make/library.mk
