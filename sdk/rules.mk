@@ -64,6 +64,7 @@ $(TRUSTY_SDK_DIR)/make/trusty_sdk.mk: trusty/user/base/sdk/make/trusty_sdk.mk
 
 	$(NOECHO)echo '# Add any extra files, e.g. loadable app to default target' >> $@.tmp
 	$(NOECHO)echo 'all:: $$(EXTRA_BUILDDEPS)' >> $@.tmp
+	$(NOECHO)sed -i 's/ \+$$//' $@.tmp
 	$(call TESTANDREPLACEFILE,$@.tmp,$@)
 
 # Include the shared lk headers
