@@ -290,7 +290,7 @@ define copy-headers-rule
 # Some libraries include symlinked headers. For now, follow
 # those symlinks and copy their targets instead so SDK users
 # can still include the symlink sources.
-HEADERS := $$(shell cd "$(1)" 2>/dev/null && find . -xtype f)
+HEADERS := $$(shell cd "$(1)" 2>/dev/null && find -L . -type f)
 OUTPUT_HEADERS := $$(filter-out $$(MODULE_EXPORT_SDK_HEADERS),$$(addprefix $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/,$$(HEADERS)))
 MODULE_EXPORT_SDK_HEADERS += $$(OUTPUT_HEADERS)
 $$(OUTPUT_HEADERS): $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/% : $(1)/% $(MODULE_SRCDEPS)
