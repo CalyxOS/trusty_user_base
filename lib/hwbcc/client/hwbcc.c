@@ -128,6 +128,7 @@ static int sign_data(handle_t chan,
         return ERR_BAD_LEN;
     }
 
+    memset(&req, 0, sizeof(req));
     req.hdr.cmd = HWBCC_CMD_SIGN_DATA;
     req.hdr.test_mode = test_mode;
     req.args.algorithm = cose_algorithm;
@@ -191,13 +192,15 @@ static int get_bcc(handle_t chan,
                    size_t bcc_buf_size,
                    size_t* bcc_size) {
     int rc;
-    struct hwbcc_req_hdr hdr;
 
     assert(bcc);
     assert(bcc_size);
 
-    hdr.cmd = HWBCC_CMD_GET_BCC;
-    hdr.test_mode = test_mode;
+    struct hwbcc_req_hdr hdr = {
+        .cmd = HWBCC_CMD_GET_BCC,
+        .test_mode = test_mode
+    };
+
     rc = tipc_send1(chan, &hdr, sizeof(hdr));
     if (rc < 0) {
         TLOGE("Unable to send get_bcc request: %d\n", rc);
@@ -267,9 +270,10 @@ int hwbcc_get_dice_artifacts(uint64_t context,
     assert(dice_artifacts);
     assert(dice_artifacts_size);
 
-    struct hwbcc_req_hdr hdr;
-    hdr.cmd = HWBCC_CMD_GET_DICE_ARTIFACTS;
-    hdr.context = context;
+    struct hwbcc_req_hdr hdr = {
+        .cmd = HWBCC_CMD_GET_DICE_ARTIFACTS,
+        .context = context
+    };
 
     rc = tipc_send1(chan, &hdr, sizeof(hdr));
     if (rc < 0) {
@@ -304,9 +308,10 @@ int hwbcc_ns_deprivilege(void) {
         return rc;
     }
 
-    struct hwbcc_req_hdr hdr;
+    struct hwbcc_req_hdr hdr = {
+        .cmd = HWBCC_CMD_NS_DEPRIVILEGE
+    };
 
-    hdr.cmd = HWBCC_CMD_NS_DEPRIVILEGE;
     rc = tipc_send1(chan, &hdr, sizeof(hdr));
     if (rc < 0) {
         TLOGE("Unable to send deprivilege request: %d\n", rc);
