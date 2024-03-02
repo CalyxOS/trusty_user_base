@@ -440,6 +440,8 @@ ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),true)
 
 include make/rust.mk
 
+_MODULES_$(MODULE)_RUST_STATICLIB := $(filter %.a,$(MODULE_RSOBJS))
+
 _MODULES_$(MODULE)_CRATE_INDEX := $(GLOBAL_CRATE_COUNT)
 GLOBAL_CRATE_COUNT := $(shell echo $$(($(GLOBAL_CRATE_COUNT)+1)))
 
