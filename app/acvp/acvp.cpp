@@ -150,7 +150,7 @@ static bool KAS_HKDF(const bssl::Span<const uint8_t> args[],
 
 class TrustyAcvpTool {
 public:
-    TrustyAcvpTool(handle_t chan) : chan_(chan) {}
+    TrustyAcvpTool(handle_t chan) : chan_(chan), arg_buffer_(NULL) {}
 
     // Send a reply back to the acvptool.
     //
@@ -166,6 +166,8 @@ public:
     }
 
     size_t arg_buffer_size() const { return arg_buffer_size_; }
+
+    void MessageCleanup();
 
     ~TrustyAcvpTool();
 
@@ -225,15 +227,20 @@ bool TrustyAcvpTool::MapShm(handle_t shm, size_t size) {
     return true;
 }
 
-TrustyAcvpTool::~TrustyAcvpTool() {
+void TrustyAcvpTool::MessageCleanup() {
     if (arg_buffer_) {
         munmap((void*)arg_buffer_, arg_buffer_size_);
+        arg_buffer_ = NULL;
     }
 
     if (shm_handle_ != INVALID_IPC_HANDLE) {
         close(shm_handle_);
+        shm_handle_ = INVALID_IPC_HANDLE;
     }
+}
 
+TrustyAcvpTool::~TrustyAcvpTool() {
+    MessageCleanup();
     if (chan_ != INVALID_IPC_HANDLE) {
         close(chan_);
     }
@@ -269,8 +276,8 @@ static int ParseAcvpMessage(handle_t chan,
         goto err;
     }
 
-    if (msg_info.num_handles > 1) {
-        TLOGE("Expected 0 or 1 handles, found %d\n", msg_info.num_handles);
+    if (msg_info.num_handles != 1) {
+        TLOGE("Expected 1 handle, found %d\n", msg_info.num_handles);
         rc = ERR_BAD_LEN;
         goto err;
     }
@@ -369,7 +376,7 @@ static int AcvpOnMessage(const struct tipc_port* port,
 
     uint8_t message_buffer[ACVP_MAX_MESSAGE_LENGTH];
     struct acvp_req* request = nullptr;
-    handle_t shared_mem;
+    handle_t shared_mem = INVALID_IPC_HANDLE;
     int rc = ParseAcvpMessage(chan, message_buffer, &request, &shared_mem);
     if (rc != NO_ERROR) {
         TLOGE("Could not parse ACVP message: %d\n", rc);
@@ -381,52 +388,69 @@ static int AcvpOnMessage(const struct tipc_port* port,
         return ERR_INVALID_ARGS;
     }
 
-    bssl::Span<const uint8_t> args[bssl::acvp::kMaxArgs];
     if (!tool->MapShm(shared_mem, request->buffer_size)) {
-        return ERR_NO_MEMORY;
-    }
-
-    uint32_t cur_offset = 0;
-    for (uint32_t i = 0; i < request->num_args; ++i) {
-        uint32_t end;
-        if (__builtin_add_overflow(cur_offset, request->lengths[i], &end) ||
-            end > tool->arg_buffer_size()) {
-            return ERR_INVALID_ARGS;
+        TLOGE("Can't map memory\n");
+        if (shared_mem != INVALID_IPC_HANDLE) {
+            close(shared_mem);
         }
-        args[i] = bssl::Span<const uint8_t>(tool->arg_buffer() + cur_offset,
-                                            request->lengths[i]);
-        cur_offset = end;
-    }
-
-    auto handler = bssl::acvp::FindHandler(bssl::Span(args, request->num_args));
-    if (!handler) {
-        handler = FindTrustyHandler(bssl::Span(args, request->num_args));
-    }
-    if (!handler) {
-        const std::string name(reinterpret_cast<const char*>(args[0].data()),
-                               args[0].size());
-        TLOGE("Unknown operation: %s\n", name.c_str());
-        return ERR_NOT_FOUND;
-    }
-
-    // We need to intercept getConfig and append our own config to it.
-    bool is_config = StringEq(args[0], "getConfig");
-
-    bssl::acvp::ReplyCallback callback;
-    if (is_config) {
-        callback = [tool](auto spans) { return RewriteConfig(*tool, spans); };
+        return ERR_NO_MEMORY;
     } else {
-        callback = [tool](auto spans) { return tool->WriteReply(spans); };
+        bssl::Span<const uint8_t> args[bssl::acvp::kMaxArgs];
+        rc = NO_ERROR;
+
+        uint32_t cur_offset = 0;
+        for (uint32_t i = 0; i < request->num_args; ++i) {
+            uint32_t end;
+            if (__builtin_add_overflow(cur_offset, request->lengths[i], &end) ||
+                end > tool->arg_buffer_size()) {
+                rc = ERR_INVALID_ARGS;
+                goto cleanup;
+            }
+            args[i] = bssl::Span<const uint8_t>(tool->arg_buffer() + cur_offset,
+                                                request->lengths[i]);
+            cur_offset = end;
+        }
+
+        auto handler =
+                bssl::acvp::FindHandler(bssl::Span(args, request->num_args));
+        if (!handler) {
+            handler = FindTrustyHandler(bssl::Span(args, request->num_args));
+        }
+        if (!handler) {
+            const std::string name(
+                    reinterpret_cast<const char*>(args[0].data()),
+                    args[0].size());
+            TLOGE("Unknown operation: %s\n", name.c_str());
+            rc = ERR_NOT_FOUND;
+            goto cleanup;
+        }
+
+        // We need to intercept getConfig and append our own config to it.
+        bool is_config = StringEq(args[0], "getConfig");
+
+        bssl::acvp::ReplyCallback callback;
+        if (is_config) {
+            callback = [tool](auto spans) {
+                return RewriteConfig(*tool, spans);
+            };
+        } else {
+            callback = [tool](auto spans) { return tool->WriteReply(spans); };
+        }
+
+        if (!handler(&args[1], callback)) {
+            const std::string name(
+                    reinterpret_cast<const char*>(args[0].data()),
+                    args[0].size());
+            TLOGE("\'%s\' operation failed.\n", name.c_str());
+            rc = ERR_GENERIC;
+            goto cleanup;
+        }
     }
 
-    if (!handler(&args[1], callback)) {
-        const std::string name(reinterpret_cast<const char*>(args[0].data()),
-                               args[0].size());
-        TLOGE("\'%s\' operation failed.\n", name.c_str());
-        return ERR_GENERIC;
-    }
+cleanup:
+    tool->MessageCleanup();
 
-    return NO_ERROR;
+    return rc;
 }
 
 static void AcvpOnChannelCleanup(void* ctx) {
