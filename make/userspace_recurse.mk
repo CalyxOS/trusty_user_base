@@ -415,16 +415,32 @@ $(call append-export-flags,SRCDEPS,$(REEXPORT))
 # of the same crate.
 $(call append-export-flags,RLIBS,$(REEXPORT))
 
-# We always re-export LDFLAGS and LIBRARIES. This is safe to do in the prescence
-# of recursive deps because libraries and link flags are additive and do not
-# affect the compiliation. If we have a dependency chain like A -> B -> C -> A,
-# we don't need to add A's link flags to C because we will get them in the final
-# link directly from A.
 $(call append-export-flags,EXTRA_OBJECTS,true)
 $(call append-export-flags,WHOLE_ARCHIVES,true)
 $(call append-export-flags,LDFLAGS,true)
-$(call append-export-flags,LIBRARIES,true)
 $(call append-export-flags,SDK_LIBS,true)
+
+# If our dependency is a Rust staticlib, we can't add recursive deps, which may
+# include proc-macros. The rust staticlib should be entirely self-contained.
+ifeq ($(call TOBOOL,$(MODULE_IS_RUST)),false)
+ifneq ($(_MODULES_$(DEPENDENCY_MODULE)_RUST_STATICLIB),)
+INCLUDE_ONLY_STATICLIB := true
+endif
+endif
+
+ifeq ($(call TOBOOL,$(INCLUDE_ONLY_STATICLIB)),true)
+# In the case of a Rust staticlib dependency, just include that static library,
+# not recursive dependencies.
+MODULE_EXPORT_LIBRARIES += $(_MODULES_$(DEPENDENCY_MODULE)_RUST_STATICLIB)
+else
+# We re-export LIBRARIES in most cases (and LDFLAGS in all cases). This is safe
+# to do in the prescence of recursive C deps because libraries and link flags
+# are additive and do not affect the compiliation. If we have a dependency chain
+# like A -> B -> C -> A, we don't need to add A's link flags to C because we
+# will get them in the final link directly from A.
+$(call append-export-flags,LIBRARIES,true)
+endif
+INCLUDE_ONLY_STATICLIB :=
 
 # We always want to make sure that all necessary headers have been copied into
 # the SDK before we try to use them. There's no harm in things being copied
