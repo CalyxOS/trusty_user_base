@@ -106,6 +106,9 @@ endif
 
 # Decide on the branch protection scheme
 ifeq (true,$(call TOBOOL,$(MODULE_ENABLE_BTI)))
+ifeq ($(call TOBOOL,$(TRUSTY_APP_IN_TREE)),false)
+MODULE_LDFLAGS += -z bti-report=warning
+endif
 ifeq (true,$(call TOBOOL,$(MODULE_ENABLE_PAC)))
 MODULE_COMPILEFLAGS += -mbranch-protection=bti+pac-ret \
                        -DBTI_ENABLED \
