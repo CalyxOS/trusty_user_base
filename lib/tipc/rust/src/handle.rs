@@ -203,7 +203,7 @@ impl Handle {
     ///
     /// If the message fails to fit in the server's message queue, the send will
     /// block and retry when the kernel indicates that the queue is unblocked.
-    fn send_vectored(&self, buffers: &[&[u8]], handles: &[Handle]) -> crate::Result<()> {
+    pub fn send_vectored(&self, buffers: &[&[u8]], handles: &[Handle]) -> crate::Result<()> {
         let mut iovs = Vec::new();
         iovs.try_reserve_exact(buffers.len())?;
         iovs.extend(
