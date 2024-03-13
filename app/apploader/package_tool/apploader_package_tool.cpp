@@ -165,7 +165,12 @@ static void parse_options(int argc, char** argv) {
     }
 }
 
-static std::string read_entire_file(const char* file_name) {
+static std::vector<uint8_t> string_to_vector(std::string s) {
+    auto* start_ptr = reinterpret_cast<uint8_t*>(s.data());
+    return {start_ptr, start_ptr + s.size()};
+}
+
+static std::vector<uint8_t> read_entire_file(const char* file_name) {
     /*
      * Disable synchronization between C++ streams and FILE* functions for a
      * performance boost
@@ -185,7 +190,7 @@ static std::string read_entire_file(const char* file_name) {
         exit(EXIT_FAILURE);
     }
 
-    return ss.str();
+    return string_to_vector(ss.str());
 }
 
 static void write_entire_file(const char* file_name,
@@ -229,11 +234,6 @@ static void build_package(const char* output_path,
     write_entire_file(output_path, encoded_package.intoVec());
 }
 
-static std::vector<uint8_t> string_to_vector(std::string s) {
-    auto* start_ptr = reinterpret_cast<uint8_t*>(s.data());
-    return {start_ptr, start_ptr + s.size()};
-}
-
 static uint8_t parse_key_id(const char* key_id) {
     std::string key_id_str{key_id};
     size_t key_id_end;
@@ -254,8 +254,8 @@ static void sign_package(const char* output_path,
                          const char* input_path,
                          const char* key_path,
                          uint8_t key_id) {
-    auto input = string_to_vector(read_entire_file(input_path));
-    if (coseIsSigned({input.data(), input.size()}, nullptr)) {
+    auto input = read_entire_file(input_path);
+    if (coseIsSigned(input, nullptr)) {
         fprintf(stderr, "Input file is already signed\n");
         exit(EXIT_FAILURE);
     }
@@ -271,9 +271,9 @@ static void sign_package(const char* output_path,
         });
     });
 
-    auto key = string_to_vector(read_entire_file(key_path));
+    auto key = read_entire_file(key_path);
     CoseByteView protectedHeadersView = enc.view();
-    std::basic_string_view<uint8_t> unprotectedHeadersView = {};
+    std::span<const uint8_t> unprotectedHeadersView;
     auto sig = coseSignEcDsa(key, key_id, input, protectedHeadersView,
                              unprotectedHeadersView, true, true);
     if (!sig) {
@@ -287,14 +287,14 @@ static void sign_package(const char* output_path,
 }
 
 static void verify_package(const char* input_path, const char* key_path) {
-    auto input = string_to_vector(read_entire_file(input_path));
+    auto input = read_entire_file(input_path);
     size_t signature_length;
-    if (!coseIsSigned({input.data(), input.size()}, &signature_length)) {
+    if (!coseIsSigned(input, &signature_length)) {
         fprintf(stderr, "Input file is not signed\n");
         exit(EXIT_FAILURE);
     }
 
-    auto key = string_to_vector(read_entire_file(key_path));
+    auto key = read_entire_file(key_path);
     bool signature_ok;
     if (strict) {
         auto get_key = [&key](uint8_t key_id)
@@ -473,14 +473,14 @@ static void parse_cose_recipient(struct CborIn* in,
     }
 }
 
-static PackageInfo parse_package(std::string_view input, bool check_sign_tag) {
+static PackageInfo parse_package(std::span<const uint8_t> input,
+                                 bool check_sign_tag) {
     struct CborIn in;
     uint64_t tag;
     size_t num_elements, num_pairs;
     struct PackageInfo package;
 
-    CborInInit(reinterpret_cast<const uint8_t*>(input.data()), input.size(),
-               &in);
+    CborInInit(input.data(), input.size(), &in);
 
     if (CborReadTag(&in, &tag) != CBOR_READ_RESULT_OK) {
         fprintf(stderr, "Failed to parse input file as CBOR\n");
@@ -659,7 +659,7 @@ static void encrypt_package(const char* output_path,
     auto input = read_entire_file(input_path);
     auto pkg_info = parse_package(input, true);
 
-    auto key = string_to_vector(read_entire_file(key_path));
+    auto key = read_entire_file(key_path);
     if (key.size() != kAesGcmKeySize) {
         fprintf(stderr, "Wrong AES-GCM key size: %zu\n", key.size());
         exit(EXIT_FAILURE);
@@ -680,9 +680,8 @@ static void encrypt_package(const char* output_path,
         exit(EXIT_FAILURE);
     }
 
-    std::vector<uint8_t> enc_headers(pkg_info.headers.size());
-    pkg_info.headers.copy(enc_headers.data(), pkg_info.headers.size());
-
+    std::vector<uint8_t> enc_headers(pkg_info.headers.begin(),
+                                     pkg_info.headers.end());
     update_header_content_is_cose_encrypt(enc_headers, true);
 
     // Build a new encrypted array since the original array has a semantic
@@ -706,7 +705,7 @@ static void decrypt_package(const char* output_path,
     auto input = read_entire_file(input_path);
     auto pkg_info = parse_package(input, true);
 
-    auto key = string_to_vector(read_entire_file(key_path));
+    auto key = read_entire_file(key_path);
     if (key.size() != kAesGcmKeySize) {
         fprintf(stderr, "Wrong AES-GCM key size: %zu, expected %zu\n",
                 key.size(), kAesGcmKeySize);
@@ -732,8 +731,8 @@ static void decrypt_package(const char* output_path,
         exit(EXIT_FAILURE);
     }
 
-    std::vector<uint8_t> dec_headers(pkg_info.headers.size());
-    pkg_info.headers.copy(dec_headers.data(), pkg_info.headers.size());
+    std::vector<uint8_t> dec_headers(pkg_info.headers.begin(),
+                                     pkg_info.headers.end());
     update_header_content_is_cose_encrypt(dec_headers, false);
 
     // Build a new decrypted array since the original array has a semantic
@@ -765,8 +764,7 @@ static void print_package_info(const char* input_path) {
 
     auto input = read_entire_file(input_path);
     size_t signature_length = 0;
-    if (coseIsSigned({reinterpret_cast<uint8_t*>(input.data()), input.size()},
-                     &signature_length)) {
+    if (coseIsSigned(input, &signature_length)) {
         printf("Signed: YES\n");
 
         // Call into cose.cpp with a callback that prints and saves the key id
@@ -783,8 +781,8 @@ static void print_package_info(const char* input_path) {
         printf("Signed: NO\n");
     }
 
-    std::string_view signed_package{input.data() + signature_length,
-                                    input.size() - signature_length};
+    std::span signed_package(input.data() + signature_length,
+                             input.size() - signature_length);
     auto pkg_info = parse_package(signed_package, false);
     auto content_is_cose_encrypt =
             find_content_is_cose_encrypt(pkg_info.headers);

@@ -20,6 +20,7 @@
 #include <cstring>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -91,14 +92,12 @@ template <typename T>
 struct CBORCompare {
     constexpr bool operator()(const std::vector<T>& a,
                               const std::vector<T>& b) const {
-        const std::basic_string_view<T> av = {a.data(), a.size()};
-        const std::basic_string_view<T> bv = {b.data(), b.size()};
-        return keyLess(av, bv);
+        return keyLess(a, b);
     }
 
     /* Returns true iff key a sorts before key b in CBOR order */
-    constexpr bool keyLess(const std::basic_string_view<T>& a,
-                           const std::basic_string_view<T>& b) const {
+    constexpr bool keyLess(const std::span<const T>& a,
+                           const std::span<const T>& b) const {
         /* If two keys have different lengths, the shorter one sorts earlier */
         if (a.size() < b.size())
             return true;
@@ -112,11 +111,11 @@ struct CBORCompare {
 };
 
 using CborMap = std::map<std::vector<uint8_t>,
-                         std::basic_string_view<uint8_t>,
+                         std::span<const uint8_t>,
                          CBORCompare<uint8_t>>;
 
 static inline bool populateMap(CborMap& map,
-                               const std::basic_string_view<uint8_t>& encMap) {
+                               const std::span<const uint8_t>& encMap) {
     if (!encMap.size()) {
         /* No elements to add to map */
         return true;
@@ -150,8 +149,8 @@ static inline bool populateMap(CborMap& map,
         CborWriteInt(key, &out);
         assert(!CborOutOverflowed(&out));
 
-        std::basic_string_view<uint8_t> value = {
-                savedIn.buffer + savedIn.cursor, in.cursor - savedIn.cursor};
+        std::span value(savedIn.buffer + savedIn.cursor,
+                        in.cursor - savedIn.cursor);
 
         map[std::move(encKey)] = value;
     }
@@ -170,8 +169,8 @@ static inline bool populateMap(CborMap& map,
  *      occurred.
  */
 static inline std::optional<std::vector<uint8_t>> mergeMaps(
-        const std::basic_string_view<uint8_t>& lhs,
-        const std::basic_string_view<uint8_t>& rhs) {
+        const std::span<const uint8_t>& lhs,
+        const std::span<const uint8_t>& rhs) {
     /*
      * map is sorted on the encoded key which ensures that the CBOR encoding is
      * canonical.
@@ -400,7 +399,7 @@ private:
             encodeBstr(vec.data(), vec.size());
         }
 
-        void encodeBstr(const std::basic_string_view<uint8_t>& view) {
+        void encodeBstr(const std::span<const uint8_t>& view) {
             encodeBstr(view.data(), view.size());
         }
 
@@ -430,7 +429,7 @@ private:
             mArrayElements++;
         }
 
-        bool copyBytes(const std::basic_string_view<uint8_t>& view) {
+        bool copyBytes(const std::span<const uint8_t>& view) {
             return copyBytes(view.data(), view.size());
         }
 
@@ -548,7 +547,7 @@ public:
             CborWriteMap(enc.mapPairs(), &mOut);
 
             auto savedKey = mLastKey;
-            mLastKey = {nullptr, 0};
+            mLastKey = std::span<uint8_t>{};
 
             fn(*this);
 
@@ -599,7 +598,7 @@ public:
         encodeBstr(reinterpret_cast<const uint8_t*>(str.data()), str.size());
     }
 
-    void encodeBstr(const std::basic_string_view<uint8_t>& byteView) {
+    void encodeBstr(const std::span<const uint8_t>& byteView) {
         encodeBstr(byteView.data(), byteView.size());
     }
 
@@ -632,7 +631,7 @@ public:
         CborWriteNull(&mOut);
     }
 
-    bool copyBytes(const std::basic_string_view<uint8_t>& view) {
+    bool copyBytes(const std::span<const uint8_t>& view) {
         return copyBytes(view.data(), view.size());
     }
 
@@ -687,7 +686,7 @@ public:
         return std::move(mBuffer);
     }
 
-    std::basic_string_view<uint8_t> view() const {
+    std::span<const uint8_t> view() const {
         assert((mState == State::kInitial || mState == State::kEncoding) &&
                "requested view of buffer from encoder in invalid state");
         if (mState != State::kInitial) {
@@ -697,7 +696,7 @@ public:
             assert(mBuffer.size() == CborOutSize(&mOut) &&
                    "buffer was larger than required to hold CBOR encoded content");
         }
-        return {mBuffer.data(), mBuffer.size()};
+        return mBuffer;
     }
 
     size_t size() const {
@@ -724,7 +723,7 @@ private:
      * Used to ensure that map keys are encoded in canonical order. When the
      * encoder is not encoding a map, the field has no value.
      */
-    std::optional<std::basic_string_view<uint8_t>> mLastKey = std::nullopt;
+    std::optional<std::span<const uint8_t>> mLastKey = std::nullopt;
     /* determines CBOR ordering between two keys */
     CBORCompare<uint8_t> mComparer;
 
@@ -755,7 +754,7 @@ private:
 
         const size_t newKeySz = mOut.cursor - preCursor.cursor;
         const uint8_t* newKeyStart = preCursor.buffer + preCursor.cursor;
-        const std::basic_string_view<uint8_t> newKey = {newKeyStart, newKeySz};
+        const std::span newKey(newKeyStart, newKeySz);
 
         /*
          * The keys in every map must be sorted lowest value to highest.
