@@ -451,7 +451,7 @@ define CRATE_CONFIG :=
 	"root_module": "$(filter %.rs,$(MODULE_SRCS))",
 	"edition": "$(MODULE_RUST_EDITION)",
 	"deps": [
-		$(call STRIP_TRAILING_COMMA,$(foreach dep,$(sort $(MODULE_LIBRARY_DEPS)),\
+		$(call STRIP_TRAILING_COMMA,$(foreach dep,$(sort $(MODULE_LIBRARY_DEPS) $(MODULE_LIBRARY_EXPORTED_DEPS)),\
 				$(if $(_MODULES_$(dep)_RUST_STEM),{"name": "$(_MODULES_$(dep)_RUST_STEM)"$(COMMA) "crate": $(_MODULES_$(dep)_CRATE_INDEX)}$(COMMA))))
 	]
 },
