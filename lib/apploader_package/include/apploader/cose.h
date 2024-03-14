@@ -18,7 +18,7 @@
 
 #include <stddef.h>
 #include <optional>
-#include <string_view>
+#include <span>
 #include <vector>
 
 // From https://tools.ietf.org/html/rfc8152
@@ -66,7 +66,7 @@ constexpr size_t kAesGcmKeySize = 16;
 #endif
 constexpr size_t kCoseEncryptArrayElements = 4;
 
-using CoseByteView = std::basic_string_view<uint8_t>;
+using CoseByteView = std::span<const uint8_t>;
 
 using GetKeyFn =
         std::function<std::tuple<std::unique_ptr<uint8_t[]>, size_t>(uint8_t)>;
@@ -121,8 +121,8 @@ std::optional<std::vector<uint8_t>> coseSignEcDsa(
         const std::vector<uint8_t>& key,
         uint8_t keyId,
         const std::vector<uint8_t>& data,
-        const std::basic_string_view<uint8_t>& encodedProtectedHeaders,
-        std::basic_string_view<uint8_t>&,
+        const std::span<const uint8_t>& encodedProtectedHeaders,
+        std::span<const uint8_t>&,
         bool detachContent,
         bool tagged);
 

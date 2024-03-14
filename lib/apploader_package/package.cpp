@@ -105,11 +105,11 @@ static std::tuple<std::unique_ptr<uint8_t[]>, size_t> get_sign_key(
 }
 
 static bool hwaesDecryptAesGcmInPlace(
-        std::basic_string_view<uint8_t> key,
-        std::basic_string_view<uint8_t> nonce,
+        std::span<const uint8_t> key,
+        std::span<const uint8_t> nonce,
         uint8_t* encryptedData,
         size_t encryptedDataSize,
-        std::basic_string_view<uint8_t> additionalAuthenticatedData,
+        std::span<const uint8_t> additionalAuthenticatedData,
         size_t* outPlaintextSize) {
     assert(outPlaintextSize != nullptr);
     if (encryptedDataSize <= kAesGcmTagSize) {
@@ -340,8 +340,7 @@ bool apploader_parse_package_metadata(
 
         auto cose_encrypt_size = CborInOffset(&in) - cose_encrypt_offset;
 
-        const CoseByteView cose_encrypt = {cose_encrypt_start,
-                                           cose_encrypt_size};
+        const CoseByteView cose_encrypt(cose_encrypt_start, cose_encrypt_size);
         bool success = coseDecryptAesGcmKeyWrapInPlace(
                 cose_encrypt, get_encrypt_key_handle, {}, false, &elf_start,
                 &elf_size, hwaesDecryptAesGcmInPlace);
