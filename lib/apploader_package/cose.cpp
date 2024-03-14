@@ -80,7 +80,7 @@ using EVP_CIPHER_CTX_Ptr =
 using SHADigest = std::array<uint8_t, kEcdsaValueSize>;
 
 static std::vector<uint8_t> coseBuildToBeSigned(
-        const std::basic_string_view<uint8_t>& encodedProtectedHeaders,
+        const std::span<const uint8_t>& encodedProtectedHeaders,
         const std::vector<uint8_t>& data) {
     cbor::VectorCborEncoder enc;
     enc.encodeArray([&](auto& enc) {
@@ -241,14 +241,14 @@ std::optional<std::vector<uint8_t>> coseSignEcDsa(
         const std::vector<uint8_t>& key,
         uint8_t keyId,
         const std::vector<uint8_t>& data,
-        const std::basic_string_view<uint8_t>& encodedProtectedHeaders,
-        std::basic_string_view<uint8_t>& unprotectedHeaders,
+        const std::span<const uint8_t>& encodedProtectedHeaders,
+        std::span<const uint8_t>& unprotectedHeaders,
         bool detachContent,
         bool tagged) {
     cbor::VectorCborEncoder addnHeadersEnc;
     addnHeadersEnc.encodeMap([&](auto& enc) {
         enc.encodeKeyValue(COSE_LABEL_KID, [&](auto& enc) {
-            enc.encodeBstr(std::basic_string_view(&keyId, 1));
+            enc.encodeBstr(std::span(&keyId, 1));
         });
     });
     auto updatedUnprotectedHeaders =
@@ -410,8 +410,8 @@ bool coseCheckEcDsaSignature(const std::vector<uint8_t>& signatureCoseSign1,
         COSE_PRINT_ERROR("Value for encodedProtectedHeaders is not a bstr\n");
         return false;
     }
-    std::basic_string_view<uint8_t> encodedProtectedHeaders{
-            encodedProtectedHeadersPtr, encodedProtectedHeadersSize};
+    std::span encodedProtectedHeaders(encodedProtectedHeadersPtr,
+                                      encodedProtectedHeadersSize);
 
     size_t unprotectedHeadersSize;
     if (CborReadMap(&in, &unprotectedHeadersSize) != CBOR_READ_RESULT_OK) {
@@ -676,8 +676,8 @@ bool strictCheckEcDsaSignature(const uint8_t* packageStart,
 
 static std::tuple<std::unique_ptr<uint8_t[]>, size_t> coseBuildGcmAad(
         const std::string_view context,
-        const std::basic_string_view<uint8_t> encodedProtectedHeaders,
-        const std::basic_string_view<uint8_t> externalAad) {
+        const std::span<const uint8_t> encodedProtectedHeaders,
+        const std::span<const uint8_t> externalAad) {
     cbor::ArrayCborEncoder enc;
     enc.encodeArray([&](auto& enc) {
         enc.encodeTstr(context);
@@ -692,7 +692,7 @@ static std::optional<std::vector<uint8_t>> encryptAesGcm(
         const std::vector<uint8_t>& key,
         const std::vector<uint8_t>& nonce,
         const CoseByteView& data,
-        std::basic_string_view<uint8_t> additionalAuthenticatedData) {
+        std::span<const uint8_t> additionalAuthenticatedData) {
     if (key.size() != kAesGcmKeySize) {
         COSE_PRINT_ERROR("key is not kAesGcmKeySize (%zu) bytes, got %zu\n",
                          kAesGcmKeySize, key.size());
@@ -751,7 +751,14 @@ static std::optional<std::vector<uint8_t>> encryptAesGcm(
                     static_cast<unsigned long>(ERR_get_error()));
             return {};
         }
-        if ((size_t)numWritten != additionalAuthenticatedData.size()) {
+        /*
+         * std::span::size() should return an size_type==size_t
+         * value but older versions of libcxx return an index_type
+         * which is an alias of ptrdiff_t (a signed type).
+         * We cast the size explicitly to a size_t to cover both cases.
+         */
+        if (static_cast<size_t>(numWritten) !=
+            static_cast<size_t>(additionalAuthenticatedData.size())) {
             fprintf(stderr,
                     "EVP_EncryptUpdate: Unexpected outl=%d (expected %zu) "
                     "for additionalAuthenticatedData\n",
@@ -767,7 +774,8 @@ static std::optional<std::vector<uint8_t>> encryptAesGcm(
                              static_cast<unsigned long>(ERR_get_error()));
             return {};
         }
-        if ((size_t)numWritten != data.size()) {
+        if (static_cast<size_t>(numWritten) !=
+            static_cast<size_t>(data.size())) {
             fprintf(stderr,
                     "EVP_EncryptUpdate: Unexpected outl=%d (expected %zu)\n",
                     numWritten, data.size());
@@ -827,13 +835,12 @@ static std::optional<std::vector<uint8_t>> coseEncryptAesGcm(
         return {};
     }
 
-    std::basic_string_view encodedProtectedHeadersView{
-            encodedProtectedHeaders.data(), encodedProtectedHeaders.size()};
-    std::basic_string_view externalAadView{externalAad.data(),
-                                           externalAad.size()};
+    std::span encodedProtectedHeadersView(encodedProtectedHeaders.data(),
+                                          encodedProtectedHeaders.size());
+    std::span externalAadView = externalAad;
     auto [gcmAad, gcmAadSize] = coseBuildGcmAad(
             context, encodedProtectedHeadersView, externalAadView);
-    std::basic_string_view gcmAadView{gcmAad.get(), gcmAadSize};
+    std::span gcmAadView(gcmAad.get(), gcmAadSize);
 
     std::optional<std::vector<uint8_t>> ciphertext =
             encryptAesGcm(key, iv.value(), data, gcmAadView);
@@ -884,7 +891,7 @@ std::optional<std::vector<uint8_t>> coseEncryptAesGcmKeyWrap(
     cbor::VectorCborEncoder keyUnprotectedHeadersEnc;
     keyUnprotectedHeadersEnc.encodeMap([&](auto& enc) {
         enc.encodeKeyValue(COSE_LABEL_KID, [&](auto& enc) {
-            enc.encodeBstr(std::basic_string_view<uint8_t>(&keyId, 1));
+            enc.encodeBstr(std::span<const uint8_t>(&keyId, 1));
         });
     });
     auto keyUnprotectedHeaders = keyUnprotectedHeadersEnc.view();
@@ -928,11 +935,11 @@ std::optional<std::vector<uint8_t>> coseEncryptAesGcmKeyWrap(
 }
 
 static bool decryptAesGcmInPlace(
-        std::basic_string_view<uint8_t> key,
-        std::basic_string_view<uint8_t> nonce,
+        std::span<const uint8_t> key,
+        std::span<const uint8_t> nonce,
         uint8_t* encryptedData,
         size_t encryptedDataSize,
-        std::basic_string_view<uint8_t> additionalAuthenticatedData,
+        std::span<const uint8_t> additionalAuthenticatedData,
         size_t* outPlaintextSize) {
     assert(outPlaintextSize != nullptr);
 
@@ -1001,7 +1008,8 @@ static bool decryptAesGcmInPlace(
                     static_cast<unsigned long>(ERR_get_error()));
             return false;
         }
-        if ((size_t)numWritten != additionalAuthenticatedData.size()) {
+        if (static_cast<size_t>(numWritten) !=
+            static_cast<size_t>(additionalAuthenticatedData.size())) {
             COSE_PRINT_ERROR(
                     "EVP_DecryptUpdate: Unexpected outl=%d "
                     "(expected %zd) for additionalAuthenticatedData\n",
@@ -1052,7 +1060,7 @@ static bool decryptAesGcmInPlace(
 
 static bool coseDecryptAesGcmInPlace(const std::string_view context,
                                      const CoseByteView& item,
-                                     const std::basic_string_view<uint8_t> key,
+                                     const std::span<const uint8_t> key,
                                      const std::vector<uint8_t>& externalAad,
                                      const uint8_t** outPlaintextStart,
                                      size_t* outPlaintextSize,
@@ -1178,15 +1186,14 @@ static bool coseDecryptAesGcmInPlace(const std::string_view context,
         return false;
     }
 
-    std::basic_string_view externalAadView{externalAad.data(),
-                                           externalAad.size()};
-    std::basic_string_view encodedProtectedHeaders{enc_protected_headers_data,
-                                                   enc_protected_headers_size};
+    std::span externalAadView = externalAad;
+    std::span encodedProtectedHeaders(enc_protected_headers_data,
+                                      enc_protected_headers_size);
     auto [gcmAad, gcmAadSize] =
             coseBuildGcmAad(context, encodedProtectedHeaders, externalAadView);
 
-    std::basic_string_view gcmAadView{gcmAad.get(), gcmAadSize};
-    std::basic_string_view ivView{ivData, ivSize};
+    std::span gcmAadView(gcmAad.get(), gcmAadSize);
+    std::span ivView(ivData, ivSize);
     if (!keyDecryptFn(key, ivView, const_cast<uint8_t*>(ciphertextData),
                       ciphertextSize, gcmAadView, outPlaintextSize)) {
         return false;
@@ -1330,8 +1337,8 @@ bool coseDecryptAesGcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
         return false;
     }
 
-    CoseByteView recipient = {cose_encrypt.data() + recipientOffset,
-                              CborInOffset(&in) - recipientOffset};
+    CoseByteView recipient(cose_encrypt.data() + recipientOffset,
+                           CborInOffset(&in) - recipientOffset);
 
     if (keyIdBytes == nullptr) {
         COSE_PRINT_ERROR("Missing key id field in COSE_Recipient\n");
@@ -1349,8 +1356,8 @@ bool coseDecryptAesGcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
         return false;
     }
 
-    std::basic_string_view<uint8_t> keyEncryptionKey{
-            keyEncryptionKeyStart.get(), keyEncryptionKeySize};
+    std::span keyEncryptionKey(keyEncryptionKeyStart.get(),
+                               keyEncryptionKeySize);
 
     const uint8_t* coseKeyStart;
     size_t coseKeySize;
@@ -1437,8 +1444,8 @@ bool coseDecryptAesGcmKeyWrapInPlace(const CoseByteView& cose_encrypt,
         return false;
     }
 
-    const CoseByteView contentEncryptionKey = {contentEncryptionKeyStart,
-                                               contentEncryptionKeySize};
+    const CoseByteView contentEncryptionKey(contentEncryptionKeyStart,
+                                            contentEncryptionKeySize);
     if (!coseDecryptAesGcmInPlace(COSE_CONTEXT_ENCRYPT, cose_encrypt,
                                   contentEncryptionKey, externalAad,
                                   outPackageStart, outPackageSize,
