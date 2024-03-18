@@ -217,7 +217,7 @@ $(TRUSTY_APP_BIN): $(TRUSTY_APP_ELF)
 $(TRUSTY_APP_LST): $(TRUSTY_APP_SYMS_ELF)
 	@$(call ECHO,$(TRUSTY_APP_LOG_NAME),generating lst,$@)
 	$(NOECHO)$(OBJDUMP) -dS $< > $@ 2> /dev/null
-	@$(call ECHO_DONE_SILENT,$(TRUSTY_APP_LOG_NAME),generating lst$@)
+	@$(call ECHO_DONE_SILENT,$(TRUSTY_APP_LOG_NAME),generating lst,$@)
 
 
 # Also generate listings
