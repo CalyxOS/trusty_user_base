@@ -28,6 +28,7 @@
 //! code using this crate that relies on infallible allocation.
 
 #![no_std]
+#![allow(internal_features)]
 #![feature(allocator_api)]
 #![feature(alloc_error_handler)]
 #![feature(alloc_layout_extra)]
