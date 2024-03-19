@@ -18,6 +18,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 HOST_TEST := cbor_test
 
 GTEST_DIR := external/googletest/googletest
+GMOCK_DIR := external/googletest/googlemock
 PACKAGE_DIR := trusty/user/base/lib/apploader_package
 OPEN_DICE_DIR := external/open-dice
 LIBCPPBOR_DIR := $(if $(wildcard system/libcppbor),system/libcppbor,external/libcppbor)
@@ -44,6 +45,7 @@ HOST_INCLUDE_DIRS := \
         $(LIBCPPBOR_DIR)/include/cppbor \
         $(GTEST_DIR)/include \
         $(GTEST_DIR) \
+        $(GMOCK_DIR)/include \
 
 # Build and statically link in boringssl so we don't have to worry about what
 # version the host environment provides. OpenSSL 3.0 deprecates several of the
