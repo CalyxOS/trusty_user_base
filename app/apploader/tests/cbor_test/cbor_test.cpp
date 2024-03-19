@@ -18,11 +18,12 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
-#include <string_view>
+#include <span>
 #include <vector>
 
 #include "dice/cbor_reader.h"
 #include "dice/cbor_writer.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 #include "cppbor.h"
@@ -121,8 +122,9 @@ TEST(CborTest, EncodeBstrHeader) {
         const ptrdiff_t cppborOutputLen = cppborHeaderEnd - cppborBuf;
         ASSERT_LT(cppborOutputLen, (ptrdiff_t)sizeof(cppborBuf));
 
-        ASSERT_EQ(std::basic_string_view<uint8_t>(cborBuf, cborOutputLen),
-                  std::basic_string_view<uint8_t>(cppborBuf, cppborOutputLen));
+        std::span<const uint8_t> cborOutput(cborBuf, cborOutputLen);
+        std::span<const uint8_t> cppborOutput(cppborBuf, cppborOutputLen);
+        ASSERT_THAT(cborOutput, testing::ElementsAreArray(cppborOutput));
     }
 
     // Pass in a string that's longer than we could possibly handle
@@ -134,9 +136,7 @@ TEST(CborTest, EncodeBstrHeader) {
 TEST(CborTest, MergeMapsEmpty) {
     cppbor::Map empty;
     std::vector<uint8_t> emptyEncoded = empty.encode();
-    std::basic_string_view<uint8_t> emptyView = {emptyEncoded.data(),
-                                                 emptyEncoded.size()};
-    auto res = cbor::mergeMaps(emptyView, emptyView);
+    auto res = cbor::mergeMaps(emptyEncoded, emptyEncoded);
     ASSERT_TRUE(res.has_value());
 
     // parse the bytes we got to ensure it is an empty map
@@ -163,13 +163,8 @@ TEST(CborTest, MergeMapsCanonical) {
     expected.canonicalize();
 
     auto firstEncoded = first.encode();
-    std::basic_string_view<uint8_t> firstView = {firstEncoded.data(),
-                                                 firstEncoded.size()};
     auto secondEncoded = second.encode();
-    std::basic_string_view<uint8_t> secondView = {secondEncoded.data(),
-                                                  secondEncoded.size()};
-
-    auto merged = cbor::mergeMaps(firstView, secondView);
+    auto merged = cbor::mergeMaps(firstEncoded, secondEncoded);
     ASSERT_TRUE(merged.has_value());
 
     EXPECT_TRUE(expected.isCanonical());
@@ -191,16 +186,11 @@ TEST(CborTest, MergeMapsCanonicalNoncanonicalInput) {
     ASSERT_EQ(first[1].first->asInt()->value(), -1);
 
     const std::vector<uint8_t> firstEncoded = first.encode();
-    std::basic_string_view<uint8_t> firstView = {firstEncoded.data(),
-                                                 firstEncoded.size()};
 
     second.add(1, 1);
     second.add(42, 42);
     const std::vector<uint8_t> secondEncoded = second.encode();
-    std::basic_string_view<uint8_t> secondView = {secondEncoded.data(),
-                                                  secondEncoded.size()};
-
-    auto merged = cbor::mergeMaps(firstView, secondView);
+    auto merged = cbor::mergeMaps(firstEncoded, secondEncoded);
     ASSERT_TRUE(merged.has_value());
 
     for (int64_t key : {-1, 1, 42, 1000}) {
@@ -283,7 +273,7 @@ TEST(CborTest, MustCallEncodeArrayTagOrMap) {
     EXPECT_DEBUG_DEATH(
             {
                 cbor::VectorCborEncoder bstrEnc;
-                const std::basic_string_view<uint8_t> empty;
+                const std::span<const uint8_t> empty;
                 bstrEnc.encodeBstr(empty);
             },
             err);
@@ -375,8 +365,8 @@ TEST(CborTest, EncodeArrayOfFakeBstrOverflows) {
 TEST(CborTest, EncodeArrayOfFakeBstrOverflows) __attribute__((no_sanitize("address"))) {
 #endif
     cbor::VectorCborEncoder enc;
-    const std::basic_string_view<uint8_t> fake = {
-            nullptr, std::numeric_limits<size_t>::max()};
+    const std::span<const uint8_t> fake(static_cast<const uint8_t*>(nullptr),
+                                        std::numeric_limits<size_t>::max());
     enc.encodeArray([&](auto& enc) { enc.encodeBstr(fake); });
     EXPECT_EQ(enc.state(), cbor::VectorCborEncoder::State::kOverflowed);
     EXPECT_DEATH({ enc.size(); }, "requested encoding size after overflow");
