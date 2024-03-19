@@ -220,7 +220,7 @@ $(TRUSTY_APP_LST): TRUSTY_APP_LOG_NAME := $(TRUSTY_APP_LOG_NAME)
 $(TRUSTY_APP_LST): $(TRUSTY_APP_SYMS_ELF)
 	@$(call ECHO,$(TRUSTY_APP_LOG_NAME),generating lst,$@)
 	$(NOECHO)$(TRUSTY_APP_OBJDUMP) -dS $< > $@ 2> /dev/null
-	@$(call ECHO_DONE_SILENT,$(TRUSTY_APP_LOG_NAME),generating lst$@)
+	@$(call ECHO_DONE_SILENT,$(TRUSTY_APP_LOG_NAME),generating lst,$@)
 
 
 # Also generate listings
