@@ -202,6 +202,7 @@ MODULE_SRCS += \
 	$(MUSL_DIR)/src/stdlib/wcstod.c \
 	$(MUSL_DIR)/src/stdlib/wcstol.c \
 	$(MUSL_DIR)/src/string/bcmp.c \
+	$(MUSL_DIR)/src/string/explicit_bzero.c \
 	$(MUSL_DIR)/src/string/memccpy.c \
 	$(MUSL_DIR)/src/string/memchr.c \
 	$(MUSL_DIR)/src/string/memcmp.c \

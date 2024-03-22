@@ -82,6 +82,19 @@ TEST_F(libc, endian) {
 test_abort:;
 }
 
+/*
+ * Test explicit_bzero() is present and functional.
+ * explicit_bzero() exists is to defeat optimisations that may remove 'dead'
+ * writes when trying to remove secrets from memory.  The success of this is
+ * hard to detect at runtime and best achieved by inspecting assembly listings
+ * where needed.
+ */
+TEST_F(libc, explicit_bzero_test) {
+    uint32_t test_data = 0x12345678;
+    explicit_bzero(&test_data, sizeof(uint32_t));
+    EXPECT_EQ(test_data, 0);
+}
+
 TEST_F(libc, memset_test) {
     unsigned char buf[130];
     buf[0] = 0;
