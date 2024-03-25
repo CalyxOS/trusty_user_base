@@ -35,6 +35,7 @@ TRUSTY_USER_TESTS += \
 	trusty/user/base/app/metrics/test/crasher \
 	trusty/user/base/app/hwaes-unittest \
 	trusty/user/base/app/hwaes-benchmark \
+	trusty/user/base/app/swaes-benchmark \
 	trusty/user/base/lib/hwbcc/test \
 	trusty/user/base/lib/keymaster/test \
 	trusty/user/base/lib/libc-trusty/test \
