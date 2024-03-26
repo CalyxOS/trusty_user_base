@@ -34,6 +34,7 @@
 #include <uapi/err.h>
 
 #ifdef UNITTEST_COVERAGE
+#define PAGE_SIZE getauxval(AT_PAGESZ)
 static struct cov_ctx ctx;
 /*
 This symbol is exported to each instrumented shared library and
@@ -140,7 +141,7 @@ int setup_mailbox(const struct tipc_port* ports, uint32_t num_ports) {
 
     memset(&req, 0, sizeof(struct coverage_aggregator_req));
     req.hdr.cmd = COVERAGE_AGGREGATOR_CMD_REGISTER;
-    req.register_args.record_len = buf_len + sizeof(struct control);
+    req.register_args.record_len = round_up(buf_len + sizeof(struct control), PAGE_SIZE);
 
     rc = coverage_aggregator_rpc(chan, &req, NULL, &resp, &memref);
     if (rc != NO_ERROR) {
