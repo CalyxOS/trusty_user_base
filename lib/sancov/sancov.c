@@ -107,7 +107,7 @@ static int init(struct sancov_ctx* ctx, size_t num_counters) {
     }
 
     req.hdr.cmd = COVERAGE_AGGREGATOR_CMD_REGISTER;
-    req.register_args.record_len = record_len(num_counters);
+    req.register_args.record_len = round_up(record_len(num_counters), PAGE_SIZE);
 
     rc = coverage_aggregator_rpc(chan, &req, NULL, &resp, &memref);
     if (rc != NO_ERROR) {
