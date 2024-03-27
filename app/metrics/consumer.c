@@ -17,8 +17,6 @@
 #define TLOG_TAG "metrics-consumer"
 #include "consumer.h"
 
-#include <android/frameworks/stats/atoms.h>
-#include <android/trusty/stats/ports.h>
 #include <interface/metrics/consumer.h>
 #include <lib/tipc/tipc.h>
 #include <lib/tipc/tipc_srv.h>
@@ -28,90 +26,61 @@
 #include <trusty_log.h>
 #include <uapi/err.h>
 
-const char TRUSTY_DOMAIN[] = "google.android.trusty";
+static const struct uuid zero_uuid = UUID_INITIAL_VALUE(zero_uuid);
 
-static enum metrics_error broadcast_event(uint32_t cmd,
-                                          uint8_t* msg,
-                                          size_t msg_len) {
-    size_t offset = sizeof(struct metrics_req);
-    enum metrics_error status = METRICS_NO_ERROR;
-    int rc;
-    switch (cmd) {
-    case METRICS_CMD_REPORT_CRASH: {
-        if (msg_len < offset + sizeof(struct metrics_report_crash_req)) {
-            TLOGE("metrics message too small: msg_len(%zu)\n", msg_len);
-            break;
-        }
-        struct metrics_report_crash_req* crash_args =
-                (struct metrics_report_crash_req*)(msg + offset);
-        offset += sizeof(struct metrics_report_crash_req);
+static bool is_zero_uuid(const struct uuid* peer) {
+    return equal_uuid(peer, &zero_uuid);
+}
 
-        if (msg_len < offset + crash_args->app_id_len) {
-            TLOGE("metrics_report_crash message too small: msg_len(%zu)\n",
-                  msg_len);
-            break;
-        }
+static int on_connect(const struct tipc_port* port,
+                      handle_t chan,
+                      const struct uuid* peer,
+                      void** ctx_p) {
 
-        char* app_id_ptr = (char*)(msg + offset);
-        TLOGD("metrics_report_crash: app_id=\"%.*s\" crash_reason=0x%08x\n",
-              crash_args->app_id_len, app_id_ptr, crash_args->crash_reason);
-        struct stats_trusty_app_crashed atom = {
-                .reverse_domain_name = TRUSTY_DOMAIN,
-                .reverse_domain_name_len = sizeof(TRUSTY_DOMAIN) - 1,
-                .app_id = app_id_ptr,
-                .app_id_len = crash_args->app_id_len,
-                .crash_reason = (int32_t)crash_args->crash_reason,
-        };
-        if ((rc = stats_trusty_app_crashed_report(
-                     METRICS_ISTATS_PORT, sizeof(METRICS_ISTATS_PORT), atom)) !=
-            NO_ERROR) {
-            TLOGE("stats_trusty_app_crashed_report failed (%d)\n", rc);
+    struct srv_state* state = get_srv_state(port);
+    if(is_zero_uuid(peer))
+    {
+        TLOGD("Updating metrics daemon handle :%d\n", chan);
+        if(state->ns_handle != INVALID_IPC_HANDLE) {
+                close(state->ns_handle);
         }
-        break;
+        state->ns_handle = chan;
     }
 
-    case METRICS_CMD_REPORT_EVENT_DROP: {
-        struct stats_trusty_error atom = {
-                .reverse_domain_name = TRUSTY_DOMAIN,
-                .reverse_domain_name_len = sizeof(TRUSTY_DOMAIN) - 1,
-                .error_code = TRUSTY_ERROR_KERNEL_EVENT_DROP,
-                .app_id = "",
-                .app_id_len = 0L,
-                .client_app_id = "",
-                .client_app_id_len = 0L,
-        };
-        if ((rc = stats_trusty_error_report(
-                     METRICS_ISTATS_PORT, sizeof(METRICS_ISTATS_PORT), atom)) !=
-            NO_ERROR) {
-            TLOGE("stats_trusty_error_report failed (%d)\n", rc);
-        }
-        break;
-    }
-    default:
-        status = METRICS_ERR_UNKNOWN_CMD;
-        break;
-    }
-    return status;
+    return NO_ERROR;
 }
 
 static int on_message(const struct tipc_port* port, handle_t chan, void* ctx) {
     int rc;
     struct metrics_req req;
-    struct metrics_resp resp;
-    uint32_t cmd;
     uint8_t msg[METRICS_MAX_MSG_SIZE];
-    size_t msg_len;
 
     memset(msg, 0, sizeof(msg));
-    rc = tipc_recv1(chan, sizeof(req), msg, sizeof(msg));
-    if (rc < 0) {
-        TLOGE("failed (%d) to receive metrics event\n", rc);
-        return rc;
+    int msg_size = tipc_recv1(chan, sizeof(req), msg, sizeof(msg));
+    if (msg_size < 0) {
+        TLOGE("failed (%d) to receive metrics event\n", msg_size);
+        return msg_size;
     }
-    msg_len = rc;
+
+    // Check if NS metricsd connected, if so forward it there.
+    struct srv_state* state = get_srv_state(port);
+    if(is_ns_connected(state)) {
+        rc = tipc_send1(state->ns_handle, msg, msg_size);
+        if (rc < 0) {
+            TLOGE("failed (%d) to send metrics event tp NS metricsd\n", rc);
+            return rc;
+        }
+    }
+    else {
+        TLOGD("NS metrics daemon not connected\n");
+    }
+
+    uint32_t cmd;
     cmd = ((struct metrics_req*)msg)->cmd;
-    resp.cmd = (cmd | METRICS_CMD_RESP_BIT);
-    resp.status = broadcast_event(cmd, msg, msg_len);
+    struct metrics_resp resp = {
+        .cmd = (cmd | METRICS_CMD_RESP_BIT)
+    };
+
     rc = tipc_send1(chan, &resp, sizeof(resp));
     if (rc < 0) {
         TLOGE("failed (%d) to send metrics event response\n", rc);
@@ -126,15 +95,9 @@ static int on_message(const struct tipc_port* port, handle_t chan, void* ctx) {
     return NO_ERROR;
 }
 
-int add_metrics_consumer_service(struct tipc_hset* hset) {
-    static const struct uuid kernel_uuid = UUID_KERNEL_VALUE;
-    static const struct uuid* allowed_uuids[] = {
-            &kernel_uuid,
-    };
+int add_metrics_consumer_service(struct tipc_hset* hset, struct srv_state* state) {
     static struct tipc_port_acl port_acl = {
-            .flags = IPC_PORT_ALLOW_TA_CONNECT,
-            .uuids = allowed_uuids,
-            .uuid_num = countof(allowed_uuids),
+            .flags = IPC_PORT_ALLOW_TA_CONNECT | IPC_PORT_ALLOW_NS_CONNECT,
     };
     static struct tipc_port port = {
             .name = METRICS_CONSUMER_PORT,
@@ -144,7 +107,9 @@ int add_metrics_consumer_service(struct tipc_hset* hset) {
     };
     static struct tipc_srv_ops ops = {
             .on_message = on_message,
+            .on_connect = on_connect,
     };
+    set_srv_state(&port, state);
 
-    return tipc_add_service(hset, &port, 1, 0, &ops);
+    return tipc_add_service(hset, &port, 1, 4, &ops);
 }

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <lib/tipc/tipc_srv.h>
+#include "client.h"
 
 __BEGIN_CDECLS
 
@@ -26,6 +27,6 @@ __BEGIN_CDECLS
  *
  * Return: 0 on success, negative error code on error
  */
-int add_metrics_consumer_service(struct tipc_hset* hset);
+int add_metrics_consumer_service(struct tipc_hset* hset, struct srv_state* state);
 
 __END_CDECLS
