@@ -17,6 +17,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <trusty/uuid.h>
 
 /**
  * DOC: Metrics
@@ -48,10 +49,11 @@
 
 /**
  * enum metrics_cmd - command identifiers for metrics interface
- * @METRICS_CMD_RESP_BIT:          message is a response
- * @METRICS_CMD_REQ_SHIFT:         number of bits used by @METRICS_CMD_RESP_BIT
- * @METRICS_CMD_REPORT_EVENT_DROP: report gaps in the event stream
- * @METRICS_CMD_REPORT_CRASH:      report an app crash event
+ * @METRICS_CMD_RESP_BIT:             message is a response
+ * @METRICS_CMD_REQ_SHIFT:            number of bits used by @METRICS_CMD_RESP_BIT
+ * @METRICS_CMD_REPORT_EVENT_DROP:    report gaps in the event stream
+ * @METRICS_CMD_REPORT_CRASH:         report an app crash event
+ * @METRICS_CMD_REPORT_STORAGE_ERROR: report trusty storage error
  */
 enum metrics_cmd {
     METRICS_CMD_RESP_BIT = 1,
@@ -59,6 +61,7 @@ enum metrics_cmd {
 
     METRICS_CMD_REPORT_EVENT_DROP = (1 << METRICS_CMD_REQ_SHIFT),
     METRICS_CMD_REPORT_CRASH = (2 << METRICS_CMD_REQ_SHIFT),
+    METRICS_CMD_REPORT_STORAGE_ERROR = (3 << METRICS_CMD_REQ_SHIFT),
 };
 
 /**
@@ -95,17 +98,16 @@ struct metrics_resp {
 /**
  * struct metrics_report_crash_req - arguments of %METRICS_CMD_REPORT_CRASH
  *                                   requests
- * @app_id_len: length of app ID that follows this structure
+ * @app_id: app_id in the form UUID in ascii format
+ *          "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
  * @crash_reason: architecture-specific code representing the reason for the
  *                crash
  */
 struct metrics_report_crash_req {
-    uint32_t app_id_len;
+    char app_id[UUID_STR_SIZE];
     uint32_t crash_reason;
 } __attribute__((__packed__));
 
 #define METRICS_MAX_APP_ID_LEN 256
 
-#define METRICS_MAX_MSG_SIZE                                                \
-    (sizeof(struct metrics_req) + sizeof(struct metrics_report_crash_req) + \
-     METRICS_MAX_APP_ID_LEN)
+#define METRICS_MAX_MSG_SIZE 1024
