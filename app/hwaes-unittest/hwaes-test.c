@@ -28,7 +28,13 @@
 #include <uapi/err.h>
 
 #define AUX_PAGE_SIZE() getauxval(AT_PAGESZ)
+
+#if SIMULATION
+#define MAX_TRY_TIMES 3
+#else
 #define MAX_TRY_TIMES 1000
+#endif
+
 #define UNUSED_HWAES_ERROR_CODE HWAES_NO_ERROR
 
 #define HWAES_GCM_IV_SIZE 12
