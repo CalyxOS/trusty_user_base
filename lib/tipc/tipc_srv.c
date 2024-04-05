@@ -120,7 +120,7 @@ static void tipc_chan_close(struct chan_ctx* chan) {
     free(chan);
 
     /*  cleanup user allocated state if any */
-    if (user_ctx) {
+    if (srv->ops->on_channel_cleanup && user_ctx) {
         srv->ops->on_channel_cleanup(user_ctx);
     }
 }
