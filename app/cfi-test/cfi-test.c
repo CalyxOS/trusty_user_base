@@ -94,7 +94,18 @@ typedef struct cfi_crash {
     handle_t chan;
 } cfi_crash_t;
 
+#ifdef CFI_ENABLED
+#define CHECK_CFI_ENABLED
+#else
+#define CHECK_CFI_ENABLED                                              \
+    {                                                                  \
+        trusty_unittest_printf("[   INFO   ] CFI is not supported\n"); \
+        GTEST_SKIP();                                                  \
+    }
+#endif
+
 TEST_F_SETUP(cfi_crash) {
+    CHECK_CFI_ENABLED
     _state->chan = INVALID_IPC_HANDLE;
     ASSERT_EQ(tipc_connect(&_state->chan, CFI_CRASHER_PORT), 0);
 
