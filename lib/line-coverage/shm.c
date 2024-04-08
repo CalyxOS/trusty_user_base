@@ -74,7 +74,11 @@ int setup_shm(void) {
     size_t shm_len;
 
     if(ctx.mailbox.base == NULL) {
-        TLOGE("Mailbox not setup\n");
+        // For aggregator and client, mailbox is expected to be NULL
+        // Skip print for such cases
+        if(!ctx.skip_mailbox) {
+            TLOGE("Mailbox not setup\n");
+        }
         return -1;
     }
 
@@ -124,10 +128,14 @@ int setup_mailbox(const struct tipc_port* ports, uint32_t num_ports) {
     struct coverage_aggregator_req req;
     struct coverage_aggregator_resp resp;
 
+    ctx.skip_mailbox = false;
+
     for (i = 0; i < num_ports; i++) {
         // Skip for coverage aggregator and client
         if (strcmp(ports[i].name, LINE_COVERAGE_AGGREGATOR_PORT) == 0 ||
                 strcmp(ports[i].name, LINE_COVERAGE_CLIENT_PORT) == 0) {
+            ctx.skip_mailbox = true;
+            ctx.coverage_srv = INVALID_IPC_HANDLE;
             ctx.mailbox.base = NULL;
             return -1;
         }
