@@ -30,10 +30,16 @@ ifeq ($(call TOBOOL,$(TRUSTY_USERSPACE)),true)
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/trusty-sys \
 
-# In userspace (non-`#[no_std]`), we don't want to depend on `std`.
-# However, we do want implicit deps on `core`.
-MODULE_ADD_IMPLICIT_DEPS := false
+else
+
+MODULE_DEPS += \
+	trusty/user/base/lib/libcore-rust/ \
+	trusty/user/base/lib/libcompiler_builtins-rust/ \
 
 endif
+
+# In userspace (non-`#[no_std]`), we don't want to depend on `std`.
+# In the kernel, we don't want to depend on `rust_support`.
+MODULE_ADD_IMPLICIT_DEPS := false
 
 include make/library.mk
