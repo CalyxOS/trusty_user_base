@@ -45,6 +45,7 @@ struct cov_ctx {
     struct cov_shm mailbox;
     struct cov_shm data;
     size_t record_len;
+    bool skip_mailbox;
 };
 
 /**
