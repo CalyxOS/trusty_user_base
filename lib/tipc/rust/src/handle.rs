@@ -21,7 +21,6 @@ use core::convert::TryInto;
 use core::ffi::CStr;
 use core::mem::MaybeUninit;
 use log::{error, warn};
-use trusty_std::alloc::{FallibleVec, Vec};
 use trusty_sys::{c_int, c_long};
 
 /// An open IPC connection or shared memory reference.
@@ -55,6 +54,10 @@ pub struct Handle(handle_t);
 
 /// Maximum number of handles that can be transferred in an IPC message at once.
 pub const MAX_MSG_HANDLES: usize = 8;
+/// Maximum numbers of iovecs that can be sent or received over IPC at once.
+pub const MAX_MSG_IOVECS: usize = 32;
+/// Maximum number of segments that can be serialized by BorrowingSerializer.
+pub const MAX_SERIALIZED_SEGMENTS: usize = 32;
 
 impl Handle {
     /// Open a client connection to the given service.
@@ -156,8 +159,8 @@ impl Handle {
                 return Err(TipcError::NotEnoughBuffer);
             }
 
-            let mut iovs = Vec::new();
-            iovs.try_reserve_exact(buffers.len())?;
+            let mut iovs = arrayvec::ArrayVec::<_, MAX_MSG_IOVECS>::new();
+            assert!(buffers.len() <= MAX_MSG_IOVECS);
             iovs.extend(buffers.iter_mut().map(|buf| trusty_sys::iovec {
                 iov_base: buf.as_mut_ptr().cast(),
                 iov_len: buf.len(),
@@ -204,8 +207,8 @@ impl Handle {
     /// If the message fails to fit in the server's message queue, the send will
     /// block and retry when the kernel indicates that the queue is unblocked.
     pub fn send_vectored(&self, buffers: &[&[u8]], handles: &[Handle]) -> crate::Result<()> {
-        let mut iovs = Vec::new();
-        iovs.try_reserve_exact(buffers.len())?;
+        let mut iovs = arrayvec::ArrayVec::<_, MAX_MSG_IOVECS>::new();
+        assert!(buffers.len() <= MAX_MSG_IOVECS);
         iovs.extend(
             buffers.iter().map(|buf| trusty_sys::iovec {
                 iov_base: buf.as_ptr() as *mut _,
@@ -372,8 +375,8 @@ impl Drop for Handle {
 /// A serializer that borrows its input bytes and does not allocate.
 #[derive(Default)]
 struct BorrowingSerializer<'a> {
-    buffers: Vec<&'a [u8]>,
-    handles: Vec<Handle>,
+    buffers: arrayvec::ArrayVec<&'a [u8], MAX_SERIALIZED_SEGMENTS>,
+    handles: arrayvec::ArrayVec<Handle, MAX_MSG_HANDLES>,
 }
 
 impl<'a> Serializer<'a> for BorrowingSerializer<'a> {
