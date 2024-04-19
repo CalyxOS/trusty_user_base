@@ -15,7 +15,7 @@
  */
 
 use crate::sys::*;
-use crate::types::c_long;
+use crate::types::{c_long, c_void};
 
 /// Trusty system error
 ///
@@ -77,6 +77,10 @@ pub enum Error {
 impl Error {
     pub fn is_err(rc: c_long) -> bool {
         rc != NO_ERROR as c_long
+    }
+
+    pub fn is_ptr_err(ptr: *const c_void) -> bool {
+        ptr >= ERR_USER_BASE as usize as *const c_void
     }
 }
 
