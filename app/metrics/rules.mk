@@ -31,9 +31,5 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/metrics_atoms \
 	trusty/user/base/lib/tipc \
 	trusty/user/base/interface/metrics \
-	trusty/user/base/interface/stats/nw \
-	trusty/user/base/interface/stats/tz \
-	trusty/user/base/interface/stats_setter \
-	frameworks/native/libs/binder/trusty \
 
 include make/trusted_app.mk
