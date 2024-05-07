@@ -29,19 +29,15 @@ MODULE_CRATE_NAME := android_hardware_security_see_storage
 MODULE_AIDL_PACKAGE := android/hardware/security/see/storage
 
 MODULE_AIDLS := \
+	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/Availability.aidl \
 	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/CreationMode.aidl \
-	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/DeleteOptions.aidl \
-	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/FileAvailability.aidl \
-	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/FileIntegrity.aidl \
 	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/FileMode.aidl \
-	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/FileProperties.aidl \
+	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/Filesystem.aidl \
 	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/IDir.aidl \
 	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/IFile.aidl \
+	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/Integrity.aidl \
 	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/ISecureStorage.aidl \
 	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/IStorageSession.aidl \
 	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/OpenOptions.aidl \
-	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/ReadIntegrity.aidl \
-	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/RenameOptions.aidl \
-	$(AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/Tamper.aidl \
 
 include make/aidl.mk
