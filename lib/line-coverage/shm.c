@@ -58,10 +58,12 @@ void dump_shm(void) {
     }
     struct control *control = (struct control *)ctx.data.base;
     uint64_t flags = READ_ONCE(control->cntrl_flags);
-    if ( (flags & FLAG_RUN) != 0) {
+    uint64_t read_cnt = READ_ONCE(control->read_buffer_cnt);
+    if ( ((flags & FLAG_RUN) != 0) && (read_cnt == control->write_buffer_start_count) ) {
         uint64_t count =  control->write_buffer_start_count + 1;
         WRITE_ONCE(control->write_buffer_start_count, count);
         __llvm_profile_write_buffer((char *)control + sizeof(struct control));
+        __llvm_profile_reset_counters();
         WRITE_ONCE(control->write_buffer_complete_count, count);
     }
 }
