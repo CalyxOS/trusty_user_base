@@ -26,6 +26,15 @@
 #include <trusty_log.h>
 #include <uapi/err.h>
 
+/*
+Current use cases:
+1) Metrics daemon
+2) Trusty kernel metrics reporter
+3) Storage metrics
+4) Android metrics test
+*/
+#define MAX_METRICS_TA_CONNECTIONS 4
+
 static const struct uuid zero_uuid = UUID_INITIAL_VALUE(zero_uuid);
 
 static bool is_zero_uuid(const struct uuid* peer) {
@@ -111,5 +120,5 @@ int add_metrics_consumer_service(struct tipc_hset* hset, struct srv_state* state
     };
     set_srv_state(&port, state);
 
-    return tipc_add_service(hset, &port, 1, 4, &ops);
+    return tipc_add_service(hset, &port, 1, MAX_METRICS_TA_CONNECTIONS, &ops);
 }
