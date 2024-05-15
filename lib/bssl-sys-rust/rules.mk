@@ -37,6 +37,8 @@ MODULE_BINDGEN_FLAGS += \
 	--default-macro-constant-type="signed" \
 	--rustified-enum="point_conversion_form_t" \
 
+MODULE_RUSTFLAGS += --cfg 'unsupported_inline_wrappers'
+
 # These regexes use [[:punct:]] instead of / to handle Windows file paths.
 # Ideally we would write [/\\], but escaping rules are complex, and often
 # ill-defined, in some build systems, so align on [[:punct:]].
