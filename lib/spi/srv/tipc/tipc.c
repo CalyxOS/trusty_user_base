@@ -118,7 +118,6 @@ static int handle_msg_shm_map_req(handle_t chan,
                                   struct spi_shm_map_req* shm_req,
                                   handle_t shm_handle) {
     int rc = NO_ERROR;
-    struct spi_msg_resp resp;
     void* shm_base;
 
     shm_unmap(ctx);
@@ -131,7 +130,10 @@ static int handle_msg_shm_map_req(handle_t chan,
         goto err_mmap;
     }
 
-    resp.status = translate_lk_err(rc);
+    struct spi_msg_resp resp = {
+        .status = translate_lk_err(rc)
+    };
+
     rc = tipc_send1(chan, &resp, sizeof(resp));
     if (rc < 0 || (size_t)rc != sizeof(resp)) {
         TLOGE("failed (%d) to send SPI response\n", rc);
@@ -156,8 +158,6 @@ static int handle_msg_batch_req(handle_t chan,
                                 struct chan_ctx* ctx,
                                 struct spi_batch_req* batch_req) {
     int rc;
-    struct spi_msg_resp resp;
-    struct spi_batch_resp batch_resp;
     struct spi_batch_state state;
 
     if (!shm_is_mapped(ctx)) {
@@ -171,10 +171,15 @@ static int handle_msg_batch_req(handle_t chan,
         ctx->cs = state.cs;
     }
 
-    resp.cmd = SPI_CMD_MSG_OP_BATCH_EXEC | SPI_CMD_RESP_BIT;
-    resp.status = translate_lk_err(rc);
-    batch_resp.len = mb_curr_pos(&ctx->shm);
-    batch_resp.failed = (rc != NO_ERROR) ? (uint32_t)state.num_cmds : 0;
+    struct spi_msg_resp resp = {
+        .cmd = SPI_CMD_MSG_OP_BATCH_EXEC | SPI_CMD_RESP_BIT,
+        .status = translate_lk_err(rc)
+    };
+
+    struct spi_batch_resp batch_resp = {
+        .len = mb_curr_pos(&ctx->shm),
+        .failed = (rc != NO_ERROR) ? (uint32_t)state.num_cmds : 0
+    };
 
     rc = tipc_send2(chan, &resp, sizeof(resp), &batch_resp, sizeof(batch_resp));
     if (rc < 0 || (size_t)rc != sizeof(resp) + sizeof(batch_resp)) {

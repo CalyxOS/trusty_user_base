@@ -24,7 +24,11 @@
 int smc_read_response(handle_t channel, struct smc_msg* msg) {
     int rc;
     uevent_t event;
+    int32_t err;
     size_t msg_len = sizeof(struct smc_msg);
+    size_t resp_len = sizeof(struct smc_response);
+    STATIC_ASSERT(sizeof(struct smc_response) ==
+                  sizeof(struct smc_msg) + sizeof(err));
 
     rc = wait(channel, &event, INFINITE_TIME);
     if (rc != NO_ERROR) {
@@ -32,12 +36,17 @@ int smc_read_response(handle_t channel, struct smc_msg* msg) {
         goto err;
     }
 
-    rc = tipc_recv1(channel, msg_len, msg, msg_len);
-    if (rc != (int)msg_len) {
+    rc = tipc_recv2(channel, msg_len, msg, msg_len, &err, sizeof(err));
+    if (rc != (int)resp_len) {
         TLOGD("%s: failed (%d) to read message. Expected to read %zu bytes.\n",
               __func__, rc, msg_len);
         if (rc >= 0)
             rc = ERR_BAD_LEN;
+    } else if (err != NO_ERROR) {
+        TLOGE("%s: smc call failed (%d).\n", __func__, rc);
+        rc = err;
+    } else {
+        rc = msg_len; /* success - return number of bytes in smc_msg */
     }
 
 err:
