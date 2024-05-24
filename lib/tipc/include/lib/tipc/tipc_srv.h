@@ -132,6 +132,10 @@ struct tipc_port {
  * callback is mandatory if the user implements @on_connect callback and
  * allocates per channel state.
  *
+ * The @on_send_unblocked callback is invoked when a channel becomes unblocked
+ * for sending after an earlier %ERR_NOT_ENOUGH_BUFFER error code returned
+ * by tipc_send1() or ipc_send_msg().
+ *
  * Note: an application implementing these callbacks MUST not close channel
  * received as @chan parameter directly, instead it should return an error
  * and the channel will be closed by the framework.
@@ -150,6 +154,10 @@ struct tipc_srv_ops {
                           void* ctx);
 
     void (*on_channel_cleanup)(void* ctx);
+
+    int (*on_send_unblocked)(const struct tipc_port* port,
+                             handle_t chan,
+                             void* ctx);
 };
 
 /**
