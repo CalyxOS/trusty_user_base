@@ -165,6 +165,7 @@ CONST_PORT = "port"
 CONST_UUID = "uuid"
 CONST_INT = "int"
 CONST_BOOL = "bool"
+CONST_ID = "identifier"
 
 # CONFIG TAGS
 # These values need to be kept in sync with lib/app_manifest/app_manifest.h
@@ -1126,6 +1127,8 @@ def define_integer_const_entry(const):
 def define_string_const_entry(const):
     return f"#define {const.name} {json.dumps(const.value)}\n"
 
+def define_identifier_const_entry(const):
+    return f"#define {const.name} {const.value}\n"
 
 def define_bool_const_entry(const):
     return f"#define {const.name} ({json.dumps(const.value)})\n"
@@ -1151,6 +1154,9 @@ def create_header_entry(constant):
         return define_integer_const_entry(constant)
     if constant.type == CONST_BOOL:
         return define_bool_const_entry(constant)
+    if constant.type == CONST_ID:
+        return define_identifier_const_entry(constant)
+
     raise Exception(f"Unknown tag: {constant.type}")
 
 
@@ -1182,7 +1188,7 @@ def parse_constant(constant, log):
         return None
 
     name = get_string(constant, CONST_NAME, {}, log)
-    if const_type == CONST_PORT:
+    if const_type == CONST_PORT or const_type == CONST_ID:
         value = get_string(constant, CONST_VALUE, {}, log)
         return Constant(name, value, const_type)
     if const_type == CONST_UUID:
