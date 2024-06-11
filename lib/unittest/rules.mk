@@ -17,10 +17,10 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_SRCS := \
-	$(LOCAL_DIR)/unittest.c
+MODULE_SRCS := $(LOCAL_DIR)/unittest.c
 
-MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include/
+MODULE_EXPORT_INCLUDES += 	$(LOCAL_DIR)/include/ \
+							$(LOCAL_DIR)/../pmu/include/
 
 MODULE_LIBRARY_DEPS := \
 	trusty/user/base/interface/line-coverage \
@@ -28,5 +28,6 @@ MODULE_LIBRARY_DEPS := \
 	trusty/user/base/lib/line-coverage \
 	trusty/user/base/lib/libc-trusty \
 	trusty/user/base/lib/tipc \
+	trusty/user/base/lib/pmu
 
 include make/library.mk
