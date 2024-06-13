@@ -19,9 +19,6 @@
  * (when bit 31 == 1) */
 #define ILLEGAL_SMC ((long)0x80FF0000)
 
-/* Return value for unknown SMC (defined by ARM DEN 0028A(0.9.0) */
-#define SM_ERR_UNDEFINED_SMC ((int32_t)(-1))
-
 /* SMC numbers defined by ATF */
 #define SMC_NR(entity, fn, fastcall, smc64)                               \
     (((((uint32_t)(fastcall)) & 0x1U) << 31U) | (((smc64)&0x1U) << 30U) | \

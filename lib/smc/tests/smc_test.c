@@ -70,7 +70,7 @@ TEST_F(smc, ARM_ONLY_TEST(unknown_smc)) {
     ASSERT_EQ(rc, msg_len);
 
     rc = smc_read_response(_state->channel, &response);
-    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ(rc, ERR_GENERIC);
     ASSERT_EQ((int32_t)response.params[0], SM_ERR_UNDEFINED_SMC);
 
 test_abort:;
@@ -99,11 +99,11 @@ TEST_F(smc, ARM_ONLY_TEST(multiple_channels)) {
     ASSERT_EQ(rc, msg_len);
 
     rc = smc_read_response(channel1, &response);
-    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ(rc, ERR_GENERIC);
     ASSERT_EQ((int32_t)response.params[0], SM_ERR_UNDEFINED_SMC);
 
     rc = smc_read_response(channel2, &response);
-    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ(rc, ERR_GENERIC);
     ASSERT_EQ((int32_t)response.params[0], SM_ERR_UNDEFINED_SMC);
 
 test_abort:
@@ -179,7 +179,7 @@ TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(access_denied)) {
     ASSERT_EQ(rc, msg_len);
 
     rc = smc_read_response(_state->channel, &response);
-    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ(rc, ERR_ACCESS_DENIED);
     ASSERT_EQ((int32_t)response.params[0], ERR_ACCESS_DENIED);
 
 test_abort:;
@@ -215,7 +215,7 @@ TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(invalid_arguments)) {
     ASSERT_EQ(rc, msg_len);
 
     rc = smc_read_response(_state->channel, &response);
-    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ(rc, ERR_INVALID_ARGS);
     ASSERT_EQ((int32_t)response.params[0], ERR_INVALID_ARGS);
 
 test_abort:;
@@ -238,7 +238,7 @@ TEST_F(smc, GENERIC_ARM64_PLATFORM_ONLY_TEST(validate_dma_arguments)) {
     ASSERT_EQ(rc, msg_len);
 
     rc = smc_read_response(_state->channel, &response);
-    ASSERT_EQ(rc, msg_len);
+    ASSERT_EQ(rc, ERR_INVALID_ARGS);
     ASSERT_EQ((int32_t)response.params[0], ERR_INVALID_ARGS);
 
     va_base = mmap(NULL, len, PROT_READ | PROT_WRITE, MMAP_FLAG_IO_HANDLE,

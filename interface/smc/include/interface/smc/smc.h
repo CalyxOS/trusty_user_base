@@ -22,10 +22,23 @@
 
 #define SMC_MSG_NUM_PARAMS 4
 
+/* Return value for unknown SMC (defined by ARM DEN 0028E(1.4.0) */
+#define SM_ERR_UNDEFINED_SMC -1
+
 /**
- * struct smc_msg - request/response structure for SMC
+ * struct smc_msg - request structure for SMC
  * @params: parameters of smc call
  */
 struct smc_msg {
     uint64_t params[SMC_MSG_NUM_PARAMS];
+};
+
+/**
+ * struct smc_response - response structure for SMC
+ * @msg: values returned by smcall iff call was allowed by smc access policy.
+ * @rc: status code. If non-zero, @msg may contain additional diagnostic info.
+ */
+struct __attribute__((__packed__)) smc_response {
+    struct smc_msg msg;
+    int32_t rc;
 };
