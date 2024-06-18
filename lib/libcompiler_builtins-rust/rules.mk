@@ -41,6 +41,9 @@ MODULE_RUSTFLAGS += \
 MODULE_RUSTFLAGS += \
 	-A unstable-name-collisions
 
+# Int and Float traits have some unused internal methods (for now)
+MODULE_RUSTFLAGS += -A dead-code
+
 MODULE_ADD_IMPLICIT_DEPS := false
 
 MODULE_SKIP_DOCS := true
