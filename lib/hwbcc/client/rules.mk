@@ -16,6 +16,8 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
+MODULE_SDK_LIB_NAME := hwbcc_client
+
 MODULE_SRCS := \
 	$(LOCAL_DIR)/hwbcc.c \
 
