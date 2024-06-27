@@ -17,6 +17,7 @@
 #include <interface/apploader/apploader.h>
 #include <interface/apploader/apploader_secure.h>
 #include <inttypes.h>
+#include <lib/rng/trusty_rng.h>
 #include <lib/system_state/system_state.h>
 #include <lib/tipc/tipc.h>
 #include <lib/unittest/unittest.h>
@@ -511,6 +512,50 @@ TEST_F(apploader_user, AppEncryptionTest) {
     } else {
         ASSERT_EQ(error, APPLOADER_ERR_NOT_ENCRYPTED);
     }
+
+test_abort:;
+}
+
+extern char integrity_test_app_start[], integrity_test_app_end[];
+
+TEST_F(apploader_user, LoadCmdCorruptImage) {
+    uint32_t error = APPLOADER_NO_ERROR;
+
+    const uint8_t bits_per_byte = 8;
+    const size_t max_bit_flip_count = 1 << 9;
+    uint8_t* const app_buf = (void*)integrity_test_app_start;
+    const size_t app_size = integrity_test_app_end - integrity_test_app_start;
+
+    unsigned int seed;
+    int rc = trusty_rng_hw_rand((uint8_t*)&seed, sizeof seed);
+    ASSERT_EQ(rc, NO_ERROR);
+    srand(seed);
+
+    for (size_t i = 0; i < max_bit_flip_count; ++i) {
+        const size_t bit_offset = rand() % (app_size * bits_per_byte);
+        const size_t byte_offset = bit_offset / bits_per_byte;
+        const uint8_t bit_offset_in_byte = bit_offset % bits_per_byte;
+        const uint8_t mask = 1 << bit_offset_in_byte;
+
+        app_buf[byte_offset] ^= mask;
+        error = load_test_app(_state->channel, integrity_test_app_start,
+                              integrity_test_app_end);
+
+        ASSERT_EQ(false, HasFailure());
+        ASSERT_EQ(error, APPLOADER_ERR_VERIFICATION_FAILED,
+                  "Unexpected signature verification success. "
+                  "Offending byte::bit: %zu::%d (bit offset: %zu) of "
+                  "total bytes: %zu\n",
+                  byte_offset, (int)bit_offset_in_byte, bit_offset, app_size);
+
+        app_buf[byte_offset] ^= mask; /* Restore the flipped bit */
+    }
+
+    error = load_test_app(_state->channel, integrity_test_app_start,
+                          integrity_test_app_end);
+    ASSERT_EQ(false, HasFailure());
+    ASSERT_EQ(true, error == APPLOADER_NO_ERROR ||
+                            error == APPLOADER_ERR_ALREADY_EXISTS);
 
 test_abort:;
 }

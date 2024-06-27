@@ -99,3 +99,10 @@ encryption_test_app_unencrypted_app_encryption_optional_end:
 encryption_test_app_unencrypted_app_encryption_required_start:
 .incbin ENCRYPTION_TEST_APP_UNENCRYPTED_APP_ENCRYPTION_REQUIRED
 encryption_test_app_unencrypted_app_encryption_required_end:
+
+.global integrity_test_app_start, integrity_test_app_end
+.hidden integrity_test_app_start, integrity_test_app_end
+.balign 4096
+integrity_test_app_start:
+.incbin INTEGRITY_TEST_APP
+integrity_test_app_end:

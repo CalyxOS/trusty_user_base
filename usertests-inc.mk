@@ -86,6 +86,7 @@ TRUSTY_LOADABLE_USER_TASKS += \
 	trusty/user/base/app/apploader/tests/encryption_test_apps/encrypted_app/encryption_required \
 	trusty/user/base/app/apploader/tests/encryption_test_apps/unencrypted_app/encryption_optional \
 	trusty/user/base/app/apploader/tests/encryption_test_apps/unencrypted_app/encryption_required \
+	trusty/user/base/app/apploader/tests/integrity_test_app \
 
 TRUSTY_LOADABLE_USER_TESTS += \
 	trusty/user/base/app/trusty-crasher \
