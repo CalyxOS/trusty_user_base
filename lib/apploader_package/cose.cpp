@@ -198,39 +198,15 @@ static bool ecdsaSignatureDerToCose(
         return false;
     }
 
-    const BIGNUM* rBn;
-    const BIGNUM* sBn;
-    ECDSA_SIG_get0(sig.get(), &rBn, &sBn);
-
-    /*
-     * Older versions of OpenSSL also do not have BN_bn2binpad,
-     * so we need to use BN_bn2bin with the correct offsets.
-     * Each of the output values is a 32-byte big-endian number,
-     * while the inputs are BIGNUMs stored in host format.
-     * We can insert the padding ourselves by zeroing the output array,
-     * then placing the output of BN_bn2bin so its end aligns
-     * with the end of the 32-byte big-endian number.
-     */
-    auto rBnSize = BN_num_bytes(rBn);
-    if (rBnSize < 0 || static_cast<size_t>(rBnSize) > kEcdsaValueSize) {
-        COSE_PRINT_ERROR("Invalid ECDSA r value size (%d)\n", rBnSize);
-        return false;
-    }
-    auto sBnSize = BN_num_bytes(sBn);
-    if (sBnSize < 0 || static_cast<size_t>(sBnSize) > kEcdsaValueSize) {
-        COSE_PRINT_ERROR("Invalid ECDSA s value size (%d)\n", sBnSize);
-        return false;
-    }
-
     ecdsaCoseSignature.clear();
-    ecdsaCoseSignature.resize(kEcdsaSignatureSize, 0);
-    if (BN_bn2bin(rBn, ecdsaCoseSignature.data() + kEcdsaValueSize - rBnSize) !=
-        rBnSize) {
+    ecdsaCoseSignature.resize(kEcdsaSignatureSize);
+    if (!BN_bn2bin_padded(ecdsaCoseSignature.data(), kEcdsaValueSize,
+                          ECDSA_SIG_get0_r(sig.get()))) {
         COSE_PRINT_ERROR("Error encoding r\n");
         return false;
     }
-    if (BN_bn2bin(sBn, ecdsaCoseSignature.data() + kEcdsaSignatureSize -
-                               sBnSize) != sBnSize) {
+    if (!BN_bn2bin_padded(ecdsaCoseSignature.data() + kEcdsaValueSize,
+                          kEcdsaValueSize, ECDSA_SIG_get0_s(sig.get()))) {
         COSE_PRINT_ERROR("Error encoding s\n");
         return false;
     }
