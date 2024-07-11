@@ -154,6 +154,11 @@ include make/trusted_app.mk
 
 $(call INFO_DONE_SILENT,$(MODULE_RUST_LOG_NAME),processing)
 
+else
+
+MODULE_RUST_TESTS := false
+BUILD_AS_RUST_TEST_MODULE :=
+
 endif
 endif
 else # Not building rust test app
