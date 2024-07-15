@@ -21,9 +21,6 @@ MODULE_SRCS := system/keymint/ta/src/lib.rs
 
 MODULE_CRATE_NAME := kmr_ta
 
-MODULE_RUSTFLAGS += \
-	--allow rustdoc::broken-intra-doc-links \
-
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	$(call FIND_CRATE,ciborium) \
 	$(call FIND_CRATE,ciborium-io) \
