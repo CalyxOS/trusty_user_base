@@ -537,6 +537,15 @@ enum ffa_error {
 #define SMC_FC_FFA_MSG_WAIT SMC_FASTCALL_NR_SHARED_MEMORY(0x6B)
 
 /**
+ * SMC_FC_FFA_MSG_RUN - SMC opcode to allocate cycles to an endpoint
+ *
+ * Register arguments:
+ *
+ * * w1:     SP/VM ID in [31:16], vCPU in [15:0]
+ */
+#define SMC_FC_FFA_RUN SMC_FASTCALL_NR_SHARED_MEMORY(0x6D)
+
+/**
  * SMC_FC_FFA_MSG_SEND_DIRECT_REQ - 32 bit SMC opcode to send direct message as
  *                                  a request
  *
