@@ -47,6 +47,13 @@ int swbcc_glob_init(const uint8_t FRS[DICE_HIDDEN_SIZE],
 
 int swbcc_init(swbcc_session_t* s, const struct uuid* client);
 
+/**
+ * swbcc_get_client() - Get UUID of session client.
+ * @s                 - swbcc session data
+ * @client            - uuid of swbcc session client
+ */
+void swbcc_get_client(const swbcc_session_t s, struct uuid* client);
+
 void swbcc_close(swbcc_session_t s);
 
 int swbcc_sign_key(swbcc_session_t s,
