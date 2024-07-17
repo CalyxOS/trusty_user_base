@@ -23,7 +23,6 @@ MODULE_CRATE_NAME := kmr_crypto_boring
 
 MODULE_RUSTFLAGS += \
 	--cfg 'soong' \
-	--allow rustdoc::broken-intra-doc-links \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/bssl-sys-rust \
