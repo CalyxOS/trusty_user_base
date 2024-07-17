@@ -60,6 +60,14 @@ TEST_F_TEARDOWN(swbcc) {
     swbcc_close(_state->s);
 }
 
+TEST_F(swbcc, get_client) {
+    struct uuid client;
+    swbcc_get_client(_state->s, &client);
+    ASSERT_EQ(memcmp(&client, &self_uuid, sizeof(struct uuid)), 0);
+
+test_abort:;
+}
+
 TEST_F(swbcc, mac) {
     int rc;
     uint8_t cose_sign1[HWBCC_MAX_RESP_PAYLOAD_SIZE];

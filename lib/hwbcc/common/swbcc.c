@@ -288,6 +288,11 @@ err:
     return rc;
 }
 
+void swbcc_get_client(swbcc_session_t s, struct uuid* client) {
+    struct swbcc_session* session = (struct swbcc_session*)s;
+    memcpy(client, &session->client_uuid, sizeof(struct uuid));
+}
+
 int swbcc_ns_deprivilege(swbcc_session_t s) {
     srv_state.ns_deprivileged = true;
     return NO_ERROR;
