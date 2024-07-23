@@ -761,6 +761,26 @@ enum ffa_error {
  */
 #define SMC_FC_FFA_MEM_FRAG_TX SMC_FASTCALL_NR_SHARED_MEMORY(0x7B)
 
+/**
+ * SMC_FC_FFA_CONSOLE_LOG - SMC opcode to log to console
+ *
+ * Register arguments:
+ *
+ * * w1:  Count of characters
+ * * w2/x2-w7/x7: Packed characters
+ *
+ * Return:
+ * * w0:     &SMC_FC_FFA_SUCCESS
+ *
+ * or
+ *
+ * * w0:     &SMC_FC_FFA_ERROR
+ * * w2:     Error code (&enum ffa_error)
+ * * w3:     Num characters logged (if w2 is RETRY)
+ */
+#define SMC_FC_FFA_CONSOLE_LOG SMC_FASTCALL_NR_SHARED_MEMORY(0x8A)
+#define SMC_FC64_FFA_CONSOLE_LOG SMC_FASTCALL64_NR_SHARED_MEMORY(0x8A)
+
 /* FF-A v1.1 */
 /**
  * SMC_FC64_FFA_SECONDARY_EP_REGISTER - SMC opcode to register secondary
