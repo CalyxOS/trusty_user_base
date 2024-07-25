@@ -50,6 +50,7 @@ mod bench;
 mod context;
 mod macros;
 mod options;
+mod stats;
 mod types;
 
 use context::CONTEXT;
@@ -183,6 +184,112 @@ struct TestService {
     tests: Vec<TestDescAndFn>,
 }
 
+#[cfg(not(feature = "machine_readable"))]
+fn print_samples(_test: &TestDesc, bs: &bench::BenchSamples) {
+    use core::fmt::Write;
+
+    struct FmtCounter {
+        chars: usize,
+    }
+
+    impl FmtCounter {
+        fn new() -> FmtCounter {
+            FmtCounter { chars: 0 }
+        }
+    }
+
+    impl core::fmt::Write for FmtCounter {
+        fn write_str(&mut self, s: &str) -> core::fmt::Result {
+            self.chars += s.chars().count();
+            Ok(())
+        }
+    }
+
+    let min = bs.ns_iter_summ.min as u64;
+    let avg = bs.ns_iter_summ.mean as u64;
+    let max = bs.ns_iter_summ.max as u64;
+    let cold = bs.ns_iter_summ.cold as u64;
+
+    let mut min_fc = FmtCounter::new();
+    if let Err(_) = core::write!(min_fc, "{}", min) {
+        return;
+    }
+    let mut avg_fc = FmtCounter::new();
+    if let Err(_) = core::write!(avg_fc, "{}", avg) {
+        return;
+    }
+    let mut max_fc = FmtCounter::new();
+    if let Err(_) = core::write!(max_fc, "{}", max) {
+        return;
+    }
+    let mut cold_fc = FmtCounter::new();
+    if let Err(_) = core::write!(cold_fc, "{}", cold) {
+        return;
+    }
+    log::info!(
+        "{:-<width$}",
+        "-",
+        width = min_fc.chars + avg_fc.chars + max_fc.chars + cold_fc.chars + 16
+    );
+    log::info!(
+        "|Metric    |{:minw$}|{:avgw$}|{:maxw$}|{:coldw$}|",
+        "Min",
+        "Avg",
+        "Max",
+        "Cold",
+        minw = min_fc.chars,
+        avgw = avg_fc.chars,
+        maxw = max_fc.chars,
+        coldw = cold_fc.chars
+    );
+    log::info!(
+        "{:-<width$}",
+        "-",
+        width = min_fc.chars + avg_fc.chars + max_fc.chars + cold_fc.chars + 16
+    );
+    log::info!("|time_nanos|{:3}|{:3}|{:3}|{:4}|", min, avg, max, cold);
+    log::info!(
+        "{:-<width$}",
+        "-",
+        width = min_fc.chars + avg_fc.chars + max_fc.chars + cold_fc.chars + 16
+    );
+}
+
+#[cfg(feature = "machine_readable")]
+fn print_samples(test: &TestDesc, bs: &bench::BenchSamples) {
+    let min = bs.ns_iter_summ.min as u64;
+    let avg = bs.ns_iter_summ.mean as u64;
+    let max = bs.ns_iter_summ.max as u64;
+    let cold = bs.ns_iter_summ.cold as u64;
+
+    let (suite, bench) =
+        test.name.as_slice().rsplit_once("::").unwrap_or((test.name.as_slice(), ""));
+    log::info!("{{\"schema_version\": 3,");
+    log::info!("\"suite_name\": \"{}\",", suite);
+    log::info!("\"bench_name\": \"{}\",", bench);
+    log::info!(
+        "\"results\": \
+        [{{\"metric_name\": \"time_nanos\", \
+        \"min\": \"{}\", \
+        \"max\": \"{}\", \
+        \"avg\": \"{}\", \
+        \"cold\": \"{}\", \
+        \"raw_min\": {}, \
+        \"raw_max\": {}, \
+        \"raw_avg\": {}, \
+        \"raw_cold\": {}}}",
+        min,
+        max,
+        avg,
+        cold,
+        min,
+        max,
+        avg,
+        cold,
+    );
+    log::info!("]}}");
+}
+
 impl Service for TestService {
     type Connection = ();
     type Message = ();
@@ -205,7 +312,10 @@ impl Service for TestService {
             print_status(&test.desc, "RUN     ");
             match test.testfn {
                 StaticTestFn(f) => f(),
-                StaticBenchFn(_f) => panic!("Test harness does not support benchmarking"),
+                StaticBenchFn(f) => {
+                    let bs = bench::benchmark(|harness| f(harness));
+                    print_samples(&test.desc, &bs);
+                }
                 _ => panic!("non-static tests passed to test::test_main_static"),
             }
             if CONTEXT.skipped() {
