@@ -28,6 +28,14 @@ MODULE_RUST_EDITION := 2021
 MODULE_RUSTFLAGS += \
 	-Z force-unstable-if-unmarked \
 
+# Allow targets to further reduce rust footprint by removing panic information
+ifeq (true,$(call TOBOOL,$(RUST_USE_PANIC_IMMEDIATE_ABORT)))
+MODULE_RUSTFLAGS += \
+	--cfg 'feature="panic_immediate_abort"' \
+	-A dead_code \
+
+endif
+
 MODULE_ADD_IMPLICIT_DEPS := false
 
 include make/library.mk

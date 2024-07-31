@@ -52,6 +52,15 @@ MODULE_RUSTFLAGS += \
 
 MODULE_ADD_IMPLICIT_DEPS := false
 
+# Allow targets to further reduce rust footprint by removing panic information
+ifeq (true,$(call TOBOOL,$(RUST_USE_PANIC_IMMEDIATE_ABORT)))
+MODULE_RUSTFLAGS += \
+	--cfg 'feature="panic_immediate_abort"' \
+	-A unused-imports \
+	-A unused-unsafe \
+
+endif
+
 # `STD_ENV_ARCH` needs to be set when building libstd. For ARM64 `ARCH` needs to
 # be translated to the architecture name that rustc expects, but for the
 # remaining targets `ARCH` already matches. This will need to be updated
