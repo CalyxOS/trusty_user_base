@@ -27,4 +27,8 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/trusty-log \
 
+ifeq (true,$(call TOBOOL,$(BENCHMARK_MACHINE_READABLE)))
+MODULE_RUSTFLAGS += --cfg 'feature="machine_readable"'
+endif
+
 include make/library.mk
