@@ -460,6 +460,20 @@ define CRATE_CONFIG :=
 	"deps": [
 		$(call STRIP_TRAILING_COMMA,$(foreach dep,$(sort $(MODULE_LIBRARY_DEPS) $(MODULE_LIBRARY_EXPORTED_DEPS)),\
 				$(if $(_MODULES_$(dep)_RUST_STEM),{"name": "$(_MODULES_$(dep)_RUST_STEM)"$(COMMA) "crate": $(_MODULES_$(dep)_CRATE_INDEX)}$(COMMA))))
+	],
+	"cfg": [
+		$(call STRIP_TRAILING_COMMA,\
+			$(foreach cfg, \
+				$(filter --cfg=%, \
+					# Look for any cfg flags that are separated by a space and coerce to '='
+					$(shell echo "$(MODULE_RUSTFLAGS) $(GLOBAL_SHARED_RUSTFLAGS)" \
+						| sed -e 's/--cfg /--cfg=/g'\
+					)\
+			# Now that we only have cfgs, remove the --cfg and setup escaped quotations around cfgs that have values
+			),"$(shell echo $(cfg) \
+				| sed -e 's/--cfg=//g' \
+				| sed -E 's/=(.*)/=\\\\\x22\1\\\\\x22/g'\
+				)"$(COMMA)))
 	]
 },
 
