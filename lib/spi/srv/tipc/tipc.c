@@ -307,7 +307,12 @@ int add_spi_service(struct tipc_hset* hset,
             return ERR_INVALID_ARGS;
         }
 
-        rc = tipc_add_service(hset, &ports[i], 1, 1, &spi_dev_ops);
+#if TEST_BUILD
+        const uint32_t max_chan_cnt = 2;
+#else
+        const uint32_t max_chan_cnt = 1;
+#endif
+        rc = tipc_add_service(hset, &ports[i], 1, max_chan_cnt, &spi_dev_ops);
         if (rc != NO_ERROR) {
             return rc;
         }
