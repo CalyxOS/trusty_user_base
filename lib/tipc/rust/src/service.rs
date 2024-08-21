@@ -77,6 +77,7 @@ pub struct PortCfg {
     msg_queue_len: u32,
     msg_max_size: u32,
     flags: u32,
+    uuid_allow_list: Option<&'static [Uuid]>,
 }
 
 impl PortCfg {
@@ -87,6 +88,7 @@ impl PortCfg {
             msg_queue_len: 1,
             msg_max_size: 4096,
             flags: 0,
+            uuid_allow_list: None,
         })
     }
 
@@ -94,7 +96,7 @@ impl PortCfg {
     ///
     /// This version takes ownership of the path and does not allocate.
     pub fn new_raw(path: CString) -> Self {
-        Self { path, msg_queue_len: 1, msg_max_size: 4096, flags: 0 }
+        Self { path, msg_queue_len: 1, msg_max_size: 4096, flags: 0, uuid_allow_list: None }
     }
 
     /// Set the message queue length for this port configuration
@@ -117,6 +119,12 @@ impl PortCfg {
     /// configuration
     pub fn allow_ta_connect(self) -> Self {
         Self { flags: self.flags | sys::IPC_PORT_ALLOW_TA_CONNECT as u32, ..self }
+    }
+
+    /// Filter allowable UUID connections. Leaving this unset will allow connection from any peer
+    /// UUID. Services should handle any additional filtering they need.
+    pub fn allowed_uuids(self, uuids: &'static [Uuid]) -> Self {
+        Self { uuid_allow_list: Some(uuids), ..self }
     }
 }
 
@@ -1061,6 +1069,9 @@ impl<
                 | TipcError::SystemError(Error::TimedOut)
                 | TipcError::SystemError(Error::ChannelClosed)
 
+                // returned when peer UUID connection is not allowed.
+                | TipcError::SystemError(Error::NotAllowed)
+
                 // These are always caused by the client and so shouldn't be treated as an
                 // internal error or cause the event loop to exit.
                 | TipcError::ChannelClosed
@@ -1165,7 +1176,13 @@ impl<
         // initialized the peer structure.
         let peer = unsafe { Uuid(peer.assume_init()) };
 
-        // TODO: Implement access control
+        // Check against access control list if we were given one
+        if let Some(uuids) = cfg.uuid_allow_list {
+            if !uuids.contains(&peer) {
+                error!("UUID {peer:?} isn't supported.\n");
+                return Err(TipcError::SystemError(trusty_sys::Error::NotAllowed));
+            }
+        }
 
         let connection_data = self.dispatcher.on_connect(&cfg, &connection_handle, &peer)?;
         if let ConnectResult::Accept(data) = connection_data {
