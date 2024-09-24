@@ -64,7 +64,7 @@ void hash_trusty_metrics(uint64_t metric, uint8_t *output) {
     uint8_t metric_arr[8];
 
     /* Convert the metric to an array of uint8_t*/
-    for (int i = 0; i < sizeof(metric_arr); ++i) {
+    for (size_t i = 0; i < sizeof(metric_arr); ++i) {
         metric_arr[i] = (metric >> (8 * i)) & 0xFF;
     }
 
