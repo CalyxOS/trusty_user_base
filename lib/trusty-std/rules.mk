@@ -33,8 +33,8 @@ MODULE_LIBRARY_EXPORTED_DEPS += \
 else
 
 MODULE_DEPS += \
-	trusty/user/base/lib/libcore-rust/ \
-	trusty/user/base/lib/libcompiler_builtins-rust/ \
+	trusty/user/base/lib/libcore-rust \
+	trusty/user/base/lib/libcompiler_builtins-rust \
 
 endif
 
