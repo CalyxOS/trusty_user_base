@@ -37,7 +37,7 @@
 // min_specialization is only used to optimize CString::try_new(), so we can
 // remove it if needed
 #![feature(min_specialization)]
-#![feature(new_uninit)]
+#![cfg_attr(not(version("1.82")), feature(new_uninit))]
 #![cfg_attr(not(version("1.81")), feature(panic_info_message))]
 #![feature(slice_internals)]
 #![feature(slice_ptr_get)]
