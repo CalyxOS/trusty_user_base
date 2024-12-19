@@ -41,6 +41,6 @@ mod raw_handle_set;
 mod service_handle;
 
 pub use event_loop::EventLoop;
-pub use handle_set_wrapper::HandleSetWrapper;
+pub use handle_set_wrapper::{HandleSetWrapper, ToConnect, WorkToDo};
 pub use raw_handle_set::{Handler, RawHandleSet};
 pub use service_handle::{HandleType, ServiceHandle};

@@ -22,17 +22,68 @@ use crate::{
 };
 use alloc::sync::Arc;
 use log::error;
+use std::collections::vec_deque::VecDeque;
 use std::sync::Mutex;
 use trusty_std::TryClone;
 
+/// Encapsulate a work item to call on_connect on a given service
+pub struct ToConnect<S: UnbufferedService> {
+    handle: Handle,
+    service: Arc<S>,
+    port: PortCfg,
+    // TODO: This should be removed in the long term
+    uuid: Uuid,
+}
+
+impl<S: UnbufferedService> ToConnect<S> {
+    /// Constructor
+    pub fn new(handle: Handle, service: Arc<S>, port: PortCfg, uuid: Uuid) -> Self {
+        Self { handle, service, port, uuid }
+    }
+
+    /// Handle on_connect work item
+    pub fn do_on_connect(&self) -> Result<ConnectResult<S::Connection>> {
+        self.service.on_connect(&self.port, &self.handle, &self.uuid)
+    }
+}
+
+/// Instructions about the work to do
+pub enum WorkToDo<S: UnbufferedService> {
+    Connect(ToConnect<S>),
+}
+
 /// A wrapper around the `RawHandleSet` exposed to the TAs and the event loop runner.
 pub struct HandleSetWrapper<S: UnbufferedService> {
+    // work queue should be emptied before waiting on the handle set
+    work_queue: Mutex<VecDeque<WorkToDo<S>>>,
     handle_set: Mutex<RawHandleSet<ServiceHandle<S>>>,
 }
 
 impl<S: UnbufferedService> HandleSetWrapper<S> {
     pub fn new() -> Result<Self> {
-        Ok(Self { handle_set: Mutex::new(RawHandleSet::<ServiceHandle<S>>::new()?) })
+        Ok(Self {
+            work_queue: Mutex::new(VecDeque::<WorkToDo<S>>::new()),
+            handle_set: Mutex::new(RawHandleSet::<ServiceHandle<S>>::new()?),
+        })
+    }
+
+    fn handle_work_queue(&self) -> Result<()> {
+        let mut wq = self.work_queue.lock().unwrap();
+        while let Some(work_item) = wq.pop_front() {
+            let WorkToDo::Connect(to_connect) = work_item;
+            match to_connect.do_on_connect()? {
+                ConnectResult::Accept(conn) => {
+                    return self
+                        .add_connection(conn, to_connect.handle, to_connect.service)
+                        .map(|_| ());
+                }
+                ConnectResult::CloseConnection => {
+                    error!("Connection closed by the service in on_connect.");
+                    return Err(TipcError::ChannelClosed);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Waits on the raw handle set and returns the event cookie object and the event.
@@ -146,5 +197,11 @@ impl<S: UnbufferedService> HandleSetWrapper<S> {
     pub fn remove_raw(&self, handle: i32) -> Result<Arc<ServiceHandle<S>>> {
         let hs = self.handle_set.lock().unwrap();
         hs.remove_raw(handle)
+    }
+
+    /// Add a work item
+    pub fn add_work(&self, todo: WorkToDo<S>) {
+        let mut wq = self.work_queue.lock().unwrap();
+        wq.push_back(todo);
     }
 }
