@@ -19,3 +19,4 @@ TRUSTY_RUST_USER_TESTS += \
 	trusty/user/base/lib/hwbcc/rust \
 	trusty/user/base/lib/hwwsk/rust \
 	trusty/user/base/lib/storage/rust \
+	packages/modules/Virtualization/libs/dice/open_dice/tests \
