@@ -126,8 +126,8 @@ MODULE_LIBRARY_DEPS += \
 	$(call FIND_CRATE,async-trait) \
 	$(call FIND_CRATE,lazy_static) \
 
-# The AIDL compiler marks an aidl_data variable as mutable and rustc complains
-MODULE_RUSTFLAGS += -Aunused-mut -Aunused-variables
+# Disable all lints for auto-generated Rust sources
+MODULE_RUSTFLAGS += --cap-lints allow
 
 MODULE_SRCS += $(AIDL_ROOT_RS)
 MODULE_EXPORT_SRCDEPS += $(AIDL_ROOT_RS)
