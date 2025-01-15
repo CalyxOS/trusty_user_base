@@ -1,9 +1,9 @@
 use alloc::collections::TryReserveError;
 use alloc::ffi::CString;
 use diced_open_dice::{
-    bcc_handover_parse, retry_bcc_format_config_descriptor, retry_bcc_main_flow, Config,
-    DiceArtifacts, DiceConfigValues, DiceMode, Hash, Hidden, InputValues, CDI_SIZE, HASH_SIZE,
-    HIDDEN_SIZE,
+    bcc_handover_parse, retry_bcc_format_config_descriptor, retry_bcc_main_flow,
+    retry_sign_cose_sign1_with_cdi_leaf_priv, Config, DiceArtifacts, DiceConfigValues, DiceMode,
+    Hash, Hidden, InputValues, OwnedDiceArtifacts, CDI_SIZE, HASH_SIZE, HIDDEN_SIZE,
 };
 use hwbcc::srv::{HwBccOps, RequestContext};
 use hwbcc::{HwBccError, HwBccMode};
@@ -103,8 +103,24 @@ impl PvmDice {
         } else {
             log::error!("attempting to initialize PvmDice without cert chain in handover");
 
-            Err(PvmDiceError::NoCertChainInHandover)
+            Err(PvmDiceError::DiceError(diced_open_dice::DiceError::DiceChainNotFound))
         }
+    }
+
+    fn derive_next_dice_artifacts(
+        &self,
+        request_ctx: &RequestContext,
+    ) -> Result<OwnedDiceArtifacts, HwBccError> {
+        let config_descriptor = config_descriptor_for_trusty_user_app(request_ctx)?;
+        let input_values = InputValues::new(
+            TRUSTY_NON_LOADABLE_CODE_HASH,
+            Config::Descriptor(config_descriptor.as_slice()),
+            TRUSTY_NON_LOADABLE_AUTHORITY_HASH,
+            dice_mode_for_trusty_user_space_certs(),
+            EMPTY_HIDDEN_INPUTS,
+        );
+
+        Ok(retry_bcc_main_flow(&self.cdi_attest, &self.cdi_seal, &self.bcc, &input_values)?)
     }
 }
 
@@ -122,18 +138,7 @@ impl HwBccOps for PvmDice {
     ) -> Result<Vec<u8>, HwBccError> {
         let _ = check_not_test_mode(mode)?;
 
-        let config_descriptor = config_descriptor_for_trusty_user_app(request_ctx)?;
-        let input_values = InputValues::new(
-            TRUSTY_NON_LOADABLE_CODE_HASH,
-            Config::Descriptor(config_descriptor.as_slice()),
-            TRUSTY_NON_LOADABLE_AUTHORITY_HASH,
-            dice_mode_for_trusty_user_space_certs(),
-            EMPTY_HIDDEN_INPUTS,
-        );
-
-        let next_dice_artifacts =
-            retry_bcc_main_flow(&self.cdi_attest, &self.cdi_seal, &self.bcc, &input_values)
-                .map_err(|_| HwBccError::System(trusty_sys::Error::Generic))?;
+        let next_dice_artifacts = self.derive_next_dice_artifacts(request_ctx)?;
 
         let mut bcc = Vec::new();
 
@@ -144,6 +149,23 @@ impl HwBccOps for PvmDice {
         bcc.extend_from_slice(&next_bcc);
 
         Ok(bcc)
+    }
+
+    fn sign_data<'a>(
+        &self,
+        request_ctx: &RequestContext,
+        data: &'a [u8],
+        aad: &'a [u8],
+        mode: HwBccMode,
+    ) -> Result<Vec<u8>, HwBccError> {
+        let _ = check_not_test_mode(mode)?;
+
+        // TODO: b/404559104 - Keep per-session state around, to avoid re-deriving artifacts
+        // for the common case of calling `get_bcc` and then `sign_data`. Doing so now would
+        // have no impact because the rust hwbcc client opens a new connection for each operation.
+        let dice_artifacts = self.derive_next_dice_artifacts(request_ctx)?;
+
+        Ok(retry_sign_cose_sign1_with_cdi_leaf_priv(data, aad, &dice_artifacts)?)
     }
 }
 
@@ -185,10 +207,7 @@ fn config_descriptor_for_trusty_user_app(
         security_version: Some(1),
     };
 
-    let config_descriptor = retry_bcc_format_config_descriptor(&config_values)
-        .map_err(|_| HwBccError::System(trusty_sys::Error::Generic))?;
-
-    Ok(config_descriptor)
+    Ok(retry_bcc_format_config_descriptor(&config_values)?)
 }
 
 /// Derive a component name from an incoming request.
@@ -254,7 +273,11 @@ fn enforce_no_apploader_invariant() -> Result<handle_t, PvmDiceError> {
 #[cfg(test)]
 mod test {
     use crate::PvmDice;
+    use authgraph_boringssl::BoringEcDsa;
+    use authgraph_core::key::DiceChainEntry;
+    use authgraph_core::traits::EcDsa;
     use ciborium::value::Value;
+    use coset::{AsCborValue, CborSerializable};
     use diced_open_dice::DiceArtifacts;
     use diced_sample_inputs::make_sample_bcc_and_cdis;
     use hwbcc::srv::{HwBccOps, RequestContext};
@@ -262,6 +285,9 @@ mod test {
     use test::expect;
     use tipc::Uuid;
     ::test::init!();
+
+    const TEST_MESSAGE: &[u8] = "pvmdice test message".as_bytes();
+    const TEST_AAD: &[u8] = "pvmdice test aad".as_bytes();
 
     #[test]
     fn test_init_empty_handover() {
@@ -289,6 +315,49 @@ mod test {
 
         // TODO: b/393356669 - validate the cert chain.
         let _ = pvmdice.get_bcc(&rq, HwBccMode::Release).unwrap();
+    }
+
+    #[test]
+    fn verify_sign_data_with_leaf_pub_key() {
+        let dice_artifacts = make_sample_bcc_and_cdis().unwrap();
+        let handover = to_bcc_handover(&dice_artifacts);
+        let pvmdice = PvmDice::try_new(&handover).unwrap();
+
+        let rq = RequestContext {
+            peer: Uuid::new_from_string("c07129be-cabb-4d4d-837f-ea8fd204dcf1").unwrap(),
+        };
+
+        let signed_payload_res =
+            pvmdice.sign_data(&rq, &TEST_MESSAGE, &TEST_AAD, HwBccMode::Release);
+        expect!(signed_payload_res.is_ok());
+        let signed_payload = signed_payload_res.unwrap();
+        let signed_payload_cose = coset::CoseSign1::from_slice(&signed_payload).unwrap();
+
+        // Now verify with the signature in the leaf cert from a chain
+        // retrieved from get_bcc.
+        let ecdsa = BoringEcDsa;
+        let non_explicit_chain_res = pvmdice.get_bcc(&rq, HwBccMode::Release);
+        expect!(non_explicit_chain_res.is_ok());
+        let non_explicit_chain = non_explicit_chain_res.unwrap();
+        let leaf_cert = leaf_cert_from_non_explicit_chain(&non_explicit_chain);
+        let leaf_cert_pub_key = leaf_cert.payload.subject_pub_key.unwrap();
+
+        expect!(signed_payload_cose
+            .verify_signature(&TEST_AAD, |sign, data| ecdsa.verify_signature(
+                &leaf_cert_pub_key,
+                data,
+                sign
+            ))
+            .is_ok());
+    }
+
+    fn leaf_cert_from_non_explicit_chain(dice_chain: &Vec<u8>) -> DiceChainEntry {
+        let mut chain_value = Value::from_slice(dice_chain.as_slice()).expect("invalid cbor");
+        let chain_arr: &mut Vec<Value> =
+            chain_value.as_array_mut().expect("get_bcc should return a CBOR array");
+        let last_cert_cbor = chain_arr.remove(chain_arr.len() - 1);
+
+        DiceChainEntry::from_cbor_value(last_cert_cbor).expect("Invalid leaf cert")
     }
 
     fn to_bcc_handover(dice_artifacts: &dyn DiceArtifacts) -> Vec<u8> {

@@ -25,8 +25,11 @@ MODULE_SDK_LIB_NAME := pvmdice-rust
 
 MODULE_LIBRARY_DEPS += \
 	$(call FIND_CRATE,log) \
+	$(call FIND_CRATE,coset) \
 	$(call FIND_CRATE,ciborium) \
 	trusty/user/base/interface/apploader \
+	trusty/user/base/lib/authgraph-rust/core \
+	trusty/user/base/lib/authgraph-rust/boringssl \
 	trusty/user/base/lib/hwbcc/rust \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/trusty-std \
