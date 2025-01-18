@@ -32,4 +32,8 @@ MODULE_LIBRARY_DEPS += \
 
 MODULE_ADD_IMPLICIT_DEPS := false
 
+# TODO: figure out why as of Rust 1.82, rustdoc fails nsjailed Soong builds
+# whereas regular (build.py) builds still work.
+MODULE_SKIP_DOCS := true
+
 include make/library.mk

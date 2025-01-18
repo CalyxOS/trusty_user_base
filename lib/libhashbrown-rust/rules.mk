@@ -43,4 +43,8 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/liballoc-rust \
 	trusty/user/base/lib/libcompiler_builtins-rust \
 
+# TODO: figure out why as of Rust 1.82, rustdoc fails nsjailed Soong builds
+# whereas regular (build.py) builds still work.
+MODULE_SKIP_DOCS := true
+
 include make/library.mk
