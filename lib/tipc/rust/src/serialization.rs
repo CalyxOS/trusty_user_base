@@ -1,7 +1,7 @@
 use crate::{Handle, TipcError};
 use core::fmt::Debug;
 use core::{mem, slice};
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 /// A helper provided by the transport handle for the message type to serialize
 /// into.
