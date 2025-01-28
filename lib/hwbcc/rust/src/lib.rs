@@ -28,6 +28,7 @@
 mod test;
 
 mod err;
+pub mod srv;
 
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
@@ -42,6 +43,7 @@ pub use err::HwBccError;
 
 use core::ffi::CStr;
 use core::mem;
+use num_derive::FromPrimitive;
 use sys::*;
 use tipc::Serializer;
 use tipc::{Deserialize, Handle, Serialize};
@@ -51,7 +53,7 @@ use trusty_sys::{c_long, Error};
 // Constant defined in trusty/user/base/interface/hwbcc/include/interface/hwbcc
 pub const HWBCC_MAX_RESP_PAYLOAD_LENGTH: usize = HWBCC_MAX_RESP_PAYLOAD_SIZE as usize;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, FromPrimitive)]
 #[repr(u32)]
 enum BccCmd {
     RespBit = hwbcc_cmd_HWBCC_CMD_RESP_BIT,
@@ -72,6 +74,7 @@ impl BccCmd {
     }
 }
 /// Generic header for all hwbcc requests.
+#[derive(Debug, PartialEq)]
 struct BccMsgHeader {
     cmd: BccCmd,
     test_mode: HwBccMode,
@@ -82,6 +85,7 @@ struct BccMsgHeader {
 /// Note that the Serialize trait implementation ensures compatibility with
 /// C clients and servers. We do not depend on the representation of this
 /// struct for that compatibility.
+#[derive(Debug, PartialEq)]
 struct BccMsg<'a> {
     header: BccMsgHeader,
     sign_req: Option<SignDataMsg<'a>>,
@@ -127,6 +131,7 @@ impl<'s> Serialize<'s> for BccMsgHeader {
 }
 
 /// Request to sign data.
+#[derive(Debug, PartialEq)]
 struct SignDataMsg<'a> {
     /// Contains signing algorithm, data size, aad size
     algorithm: SigningAlgorithm,
@@ -217,7 +222,7 @@ impl Deserialize for HwBccResponse {
 /// and should differ with each invocation, intra-test.
 /// `Release` mode relies on the hwkey service to derive
 /// its key seed.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, FromPrimitive)]
 #[repr(u32)]
 pub enum HwBccMode {
     Release = 0,
@@ -228,7 +233,7 @@ pub enum HwBccMode {
 ///
 /// Project uses CBOR Object Signing and Encryption (COSE) encodings.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, FromPrimitive)]
 #[repr(i16)]
 pub enum SigningAlgorithm {
     ED25519 = hwbcc_algorithm_HWBCC_ALGORITHM_ED25519 as i16,
