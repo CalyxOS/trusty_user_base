@@ -31,12 +31,17 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/interface/hwbcc \
 	trusty/user/base/lib/trusty-std \
 	$(call FIND_CRATE,log) \
+	$(call FIND_CRATE,zerocopy) \
+	$(call FIND_CRATE,num-derive) \
+	$(call FIND_CRATE,num-traits) \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/system_state/rust \
 	trusty/user/base/lib/hwbcc/common \
 
 MODULE_BINDGEN_ALLOW_TYPES := \
 	hwbcc.* \
+
+
 
 MODULE_BINDGEN_ALLOW_VARS := \
 	HWBCC.* \
@@ -48,6 +53,7 @@ MODULE_BINDGEN_ALLOW_FUNCTIONS := \
 
 MODULE_BINDGEN_FLAGS := \
 	--use-array-pointers-in-arguments \
+	--with-derive-custom-struct=hwbcc.*=zerocopy::IntoBytes,zerocopy::FromBytes \
 
 MODULE_BINDGEN_SRC_HEADER := $(LOCAL_DIR)/bindings.h
 

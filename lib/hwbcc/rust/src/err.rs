@@ -19,7 +19,7 @@ use tipc::TipcError;
 use trusty_std::alloc::AllocError;
 use trusty_sys::Error;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum HwBccError {
     NotAllowed,
     BadLen,
