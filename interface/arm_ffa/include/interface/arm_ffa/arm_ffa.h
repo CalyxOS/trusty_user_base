@@ -29,7 +29,7 @@
 #endif
 
 #define FFA_CURRENT_VERSION_MAJOR (1U)
-#define FFA_CURRENT_VERSION_MINOR (0U)
+#define FFA_CURRENT_VERSION_MINOR (1U)
 
 #define FFA_VERSION_TO_MAJOR(version) ((version) >> 16)
 #define FFA_VERSION_TO_MINOR(version) ((version) & (0xffff))
@@ -229,7 +229,7 @@ STATIC_ASSERT(sizeof(struct ffa_mapd) == 4);
  * struct ffa_emad - Endpoint memory access descriptor.
  * @mapd:  &struct ffa_mapd.
  * @comp_mrd_offset:
- *         Offset of &struct ffa_comp_mrd form start of &struct ffa_mtd.
+ *         Offset of &struct ffa_comp_mrd form start of &struct ffa_mtd_common.
  * @reserved_8_15:
  *         Reserved bytes 8-15. Must be 0.
  */
@@ -241,7 +241,7 @@ struct ffa_emad {
 STATIC_ASSERT(sizeof(struct ffa_emad) == 16);
 
 /**
- * struct ffa_mtd - Memory transaction descriptor.
+ * struct ffa_mtd_common - Memory transaction descriptor.
  * @sender_id:
  *         Sender endpoint id.
  * @memory_region_attributes:
@@ -253,6 +253,21 @@ STATIC_ASSERT(sizeof(struct ffa_emad) == 16);
  * @handle:
  *         Id of shared memory object. Most be 0 for MEM_SHARE.
  * @tag:   Client allocated tag. Must match original value.
+ */
+struct ffa_mtd_common {
+    ffa_endpoint_id16_t sender_id;
+    ffa_mem_attr8_t memory_region_attributes;
+    uint8_t reserved_3;
+    ffa_mtd_flag32_t flags;
+    uint64_t handle;
+    uint64_t tag;
+};
+STATIC_ASSERT(sizeof(struct ffa_mtd_common) == 24);
+
+/**
+ * struct ffa_mtd_v1_0 - Memory transaction descriptor for v1.0.
+ * @common:
+ *         The common part of the descriptor (shared with v1.1).
  * @reserved_24_27:
  *         Reserved bytes 24-27. Must be 0.
  * @emad_count:
@@ -261,18 +276,39 @@ STATIC_ASSERT(sizeof(struct ffa_emad) == 16);
  * @emad:
  *         Endpoint memory access descriptor array (see @struct ffa_emad).
  */
-struct ffa_mtd {
-    ffa_endpoint_id16_t sender_id;
-    ffa_mem_attr8_t memory_region_attributes;
-    uint8_t reserved_3;
-    ffa_mtd_flag32_t flags;
-    uint64_t handle;
-    uint64_t tag;
+struct ffa_mtd_v1_0 {
+    struct ffa_mtd_common common;
     uint32_t reserved_24_27;
     uint32_t emad_count;
     struct ffa_emad emad[];
 };
-STATIC_ASSERT(sizeof(struct ffa_mtd) == 32);
+STATIC_ASSERT(sizeof(struct ffa_mtd_v1_0) == 32);
+
+/**
+ * struct ffa_mtd_v1_1 - Memory transaction descriptor for v1.1 and higher.
+ * @common:
+ *         The common part of the descriptor (shared with v1.0).
+ * @emad_size:
+ *         Size of each endpoint memory access descriptor.
+ * @emad_count:
+ *         Number of entries at @emad_offset.
+ *         Must be 1 in current implementation.
+ *         FFA spec allows more entries.
+ * @emad_offset:
+ *         Offset from the base address of this descriptor to the
+ *         endpoint memory access descriptor array (see @struct ffa_emad).
+ * @reserved_36: Reserved bytes at offset 36. Must be 0.
+ * @reserved_40: Reserved bytes at offset 40. Must be 0.
+ */
+struct ffa_mtd_v1_1 {
+    struct ffa_mtd_common common;
+    uint32_t emad_size;
+    uint32_t emad_count;
+    uint32_t emad_offset;
+    uint32_t reserved_36;
+    uint64_t reserved_40;
+};
+STATIC_ASSERT(sizeof(struct ffa_mtd_v1_1) == 48);
 
 /**
  * struct ffa_mem_relinquish_descriptor - Relinquish request descriptor.
