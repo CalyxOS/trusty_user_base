@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-SRC_DIR := $(RUST_BINDIR)/../src/stdlibs/library/panic_abort
+SRC_DIR := $(RUST_BINDIR)/../lib/rustlib/src/rust/library/panic_abort
 
 MODULE_SRCS := $(SRC_DIR)/src/lib.rs
 
