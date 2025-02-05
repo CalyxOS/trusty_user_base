@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-LIBALLOC_DIR = $(RUST_BINDIR)/../src/stdlibs/library/alloc
+LIBALLOC_DIR = $(RUST_BINDIR)/../lib/rustlib/src/rust/library/alloc
 
 MODULE_SRCS := $(LIBALLOC_DIR)/src/lib.rs
 

@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-LIBUNWIND_DIR = $(RUST_BINDIR)/../src/stdlibs/library/unwind
+LIBUNWIND_DIR = $(RUST_BINDIR)/../lib/rustlib/src/rust/library/unwind
 
 MODULE_SRCS := $(LIBUNWIND_DIR)/src/lib.rs
 
