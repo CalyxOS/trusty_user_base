@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-RUSTC_DEMANGLE_DIR = $(RUST_BINDIR)/../src/stdlibs/vendor/rustc-demangle
+RUSTC_DEMANGLE_DIR = $(RUST_BINDIR)/../lib/rustlib/src/rust/vendor/rustc-demangle
 
 MODULE_SRCS := $(RUSTC_DEMANGLE_DIR)/src/lib.rs
 

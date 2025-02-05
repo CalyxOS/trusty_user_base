@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-COMPILER_BUILTINS_DIR = $(RUST_BINDIR)/../src/stdlibs/vendor/compiler_builtins
+COMPILER_BUILTINS_DIR = $(RUST_BINDIR)/../lib/rustlib/src/rust/vendor/compiler_builtins
 
 MODULE_SRCS := $(COMPILER_BUILTINS_DIR)/src/lib.rs
 

@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-HASHBROWN_DIR = $(RUST_BINDIR)/../src/stdlibs/vendor/hashbrown
+HASHBROWN_DIR = $(RUST_BINDIR)/../lib/rustlib/src/rust/vendor/hashbrown
 
 MODULE_SRCS := $(HASHBROWN_DIR)/src/lib.rs
 
