@@ -232,16 +232,16 @@ int swbcc_init(swbcc_session_t* s, const struct uuid* client) {
      * the DICE artifacts to the clients.
      */
     if (is_zero_uuid(session->client_uuid)) {
-        *s = (swbcc_session_t)session;
-
         /**
          * Stop serving calls from non-secure world after receiving
          * `ns_deprivilege` call.
          */
         if (srv_state.ns_deprivileged) {
+            free(session);
             return ERR_NOT_ALLOWED;
         }
 
+        *s = (swbcc_session_t)session;
         return NO_ERROR;
     }
 
@@ -263,7 +263,7 @@ int swbcc_init(swbcc_session_t* s, const struct uuid* client) {
     rc = dice_result_to_err(result);
     if (rc != NO_ERROR) {
         TLOGE("Failed to generate keypair: %d\n", rc);
-        return rc;
+        goto err;
     }
 
     /* Init test keys */
@@ -279,7 +279,7 @@ int swbcc_init(swbcc_session_t* s, const struct uuid* client) {
     rc = dice_result_to_err(result);
     if (rc != NO_ERROR) {
         TLOGE("Failed to generate test keypair: %d\n", rc);
-        return rc;
+        goto err;
     }
 
     *s = (swbcc_session_t)session;
