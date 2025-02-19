@@ -67,6 +67,8 @@ enum storage_cmd {
     STORAGE_FILE_MOVE = 10 << STORAGE_REQ_SHIFT,
     STORAGE_FILE_LIST = 11 << STORAGE_REQ_SHIFT,
     STORAGE_FILE_GET_MAX_SIZE = 12 << STORAGE_REQ_SHIFT,
+
+    STORAGE_CHECKPOINTING_STATE = 13 << STORAGE_REQ_SHIFT,
 };
 
 /**
@@ -457,6 +459,49 @@ struct storage_rpmb_send_resp {
     uint8_t data[0];
 };
 #endif
+
+/**
+ * enum storage_checkpoint_state: the device's User Data Checkpoint status
+ * @STORAGE_CHECKPOINT_STATE_DONE:     There is no active UDC. Writes will not
+ *                                     be rolled back and if there's a forward
+ *                                     checkpoint for
+ *                                     &storage_checkpointing_state_resp.boot_slot,
+ *                                     it should be committed.
+ * @STORAGE_CHECKPOINT_STATE_POSSIBLE: There may be an active UDC or maybe the
+ *                                     device boot is not yet far enough along
+ *                                     to know. Writes may need to be rolled
+ *                                     back.
+ *
+ * Other values are reserved for future use.
+ */
+enum storage_checkpoint_state : uint32_t {
+    STORAGE_CHECKPOINT_STATE_DONE = 1,
+    STORAGE_CHECKPOINT_STATE_POSSIBLE = 2,
+};
+
+/**
+ * struct storage_checkpointing_state_resp: response type for
+ * STORAGE_CHECKPOINTING_STATE
+ * @state:     Value of type &enum storage_checkpoint_state describing the
+ *             current state
+ * @boot_slot: ID for the current boot slot. Same as
+ *             IBootControl::getCurrentSlot. A value < 0 indicates that
+ *             storageproxy does not support on-disk staged changes, so they'll
+ *             always be discarded.
+ *
+ * If storage observes staged changes on-disk which are tagged with a different
+ * boot slot than @boot_slot, it means that we have rolled back, so the changes
+ * should be discarded. If the changes' boot slot matches @boot_slot, we have
+ * not rolled back, so the on-disk staged changes should be used, then committed
+ * when the checkpoint completes. Storage gets a blocking call (TODO: implement
+ * this) to mark a checkpoint complete (before IBootControl::setActiveBootSlot
+ * is called), so a non-matching boot slot can't be the result of a double
+ * update.
+ */
+struct storage_checkpointing_state_resp {
+    uint32_t state;
+    int32_t boot_slot;
+};
 
 /**
  * struct storage_msg - generic req/resp format for all storage commands
