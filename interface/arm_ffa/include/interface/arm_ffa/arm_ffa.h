@@ -29,7 +29,7 @@
 #endif
 
 #define FFA_CURRENT_VERSION_MAJOR (1U)
-#define FFA_CURRENT_VERSION_MINOR (1U)
+#define FFA_CURRENT_VERSION_MINOR (2U)
 
 #define FFA_VERSION_TO_MAJOR(version) ((version) >> 16)
 #define FFA_VERSION_TO_MINOR(version) ((version) & (0xffff))
