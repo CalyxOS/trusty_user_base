@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#![feature(cfg_version)]
+
 //! Trusty simple logger backend
 //!
 //! Logs to stderr based on a compile-time configured log level.
@@ -134,6 +136,7 @@ pub fn init_with_config(config: TrustyLoggerConfig) {
             LOGGER = Some(TrustyLogger::new(config));
         });
         // Logger is always Some(_) at this point, so we just unwrap it
+        #[cfg_attr(version("1.83"), allow(static_mut_refs))]
         LOGGER.as_ref().unwrap()
     };
     log::set_logger(global_logger).expect("Could not set global logger");
