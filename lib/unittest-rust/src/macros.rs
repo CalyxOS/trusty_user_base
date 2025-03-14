@@ -294,9 +294,9 @@ macro_rules! assert_ok {
         match ($result) {
             Ok(t) => t,
             Err(e) => {
-                $crate::asserts::assert_err(
+                $crate::asserts::assert_ok_failed(
                     core::stringify!($result),
-                    &e,
+                    e,
                     core::option::Option::None
                 );
                 return;
@@ -307,9 +307,9 @@ macro_rules! assert_ok {
         match ($result) {
             Ok(t) => t,
             Err(e) => {
-                $crate::asserts::assert_err(
+                $crate::asserts::assert_ok_failed(
                     core::stringify!($result),
-                    &e,
+                    e,
                     core::option::Option::Some(core::format_args!($($arg)+))
                 );
                 return;
