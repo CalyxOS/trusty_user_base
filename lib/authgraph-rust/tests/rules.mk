@@ -25,7 +25,7 @@ MODULE_LIBRARY_DEPS += \
 	packages/modules/Virtualization/libs/dice/open_dice \
 	trusty/user/base/lib/authgraph-rust/core \
 	trusty/user/base/lib/authgraph-rust/wire \
-	trusty/user/base/lib/hex-rust \
+	$(call FIND_CRATE,hex) \
 	$(call FIND_CRATE,coset) \
 
 include make/library.mk
