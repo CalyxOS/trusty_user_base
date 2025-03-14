@@ -34,7 +34,6 @@ use std::fmt;
 use std::panic::Location;
 
 #[derive(Debug)]
-#[doc(hidden)]
 pub enum AssertKind {
     Eq,
     Ne,
@@ -43,7 +42,6 @@ pub enum AssertKind {
 
 #[cold]
 #[track_caller]
-#[doc(hidden)]
 pub fn assert_failed<T, U>(kind: AssertKind, left: &T, right: &U, args: Option<fmt::Arguments<'_>>)
 where
     T: fmt::Debug + ?Sized,
@@ -92,7 +90,6 @@ fn assert_failed_inner(
 
 #[cold]
 #[track_caller]
-#[doc(hidden)]
 pub fn assert_ok_failed<E: fmt::Display>(
     result: &'static str,
     err: E,
