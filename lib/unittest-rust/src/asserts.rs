@@ -53,7 +53,7 @@ where
 }
 
 #[track_caller]
-pub fn assert_failed_inner(
+fn assert_failed_inner(
     kind: AssertKind,
     left: &dyn fmt::Debug,
     right: &dyn fmt::Debug,
@@ -90,19 +90,19 @@ pub fn assert_failed_inner(
     CONTEXT.fail(false);
 }
 
+#[cold]
 #[track_caller]
 #[doc(hidden)]
-pub fn assert_err<E: fmt::Display>(
+pub fn assert_ok_failed<E: fmt::Display>(
     result: &'static str,
-    err: &E,
+    err: E,
     args: Option<fmt::Arguments<'_>>,
 ) {
-    assert_err_inner(result, &*err, args);
+    assert_ok_failed_inner(result, &err, args);
 }
 
 #[track_caller]
-#[doc(hidden)]
-pub fn assert_err_inner(
+fn assert_ok_failed_inner(
     result: &'static str,
     err: &dyn fmt::Display,
     args: Option<fmt::Arguments<'_>>,
