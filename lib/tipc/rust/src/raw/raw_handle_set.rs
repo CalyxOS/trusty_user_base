@@ -78,6 +78,11 @@ impl<H: Handler> RawHandleSet<H> {
         ret
     }
 
+    /// Set the event mask for a previously registered service handle.
+    pub fn set_event_mask(&self, event_cookie_obj: &Arc<H>, enabled_events: u32) -> Result<()> {
+        self.do_set_ctrl(sys::HSET_MOD_WITH_COOKIE as u32, enabled_events, &event_cookie_obj)
+    }
+
     /// Remove a previously registered handle object.
     pub fn remove(&self, event_cookie_obj: Arc<H>) -> Result<()> {
         self.remove_raw(event_cookie_obj.get_raw_fd_id()).map(|_| ())
