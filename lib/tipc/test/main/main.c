@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +31,7 @@
 #include <ipc_unittest_uuid_consts.h>
 #include <lib/tipc/tipc.h>
 #include <lib/unittest/unittest.h>
+#include <lk/trusty_unittest.h>
 
 /* base of valid handle range */
 static handle_t handle_base;
@@ -39,6 +41,8 @@ static unsigned int first_free_handle_index;
 
 static const uuid_t srv_app_uuid = IPC_UNITTEST_SRV_APP_UUID;
 static const uintptr_t COOKIE_BASE = 100;
+
+static const char* FORWARDER_PORT = "com.android.trusty.vsock.forwarder";
 
 #define ABORT_IF(_cond, lbl) \
     {                        \
@@ -64,6 +68,30 @@ static const uintptr_t COOKIE_BASE = 100;
 #else
 #define DISABLED_WITH_COVERAGE(name) name
 #endif
+
+#if TRUSTY_IPC_TEST_LOCAL
+#define IPC_LOCAL ipc_local
+#else
+#define IPC_LOCAL DISABLED_ipc_local
+#endif
+
+/****************************************************************************/
+
+enum tipc_test_parameter {
+    TIPC_TEST_PARAMETER_LOCAL = false,
+    TIPC_TEST_PARAMETER_VSOCK = true,
+};
+
+typedef struct {
+    enum tipc_test_parameter test_param;
+} ipc_param_t;
+
+void ipc_param_SetUp(ipc_param_t* p) {
+    p->test_param = *(const bool*)GetParam();
+}
+
+void ipc_param_TearDown(ipc_param_t* p) { }
+
 
 /****************************************************************************/
 
@@ -107,12 +135,179 @@ int sync_connect(const char* path, unsigned int timeout) {
     return rc;
 }
 
+int init_forwarder(handle_t chan, const char* port, uint32_t timeout_msecs) {
+    ssize_t rc;
+    uevent_t uevt;
+    ipc_msg_info_t inf;
+    ipc_msg_t msg;
+    struct iovec iov;
+    uint8_t status;
+
+    iov.iov_base = (void*)port;
+    iov.iov_len = strlen(port);
+    msg.num_handles = 0;
+    msg.handles = NULL;
+    msg.num_iov = 1;
+    msg.iov = &iov;
+
+    rc = send_msg(chan, &msg);
+    if (rc < NO_ERROR) {
+        goto error;
+    }
+    if (rc < (ssize_t)iov.iov_len) {
+        rc = ERR_GENERIC;
+        goto error;
+    }
+
+    rc = wait(chan, &uevt, timeout_msecs);
+    /* Forwarder is always IPC_CONNECT_WAIT_FOR_PORT, use timeout to
+     * simulate non-wait-for-port connection.
+     */
+    if (rc == ERR_TIMED_OUT) {
+        rc = ERR_NOT_FOUND;
+        goto error;
+    }
+    if (rc < NO_ERROR) {
+        goto error;
+    }
+    if (chan < uevt.handle) {
+        rc = ERR_GENERIC;
+        goto error;
+    }
+    if (uevt.event == IPC_HANDLE_POLL_HUP) {
+        rc = ERR_CHANNEL_CLOSED;
+        goto error;
+    }
+
+    rc = get_msg(chan, &inf);
+    if (rc < NO_ERROR) {
+        goto error;
+    }
+
+    iov.iov_base = &status;
+    iov.iov_len = sizeof(status);
+
+    rc = read_msg(chan, inf.id, 0, &msg);
+    if (rc < NO_ERROR) {
+        goto error;
+    }
+    if (status != 0) {
+        rc = ERR_GENERIC;
+        goto error;
+    }
+
+    rc = put_msg(chan, inf.id);
+    if (rc < NO_ERROR) {
+        goto error;
+    }
+
+error:
+    return rc;
+}
+
+handle_t forwarder_connect(const char* port, uint32_t opt) {
+    int rc;
+    handle_t chan = INVALID_IPC_HANDLE;
+    const uint32_t timeout_msecs = opt & IPC_CONNECT_WAIT_FOR_PORT
+        ? INFINITE_TIME
+        : 1000;
+
+    if (!port) {
+        return ERR_FAULT;
+    }
+    if (!*port) {
+        return ERR_INVALID_ARGS;
+    }
+    if (strnlen(port, MAX_PORT_PATH_LEN) == MAX_PORT_PATH_LEN) {
+        return ERR_INVALID_ARGS;
+    }
+
+    rc = connect(FORWARDER_PORT, opt);
+    if (rc <= NO_ERROR) {
+        goto err_connect;
+    }
+
+    chan = (handle_t)rc;
+
+    rc = init_forwarder(chan, port, timeout_msecs);
+    if (rc < NO_ERROR) {
+        goto err_init_forwarder;
+    }
+
+    return chan;
+
+err_init_forwarder:
+    close(chan);
+
+err_connect:
+    return rc;
+}
+
+handle_t forwarder_tipc_connect(handle_t* chan, const char* port) {
+    int rc;
+    handle_t temp_chan = INVALID_IPC_HANDLE;
+
+    if (!port) {
+        return ERR_FAULT;
+    }
+    if (!*port) {
+        return ERR_INVALID_ARGS;
+    }
+    if (strnlen(port, MAX_PORT_PATH_LEN) == MAX_PORT_PATH_LEN) {
+        return ERR_INVALID_ARGS;
+    }
+    if (!chan) {
+        return ERR_FAULT;
+    }
+
+    rc = tipc_connect(&temp_chan, FORWARDER_PORT);
+    if (rc < NO_ERROR) {
+        goto err_tipc_connect;
+    }
+
+    rc = init_forwarder(temp_chan, port, INFINITE_TIME);
+    if (rc < NO_ERROR) {
+        goto err_init_forwarder;
+    }
+
+    *chan = temp_chan;
+    return rc;
+
+err_init_forwarder:
+    close(temp_chan);
+
+err_tipc_connect:
+    return rc;
+
+}
+
+int param_tipc_connect(handle_t* chan, const char* port, enum tipc_test_parameter test_param) {
+    if (test_param == TIPC_TEST_PARAMETER_VSOCK) {
+        return forwarder_tipc_connect(chan, port);
+    } else {
+        return tipc_connect(chan, port);
+    }
+}
+
+handle_t param_connect(const char* port, unsigned int opt, enum tipc_test_parameter test_param) {
+    /* TODO: Remove this line when param_connect supports ASYNC */
+    if (opt & IPC_CONNECT_ASYNC) {
+        return ERR_INVALID_ARGS;
+    }
+
+    if (test_param == TIPC_TEST_PARAMETER_VSOCK) {
+        return forwarder_connect(port, opt);
+    } else {
+        return connect(port, opt);
+    }
+}
+
 /****************************************************************************/
 
 /*
  *  wait on handle negative test
  */
-TEST(ipc, DISABLED_WITH_COVERAGE(wait_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(wait_negative)) {
     int rc;
     uevent_t event;
     uint32_t timeout = 1000;  // 1 sec
@@ -150,7 +345,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(wait_negative)) {
 /*
  *  Close handle unittest
  */
-TEST(ipc, DISABLED_WITH_COVERAGE(close_handle_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(close_handle_negative)) {
     int rc;
 
     /* closing an invalid (negative value) handle. */
@@ -186,7 +381,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(close_handle_negative)) {
 /*
  *  Set cookie negative unittest
  */
-TEST(ipc, DISABLED_WITH_COVERAGE(set_cookie_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(set_cookie_negative)) {
     int rc;
 
     /* set cookie for invalid (negative value) handle. */
@@ -222,7 +417,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(set_cookie_negative)) {
 /*
  *  Duplicate handle unittest
  */
-TEST(ipc, DISABLED_WITH_COVERAGE(dup_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(dup_negative)) {
     int rc;
 
     /* duplicating an invalid (negative value) handle. */
@@ -260,7 +455,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(dup_negative)) {
 /*
  *  Port create unittest
  */
-TEST(ipc, port_create_negative) {
+TEST(IPC_LOCAL, port_create_negative) {
     int rc;
     char path[MAX_PORT_PATH_LEN + 16];
 
@@ -300,7 +495,7 @@ TEST(ipc, port_create_negative) {
     EXPECT_EQ(ERR_BAD_HANDLE, rc, "close port");
 }
 
-TEST(ipc, DISABLED_WITH_COVERAGE(port_create)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(port_create)) {
     int rc;
     unsigned int i;
     char path[MAX_PORT_PATH_LEN];
@@ -351,7 +546,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(port_create)) {
 /*
  *
  */
-TEST(ipc, DISABLED_WITH_COVERAGE(wait_on_port)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(wait_on_port)) {
     int rc;
     uevent_t event;
     char path[MAX_PORT_PATH_LEN];
@@ -401,7 +596,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(wait_on_port)) {
 /*
  *  Connect unittests
  */
-TEST(ipc, connect_negative) {
+TEST(IPC_LOCAL, connect_negative) {
     int rc;
     char path[MAX_PORT_PATH_LEN + 16] = "";
 
@@ -431,7 +626,7 @@ TEST(ipc, connect_negative) {
     EXPECT_EQ(ERR_BAD_HANDLE, rc, "close channel");
 }
 
-TEST(ipc, DISABLED_WITH_COVERAGE(connect_close)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(connect_close)) {
     int rc;
     char path[MAX_PORT_PATH_LEN];
     handle_t chans[16];
@@ -454,7 +649,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(connect_close)) {
     }
 }
 
-static void run_connect_close_by_peer_test(const char* test) {
+static void run_connect_close_by_peer_test(const char* test, enum tipc_test_parameter test_param) {
     int rc;
     char path[MAX_PORT_PATH_LEN];
     uevent_t event;
@@ -467,7 +662,7 @@ static void run_connect_close_by_peer_test(const char* test) {
      */
     sprintf(path, "%s.srv.%s", SRV_PATH_BASE, test);
     for (unsigned int i = 0; i < countof(chans); i++) {
-        rc = connect(path, IPC_CONNECT_WAIT_FOR_PORT);
+        rc = param_connect(path, IPC_CONNECT_WAIT_FOR_PORT, test_param);
 
         /*
          * depending on task scheduling connect might return real
@@ -524,19 +719,19 @@ static void run_connect_close_by_peer_test(const char* test) {
     EXPECT_EQ(0, chan_cnt, "%s", test);
 }
 
-TEST(ipc, connect_close_by_peer_1) {
-    run_connect_close_by_peer_test("closer1");
+TEST_P(ipc_param, connect_close_by_peer_1) {
+    run_connect_close_by_peer_test("closer1", _state->test_param);
 }
 
-TEST(ipc, connect_close_by_peer_2) {
-    run_connect_close_by_peer_test("closer2");
+TEST_P(ipc_param, connect_close_by_peer_2) {
+    run_connect_close_by_peer_test("closer2", _state->test_param);
 }
 
-TEST(ipc, connect_close_by_peer_3) {
-    run_connect_close_by_peer_test("closer3");
+TEST_P(ipc_param, connect_close_by_peer_3) {
+    run_connect_close_by_peer_test("closer3", _state->test_param);
 }
 
-TEST(ipc, async_connect) {
+TEST(IPC_LOCAL, async_connect) {
     int rc;
     handle_t chan;
     uevent_t event;
@@ -622,7 +817,7 @@ TEST(ipc, async_connect) {
     }
 }
 
-TEST(ipc, connect_selfie) {
+TEST(IPC_LOCAL, connect_selfie) {
     int rc;
     uuid_t peer_uuid = UUID_INITIAL_VALUE(peer_uuid);
     uuid_t zero_uuid = UUID_INITIAL_VALUE(zero_uuid);
@@ -738,7 +933,7 @@ TEST(ipc, connect_selfie) {
     }
 }
 
-TEST(ipc, connect_access) {
+TEST(IPC_LOCAL, connect_access) {
     int rc;
     char path[MAX_PORT_PATH_LEN];
 
@@ -768,7 +963,7 @@ TEST(ipc, connect_access) {
 /*
  *  Accept negative test
  */
-TEST(ipc, DISABLED_WITH_COVERAGE(accept_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(accept_negative)) {
     int rc, rc1;
     char path[MAX_PORT_PATH_LEN];
     handle_t chan;
@@ -834,7 +1029,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(accept_negative)) {
  * Disabled per b/140836874 - believed to be a race in the test code, not
  * in IPC.
  */
-TEST(ipc, DISABLED_accept) {
+TEST(IPC_LOCAL, DISABLED_accept) {
     int rc, rc1;
     uevent_t event;
     char path[MAX_PORT_PATH_LEN];
@@ -924,7 +1119,7 @@ TEST(ipc, DISABLED_accept) {
 
 /****************************************************************************/
 
-TEST(ipc, DISABLED_WITH_COVERAGE(get_msg_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(get_msg_negative)) {
     int rc;
     ipc_msg_info_t inf;
     handle_t port;
@@ -984,7 +1179,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(get_msg_negative)) {
     EXPECT_EQ(NO_ERROR, rc, "close channnel");
 }
 
-TEST(ipc, DISABLED_WITH_COVERAGE(put_msg_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(put_msg_negative)) {
     int rc;
     handle_t port;
     handle_t chan;
@@ -1046,7 +1241,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(put_msg_negative)) {
 /*
  *  Send 10000 messages to datasink service
  */
-TEST(ipc, send_msg) {
+TEST(IPC_LOCAL, send_msg) {
     int rc;
     handle_t chan;
     char path[MAX_PORT_PATH_LEN];
@@ -1097,7 +1292,7 @@ TEST(ipc, send_msg) {
     }
 }
 
-TEST(ipc, DISABLED_WITH_COVERAGE(send_msg_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(send_msg_negative)) {
     int rc;
     handle_t port;
     handle_t chan;
@@ -1207,7 +1402,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(send_msg_negative)) {
     EXPECT_EQ(NO_ERROR, rc, "close channel");
 }
 
-TEST(ipc, DISABLED_WITH_COVERAGE(read_msg_negative)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(read_msg_negative)) {
     int rc;
     handle_t port;
     handle_t chan;
@@ -1352,7 +1547,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(read_msg_negative)) {
     EXPECT_EQ(NO_ERROR, rc, "close channel");
 }
 
-TEST(ipc, end_to_end_msg) {
+TEST_P(ipc_param, end_to_end_msg) {
     int rc;
     handle_t chan;
     uevent_t uevt;
@@ -1382,20 +1577,25 @@ TEST(ipc, end_to_end_msg) {
     memset(tx_buf, 0x55, sizeof(tx_buf));
     memset(rx_buf, 0xaa, sizeof(rx_buf));
 
+    /* open connection to echo service */
     sprintf(path, "%s.srv.%s", SRV_PATH_BASE, "echo");
-    rc = connect(path, IPC_CONNECT_WAIT_FOR_PORT);
+    rc = param_connect(path, IPC_CONNECT_WAIT_FOR_PORT, _state->test_param);
     EXPECT_GT_ZERO(rc, "connect to echo");
 
-    if (rc >= 0) {
-        unsigned int tx_cnt = 0;
-        unsigned int rx_cnt = 0;
+    if (rc >= NO_ERROR) {
+        unsigned int msg_cnt = 10000;
+        unsigned int tx_cnt;
+        unsigned int rx_cnt;
 
         chan = (handle_t)rc;
 
-        /* send 10000 messages synchronously, waiting for reply
-           for each one
-         */
-        tx_cnt = 10000;
+        /* TODO(b/458749193): High overhead on @wait over vsock makes 20k messages unreasonable */
+        if (_state->test_param == TIPC_TEST_PARAMETER_VSOCK) {
+            msg_cnt = 50;
+        }
+
+        /* send/receive messages synchronously */
+        tx_cnt = msg_cnt;
         while (tx_cnt) {
             /* send a message */
             rc = send_msg(chan, &tx_msg);
@@ -1421,8 +1621,8 @@ TEST(ipc, end_to_end_msg) {
             tx_cnt--;
         }
 
-        /* send/receive 10000 messages asynchronously. */
-        rx_cnt = tx_cnt = 10000;
+        /* send/receive messages asynchronously */
+        tx_cnt = rx_cnt = msg_cnt;
         while (tx_cnt || rx_cnt) {
             /* send messages until all buffers are full */
             while (tx_cnt) {
@@ -1475,7 +1675,7 @@ TEST(ipc, end_to_end_msg) {
 
 /****************************************************************************/
 
-TEST(ipc, hset_create) {
+TEST(IPC_LOCAL, hset_create) {
     handle_t hset1;
     handle_t hset2;
 
@@ -1489,7 +1689,7 @@ TEST(ipc, hset_create) {
     close(hset2);
 }
 
-TEST(ipc, hset_add_mod_del) {
+TEST(IPC_LOCAL, hset_add_mod_del) {
     int rc;
     handle_t hset1;
     handle_t hset2;
@@ -1525,7 +1725,7 @@ abort_test:
     close(hset2);
 }
 
-TEST(ipc, hset_add_self) {
+TEST(IPC_LOCAL, hset_add_self) {
     int rc;
     handle_t hset1;
     handle_t hset1_dup;
@@ -1558,7 +1758,7 @@ abort_test:
     close(hset1_dup);
 }
 
-TEST(ipc, hset_add_loop) {
+TEST(IPC_LOCAL, hset_add_loop) {
     int rc;
     handle_t hset1;
     handle_t hset2;
@@ -1601,7 +1801,7 @@ abort_test:
     close(hset3);
 }
 
-TEST(ipc, hset_add_duplicate) {
+TEST(IPC_LOCAL, hset_add_duplicate) {
     int rc;
     handle_t hset1;
     handle_t hset2;
@@ -1643,7 +1843,7 @@ abort_test:
     close(hset2_dup);
 }
 
-TEST(ipc, hset_wait_on_empty_set) {
+TEST(IPC_LOCAL, hset_wait_on_empty_set) {
     int rc;
     uevent_t evt;
     handle_t hset1;
@@ -1666,7 +1866,7 @@ TEST(ipc, hset_wait_on_empty_set) {
 abort_test:;
 }
 
-TEST(ipc, hset_wait_on_non_empty_set) {
+TEST(IPC_LOCAL, hset_wait_on_non_empty_set) {
     int rc;
     handle_t hset1;
     handle_t hset2;
@@ -1702,7 +1902,7 @@ abort_test:
     close(hset2);
 }
 
-TEST(ipc, hset_wait_on_duplicate_in_set) {
+TEST(IPC_LOCAL, hset_wait_on_duplicate_in_set) {
     int rc;
     handle_t hset1;
     handle_t hset2;
@@ -1774,7 +1974,7 @@ abort_test:
     close(hset2_dup);
 }
 
-TEST(ipc, DISABLED_WITH_COVERAGE(dup_no_resources)) {
+TEST(IPC_LOCAL, DISABLED_WITH_COVERAGE(dup_no_resources)) {
     int rc;
     handle_t hsets[MAX_USER_HANDLES];
 
@@ -1811,7 +2011,7 @@ TEST(ipc, DISABLED_WITH_COVERAGE(dup_no_resources)) {
  * Disabled per b/140836874 - believed to be a race in the test code, not
  * in IPC.
  */
-TEST(ipc, DISABLED_hset_add_chan) {
+TEST(IPC_LOCAL, DISABLED_hset_add_chan) {
     int rc;
     uevent_t evt;
     handle_t hset1;
@@ -1962,7 +2162,7 @@ abort_test:
     close(hset2);
 }
 
-TEST(ipc, hset_event_mask) {
+TEST(IPC_LOCAL, hset_event_mask) {
     int rc;
     uevent_t evt;
     handle_t hset1;
@@ -2048,7 +2248,7 @@ abort_test:
 
 /****************************************************************************/
 
-TEST(ipc, send_handle) {
+TEST(IPC_LOCAL, send_handle) {
     int rc;
     struct iovec iov;
     ipc_msg_t msg;
@@ -2097,7 +2297,7 @@ err_connect2:
 err_connect1:;
 }
 
-TEST(ipc, send_handle_negative) {
+TEST(IPC_LOCAL, send_handle_negative) {
     int rc;
     ipc_msg_t msg;
     handle_t hchan;
@@ -2147,7 +2347,7 @@ TEST(ipc, send_handle_negative) {
 err_connect:;
 }
 
-TEST(ipc, recv_handle) {
+TEST(IPC_LOCAL, recv_handle) {
     int rc;
     handle_t hchan1;
     handle_t hchan2;
@@ -2275,7 +2475,7 @@ err_connect2:
 err_connect1:;
 }
 
-TEST(ipc, recv_handle_negative) {
+TEST(IPC_LOCAL, recv_handle_negative) {
     int rc;
     handle_t hchan1;
     ipc_msg_t msg;
@@ -2331,7 +2531,7 @@ TEST(ipc, recv_handle_negative) {
 err_connect1:;
 }
 
-TEST(ipc, send_handle_bulk) {
+TEST(IPC_LOCAL, send_handle_bulk) {
     int rc;
     struct iovec iov;
     ipc_msg_t msg;
@@ -2421,7 +2621,7 @@ err_connect2:
 err_connect1:;
 }
 
-TEST(ipc, echo_handle_bulk) {
+TEST(IPC_LOCAL, echo_handle_bulk) {
     int rc;
     handle_t hchan1;
     handle_t hchan2;
@@ -2514,13 +2714,13 @@ err_connect1:;
 /*
  * TIPC wrapper libtrary tests
  */
-TEST(ipc, tipc_connect) {
+TEST_P(ipc_param, tipc_connect) {
     int rc;
     handle_t h = INVALID_IPC_HANDLE;
     char path[MAX_PORT_PATH_LEN];
 
     /* Make tipc_connect fail and check if handle is unchanged */
-    rc = tipc_connect(&h, NULL);
+    rc = param_tipc_connect(&h, NULL, _state->test_param);
     EXPECT_EQ(ERR_FAULT, rc, "failed tipc_connect");
     EXPECT_EQ(INVALID_IPC_HANDLE, h, "failed tipc_connect")
 
@@ -2529,7 +2729,7 @@ TEST(ipc, tipc_connect) {
 
     /* Normal case: should succeed */
     sprintf(path, "%s.srv.%s", SRV_PATH_BASE, "echo");
-    rc = tipc_connect(&h, path);
+    rc = param_tipc_connect(&h, path, _state->test_param);
     EXPECT_EQ(0, rc, "tipc_connect");
     EXPECT_GT_ZERO(h, "tipc_connect");
 
@@ -2537,7 +2737,7 @@ TEST(ipc, tipc_connect) {
     EXPECT_EQ(0, rc, "close tipc_connect");
 }
 
-TEST(ipc, tipc_send_recv_1) {
+TEST_P(ipc_param, tipc_send_recv_1) {
     int rc;
     uint8_t tx_buf[64];
     uint8_t rx_buf[64];
@@ -2547,7 +2747,7 @@ TEST(ipc, tipc_send_recv_1) {
 
     /* open connection to echo service */
     sprintf(path, "%s.srv.%s", SRV_PATH_BASE, "echo");
-    rc = tipc_connect(&h, path);
+    rc = param_tipc_connect(&h, path, _state->test_param);
     EXPECT_EQ(0, rc, "tipc_connect");
     EXPECT_GT_ZERO(h, "tipc_connect");
 
@@ -2613,7 +2813,7 @@ TEST(ipc, tipc_send_recv_1) {
     EXPECT_EQ(0, rc, "close tipc_connect");
 }
 
-TEST(ipc, tipc_send_recv_hdr_payload) {
+TEST_P(ipc_param, tipc_send_recv_hdr_payload) {
     int rc;
     uint8_t tx_hdr[32];
     uint8_t tx_buf[64];
@@ -2624,7 +2824,7 @@ TEST(ipc, tipc_send_recv_hdr_payload) {
     struct uevent evt = UEVENT_INITIAL_VALUE(evt);
 
     sprintf(path, "%s.srv.%s", SRV_PATH_BASE, "echo");
-    rc = tipc_connect(&h, path);
+    rc = param_tipc_connect(&h, path, _state->test_param);
     EXPECT_EQ(0, rc, "tipc_connect");
     EXPECT_GT_ZERO(h, "tipc_connect");
 
@@ -2730,7 +2930,7 @@ TEST(ipc, tipc_send_recv_hdr_payload) {
 
 /****************************************************************************/
 
-TEST(ipc, dup_is_different) {
+TEST(IPC_LOCAL, dup_is_different) {
     handle_t hset1;
     handle_t hset1_dup;
 
@@ -2781,6 +2981,25 @@ static bool run_test(struct unittest* test) {
 
     return RUN_ALL_TESTS();
 }
+
+void ipc_param_to_str(const void* vparam, char* out, size_t len) {
+    enum tipc_test_parameter param = *(bool*)vparam;
+    const char* tmp = param == TIPC_TEST_PARAMETER_VSOCK
+        ? "vsock"
+        : "local";
+    strncpy(out, tmp, len);
+    out[len - 1] = '\0';
+}
+
+#if TRUSTY_IPC_TEST_OVER_VSOCK && TRUSTY_IPC_TEST_LOCAL
+#define TESTING_PARAM testing_Bool();
+#elif TRUSTY_IPC_TEST_OVER_VSOCK
+#define TESTING_PARAM testing_Values((bool)TIPC_TEST_PARAMETER_VSOCK)
+#elif TRUSTY_IPC_TEST_LOCAL
+#define TESTING_PARAM testing_Values((bool)TIPC_TEST_PARAMETER_LOCAL)
+#endif
+
+INSTANTIATE_TEST_SUITE_P_INTERNAL(ipc_inst, ipc_param, TESTING_PARAM, ipc_param_to_str);
 
 /*
  *  Application entry point

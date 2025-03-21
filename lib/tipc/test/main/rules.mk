@@ -32,4 +32,13 @@ MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/tipc \
 	trusty/user/base/lib/unittest \
 
+ifeq (true,$(call TOBOOL,$(TRUSTY_IPC_TEST_OVER_VSOCK)))
+MODULE_DEFINES += TRUSTY_IPC_TEST_OVER_VSOCK=1
+endif
+
+TRUSTY_IPC_TEST_LOCAL ?= true
+ifeq (true,$(call TOBOOL,$(TRUSTY_IPC_TEST_LOCAL)))
+MODULE_DEFINES += TRUSTY_IPC_TEST_LOCAL=1
+endif
+
 include make/trusted_app.mk
