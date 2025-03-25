@@ -101,6 +101,16 @@ impl<H: Handler> RawHandleSet<H> {
     // When this is called in the delete path, an arc to the deleted handle object is returned to
     // caller, without dropping it, because the caller may need it for further processing.
     fn do_set_ctrl(&self, cmd: u32, event: u32, event_cookie_obj: &Arc<H>) -> Result<()> {
+        if ![
+            sys::HSET_ADD as u32,
+            sys::HSET_MOD_WITH_COOKIE as u32,
+            sys::HSET_DEL_WITH_COOKIE as u32,
+        ]
+        .contains(&cmd)
+        {
+            // other commands can break our memory safety guarantees
+            return Err(TipcError::SystemError(trusty_sys::Error::InvalidArgs));
+        }
         let raw_handle_fd: i32 = event_cookie_obj.get_raw_fd_id();
         let cookie = Arc::as_ptr(event_cookie_obj);
         let mut uevt =
