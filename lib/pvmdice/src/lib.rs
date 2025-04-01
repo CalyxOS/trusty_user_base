@@ -238,6 +238,11 @@ fn dice_component_specific_config_values(
 /// of the dice chain should recognize the app as different from the production
 /// variant.
 fn enforce_no_apploader_invariant() -> Result<handle_t, PvmDiceError> {
+    if cfg!(TEST_BUILD) {
+        log::warn!("Not attempting to claim apploader port because TEST_BUILD is set");
+        return Ok(-1);
+    }
+
     let port = CStr::from_bytes_with_nul(sys::APPLOADER_PORT)
         .map_err(|_| PvmDiceError::ApploaderInvariantViolated)?;
 
@@ -253,11 +258,6 @@ fn enforce_no_apploader_invariant() -> Result<handle_t, PvmDiceError> {
     };
 
     if rc < 0 {
-        if cfg!(TEST_BUILD) {
-            log::warn!("Failed to claim apploader port. Ignoring because TEST_BUILD is set.");
-            return Ok(-1);
-        }
-
         log::error!("Failed to claim apploader port. PvmDice invariant check failed: {}", rc);
 
         return Err(PvmDiceError::ApploaderInvariantViolated);
