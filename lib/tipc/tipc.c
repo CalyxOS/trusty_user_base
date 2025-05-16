@@ -193,6 +193,7 @@ int tipc_hset_init(struct tipc_hset* hset) {
     assert(!IS_ERR(hset) && hset);
 
     hset->handle = INVALID_IPC_HANDLE;
+    hset->work_queue = (struct list_node)LIST_INITIAL_VALUE(hset->work_queue);
 
     rc = handle_set_create();
     if (rc < 0)
@@ -282,12 +283,39 @@ int tipc_hset_remove_entry(struct tipc_hset* hset, handle_t h) {
     return handle_set_ctrl(hset->handle, HSET_DEL, &uevt);
 }
 
+static int tipc_handle_work_queue(struct tipc_hset* hset) {
+    struct tipc_work_todo* todo;
+
+    /*
+     * Loop here until the list is empty, instead of using
+     * list_for_every_entry_safe to ensure all new work items added to the queue
+     * while processing existing items will be run.
+     */
+    while ((todo = list_peek_tail_type(&hset->work_queue, struct tipc_work_todo,
+                                       node)) != NULL) {
+        list_delete(&todo->node);
+
+        int rc = todo->do_work(todo);
+        if (rc != NO_ERROR) {
+            TLOGE("failed to handle queued work item\n");
+            return rc;
+        }
+    }
+
+    return NO_ERROR;
+}
+
 int tipc_handle_event(struct tipc_hset* hset, uint32_t timeout) {
     int rc;
     struct uevent evt = UEVENT_INITIAL_VALUE(evt);
 
     if (IS_ERR(hset) || !hset)
         return ERR_INVALID_ARGS;
+
+    rc = tipc_handle_work_queue(hset);
+    if (rc != 0) {
+        return rc;
+    }
 
     /* wait for next event up to specified time */
     rc = wait(hset->handle, &evt, timeout);
@@ -311,4 +339,12 @@ int tipc_run_event_loop(struct tipc_hset* hset) {
     } while (rc == 0);
 
     return rc;
+}
+
+void tipc_queue_work(struct tipc_hset* hset, struct tipc_work_todo* todo) {
+    list_add_head(&hset->work_queue, &todo->node);
+}
+
+void tipc_cancel_work(struct tipc_work_todo* todo) {
+    list_delete(&todo->node);
 }

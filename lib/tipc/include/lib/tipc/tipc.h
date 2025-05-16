@@ -17,6 +17,7 @@
 #pragma once
 
 #include <lk/compiler.h>
+#include <lk/list.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -247,6 +248,9 @@ int tipc_hset_remove_entry(struct tipc_hset* hset, handle_t handle);
  * to handle events. The handle set specified as @hset parameter has to be
  * populated with tipc_hset_add_handle() function.
  *
+ * Note: If any users of @hset call tipc_queue_work(), that work will be handled
+ * before waiting for the next event.
+ *
  * Return: 0 if an event has been retrieved and handled, ERR_TIMED_OUT if
  * specified by @timeout parameter time has elapsed without getting new event,
  * negative error code otherwise.
@@ -262,5 +266,40 @@ int tipc_handle_event(struct tipc_hset* hset, uint32_t timeout);
  * Return: negative error code if an error is encountered.
  */
 int tipc_run_event_loop(struct tipc_hset* hset);
+
+/**
+ * struct tipc_work_todo - holds work to be done before handling the next event
+ * @do_work: Work to be done before waiting for/handling the next event. When
+ *           called, @do_work will be passed a pointer to self.
+ * @node:    Private. For adding this work item to the queue.
+ */
+struct tipc_work_todo {
+    int (*do_work)(struct tipc_work_todo* todo);
+    struct list_node node;
+};
+
+#define TIPC_WORK_TODO_INITIAL_VALUE(self, do_work_cb) \
+    {.do_work = do_work_cb, .node = LIST_INITIAL_CLEARED_VALUE}
+
+/**
+ * tipc_queue_work() - queues work to be done before handling the next event
+ * @hset: handle set to add work to
+ * @todo: the work to add
+ *
+ * Note: The @todo struct must remain valid until the work is completed or
+ * canceled. It is safe (from libtipc's perspective; callers may opt for
+ * stricter requirements) to free @todo from the tipc_work_todo->do_work
+ * callback.
+ */
+void tipc_queue_work(struct tipc_hset* hset, struct tipc_work_todo* todo);
+
+/**
+ * tipc_queue_work() - cancels queued work so it will never be run
+ * @todo: the work to be cancelled
+ *
+ * Note: Does not free *@todo; caller is responsible for managing *@todo's
+ * lifetime.
+ */
+void tipc_cancel_work(struct tipc_work_todo* todo);
 
 __END_CDECLS
