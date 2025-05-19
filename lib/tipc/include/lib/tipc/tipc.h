@@ -249,7 +249,10 @@ int tipc_hset_remove_entry(struct tipc_hset* hset, handle_t handle);
  * populated with tipc_hset_add_handle() function.
  *
  * Note: If any users of @hset call tipc_queue_work(), that work will be handled
- * before waiting for the next event.
+ * before waiting for the next event. Similarly, if they call
+ * tipc_queue_work_delayed_rel() or tipc_queue_work_delayed_abs(), that work
+ * will be completed before the next event if the delay has elapsed before the
+ * event is received.
  *
  * Return: 0 if an event has been retrieved and handled, ERR_TIMED_OUT if
  * specified by @timeout parameter time has elapsed without getting new event,
@@ -269,12 +272,16 @@ int tipc_run_event_loop(struct tipc_hset* hset);
 
 /**
  * struct tipc_work_todo - holds work to be done before handling the next event
- * @do_work: Work to be done before waiting for/handling the next event. When
- *           called, @do_work will be passed a pointer to self.
- * @node:    Private. For adding this work item to the queue.
+ * @do_work:   Work to be done before waiting for/handling the next event. When
+ *             called, @do_work will be passed a pointer to self.
+ * @run_after: Private. The system time (in ns) after which this todo should be
+ *             run. Set by tipc_queue_work(),  tipc_queue_work_delayed_rel(),
+ *             and tipc_queue_work_delayed_abs().
+ * @node:      Private. For adding this work item to the queue.
  */
 struct tipc_work_todo {
     int (*do_work)(struct tipc_work_todo* todo);
+    int64_t run_after;
     struct list_node node;
 };
 
@@ -292,6 +299,42 @@ struct tipc_work_todo {
  * callback.
  */
 void tipc_queue_work(struct tipc_hset* hset, struct tipc_work_todo* todo);
+
+/**
+ * tipc_queue_work_delayed_rel() - queues work to be done after a delay has
+ * elapsed
+ *
+ * @hset:     handle set to add work to
+ * @todo:     the work to add
+ * @delay_ns: the delay (in ns) that will elapse before this todo is run. (To
+ *            run as soon as possible, use tipc_queue_work() instead.)
+ *
+ * Note: The @todo struct must remain valid until the work is completed or
+ * canceled. It is safe (from libtipc's perspective; callers may opt for
+ * stricter requirements) to free @todo from the tipc_work_todo->do_work
+ * callback.
+ */
+void tipc_queue_work_delayed_rel(struct tipc_hset* hset,
+                                 struct tipc_work_todo* todo,
+                                 int64_t delay_ns);
+
+/**
+ * tipc_queue_work_delayed_abs() - queues work to be done after given system
+ * time
+ *
+ * @hset:         handle set to add work to
+ * @todo:         the work to add
+ * @run_after_ns: the system time (in ns) after which the work will run. (To run
+ * as soon as possible, use tipc_queue_work() instead.)
+ *
+ * Note: The @todo struct must remain valid until the work is completed or
+ * canceled. It is safe (from libtipc's perspective; callers may opt for
+ * stricter requirements) to free @todo from the tipc_work_todo->do_work
+ * callback.
+ */
+void tipc_queue_work_delayed_abs(struct tipc_hset* hset,
+                                 struct tipc_work_todo* todo,
+                                 int64_t run_after_ns);
 
 /**
  * tipc_queue_work() - cancels queued work so it will never be run
