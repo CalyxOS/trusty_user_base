@@ -25,20 +25,20 @@ MODULE_CRATE_NAME := hwbcc
 MODULE_SDK_LIB_NAME := hwbcc-rust
 
 MODULE_LIBRARY_DEPS += \
-	external/boringssl \
 	$(LIBCPPBOR_DIR) \
-	external/open-dice \
-	packages/modules/Virtualization/libs/dice/open_dice \
-	trusty/user/base/interface/hwbcc \
-	trusty/user/base/lib/trusty-std \
 	$(call FIND_CRATE,coset) \
 	$(call FIND_CRATE,log) \
 	$(call FIND_CRATE,zerocopy) \
 	$(call FIND_CRATE,num-derive) \
 	$(call FIND_CRATE,num-traits) \
+	external/boringssl \
+	external/open-dice \
+	packages/modules/Virtualization/libs/dice/open_dice \
+	trusty/user/base/interface/hwbcc \
+	trusty/user/base/lib/hwbcc/common \
+	trusty/user/base/lib/trusty-std \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/system_state/rust \
-	trusty/user/base/lib/hwbcc/common \
 
 MODULE_BINDGEN_ALLOW_TYPES := \
 	hwbcc.* \
