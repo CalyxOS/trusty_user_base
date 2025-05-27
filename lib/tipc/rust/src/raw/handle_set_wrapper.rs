@@ -343,7 +343,9 @@ mod test {
         {
             let port_wrapper = handle_set_wrapper.add_port(&cfg, service.clone()).unwrap();
             expect_eq!(Arc::strong_count(&service), 2);
-            handle_set_wrapper.set_event_mask(&port_wrapper, 0).unwrap();
+            handle_set_wrapper
+                .set_event_mask(&port_wrapper, trusty_sys::uevent::NO_EVENTS)
+                .unwrap();
             handle_set_wrapper
                 .set_event_mask(&port_wrapper, trusty_sys::uevent::ALL_EVENTS)
                 .unwrap();
@@ -374,10 +376,13 @@ mod test {
             expect_eq!(Arc::strong_count(&service), 4);
             expect_eq!(
                 Err(TipcError::SystemError(trusty_sys::Error::NotFound)),
-                handle_set_wrapper.set_event_mask(&corrupted_port_wrapper, 0),
+                handle_set_wrapper
+                    .set_event_mask(&corrupted_port_wrapper, trusty_sys::uevent::NO_EVENTS),
                 "the cookie doesn't match the handle"
             );
-            handle_set_wrapper.set_event_mask(&port_wrapper_2, 0).unwrap();
+            handle_set_wrapper
+                .set_event_mask(&port_wrapper_2, trusty_sys::uevent::NO_EVENTS)
+                .unwrap();
 
             // Manually destroy the corrupted wrapper before its `drop` causes problems.
             // If its `Handle` is dropped, then the drop of `port_wrapper_2` will leak resources.

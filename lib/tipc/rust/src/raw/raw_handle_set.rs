@@ -85,7 +85,11 @@ impl<H: Handler> RawHandleSet<H> {
 
     /// Remove a previously registered service handle.
     pub fn remove(&self, event_cookie_obj: Arc<H>) -> Result<()> {
-        let ret = self.do_set_ctrl(sys::HSET_DEL_WITH_COOKIE as u32, 0, &event_cookie_obj);
+        let ret = self.do_set_ctrl(
+            sys::HSET_DEL_WITH_COOKIE as u32,
+            trusty_sys::uevent::NO_EVENTS,
+            &event_cookie_obj,
+        );
         if ret.is_ok() {
             // SAFETY: The ref count is at least 2 (local arg + kernel).
             // Here, we decrement it to represent the successful removal from the kernel.
