@@ -28,7 +28,6 @@ use crate::handle::MAX_MSG_HANDLES;
 use crate::sys;
 use crate::{ConnectResult, Deserialize, Handle, MessageResult, Result, TipcError};
 use handle_set::HandleSet;
-use zerocopy::{FromBytes, IntoBytes};
 mod handle_set;
 
 /// A description of a server-side IPC port.
@@ -265,16 +264,49 @@ impl<D: Dispatcher> Channel<D> {
 ///
 /// Non-exhaustive because we want to have to ability to add more kinds in the future.
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VmIdentifier {
     Ffa(u16),
+}
+
+/// Error enum for [`ClientIdentifier::try_from_c_repr`]
+#[derive(Debug)]
+pub enum ClientIdentifierError {
+    /// The C representation had an invalid kind value.
+    InvalidKind,
+    /// Encountered an error trying to make the C repr into a concrete error type to match its kind.
+    AsConcreteError(trusty_sys::AsConcreteError),
+    /// The C representation had a kind value which we don't know how to convert.
+    UnknownKind(trusty_sys::trusty_peer_id_kind_t),
+}
+
+impl core::fmt::Display for ClientIdentifierError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            Self::InvalidKind => write!(
+                f,
+                "Got uninitialized/zeroed trusty_peer_id. Did you forget to \
+                    initialize it?"
+            ),
+            Self::AsConcreteError(e) => {
+                write!(f, "Failed to convert to concrete peer ID type {:?}", e)
+            }
+            Self::UnknownKind(kind) => write!(f, "Unknown trusty_peer_id kind {}", kind),
+        }
+    }
+}
+
+impl From<trusty_sys::AsConcreteError> for ClientIdentifierError {
+    fn from(e: trusty_sys::AsConcreteError) -> Self {
+        Self::AsConcreteError(e)
+    }
 }
 
 /// Enum identifying the client of a Trusty service.
 ///
 /// Non-exhaustive because we want to have to ability to add more kinds in the future.
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientIdentifier {
     /// The identifier of a local client TA that connects to the service
     UUID(Uuid),
@@ -291,68 +323,72 @@ pub enum ClientIdentifier {
 }
 
 impl ClientIdentifier {
-    // Type of the tag is u64 instead of u8 because arm64 normally requires 64 bit values to be
-    // 64 bit aligned, and we want to optimize for the 64 bit or multiple of 64 bit values (i.e.
-    // client_seq_num and uuid respectively) that come after the tag.
-    const UUID_TAG: u64 = 0;
-    const CLIENT_SEQ_NUM_TAG: u64 = 1;
-    const VMID_TAG: u64 = 2;
-
-    const TAG_LEN: usize = std::mem::size_of::<u64>();
-
-    const I64_LEN: usize = std::mem::size_of::<i64>();
-    const U16_LEN: usize = std::mem::size_of::<u16>();
-
-    fn get_data_as_bytes(&self) -> &[u8] {
+    /// Convert `self` into a `trusty_peer_id`, so that it can be passed via FFI to be read by C
+    /// code.
+    ///
+    /// This allows, for example, a Rust binder RpcServer, with a per-session callback written in C.
+    pub fn c_repr(&self) -> trusty_sys::TrustyPeerIdStorageSized {
         match self {
-            ClientIdentifier::UUID(uuid) => uuid.as_bytes(),
-            ClientIdentifier::ClientSeqNumber(seq_num) => seq_num.as_bytes(),
-            ClientIdentifier::VMID(VmIdentifier::Ffa(vm_id)) => vm_id.as_bytes(),
+            Self::UUID(uuid) => trusty_sys::TrustyPeerIdStorageSized::from_concrete(
+                &trusty_sys::trusty_peer_id_uuid {
+                    kind: trusty_sys::TRUSTY_PEER_ID_KIND_UUID,
+                    id: *uuid.as_ref(),
+                },
+            ),
+            Self::VMID(VmIdentifier::Ffa(vm_id)) => {
+                trusty_sys::TrustyPeerIdStorageSized::from_concrete(
+                    &trusty_sys::trusty_peer_id_vmid_ffa {
+                        kind: trusty_sys::TRUSTY_PEER_ID_KIND_VMID_FFA,
+                        reserved_1: 1, // Mandated by doccomment in trusty_peer_id.h
+                        id: (*vm_id).into(),
+                        padding: Default::default(),
+                    },
+                )
+            }
+            Self::ClientSeqNumber(sequence_num) => {
+                trusty_sys::TrustyPeerIdStorageSized::from_concrete(
+                    &sys::trusty_peer_id_sequence_id {
+                        kind: sys::TRUSTY_PEER_ID_KIND_SEQUENCE_ID,
+                        id: *sequence_num,
+                    },
+                )
+            }
         }
     }
 
-    fn with_tag_byte(tag: u64, data: &[u8]) -> Box<[u8]> {
-        let mut buf = Vec::<u8>::with_capacity(Self::TAG_LEN + data.len());
-        buf.extend_from_slice(tag.to_ne_bytes().as_slice());
-        buf.extend_from_slice(data);
-        buf.into_boxed_slice()
-    }
-
-    /// Get a pointer to the data contained in the enum variant with a tag identifying the enum
-    /// variant prepended, and the size of the data
-    pub fn as_tagged_bytes(&self) -> Box<[u8]> {
-        let data = self.get_data_as_bytes();
-        match self {
-            ClientIdentifier::UUID(_) => Self::with_tag_byte(Self::UUID_TAG, data),
-            ClientIdentifier::ClientSeqNumber(_) => {
-                Self::with_tag_byte(Self::CLIENT_SEQ_NUM_TAG, data)
+    /// Tries to convert a `trusty_peer_id` into a ClientIdentifier. See `ClientIdentifierError` for
+    /// reasons this might fail.
+    pub fn try_from_c_repr(
+        id: trusty_sys::TrustyPeerIdRef<'_>,
+    ) -> core::result::Result<Self, ClientIdentifierError> {
+        match id.kind() {
+            trusty_sys::TRUSTY_PEER_ID_KIND_INVALID => Err(ClientIdentifierError::InvalidKind),
+            trusty_sys::TRUSTY_PEER_ID_KIND_UUID => {
+                let uuid = id.try_as_concrete::<trusty_sys::trusty_peer_id_uuid>()?;
+                Ok(Self::UUID(Uuid::from(uuid.id)))
             }
-            ClientIdentifier::VMID(_) => Self::with_tag_byte(Self::VMID_TAG, data),
+            trusty_sys::TRUSTY_PEER_ID_KIND_VMID_FFA => {
+                let vmid = id.try_as_concrete::<trusty_sys::trusty_peer_id_vmid_ffa>()?;
+                assert_eq!(vmid.reserved_1, 1);
+                vmid.padding.iter().for_each(|x| assert_eq!(*x, 0));
+                Ok(Self::VMID(VmIdentifier::Ffa(vmid.id)))
+            }
+            sys::TRUSTY_PEER_ID_KIND_SEQUENCE_ID => {
+                let seqid = id.try_as_concrete::<sys::trusty_peer_id_sequence_id>()?;
+                Ok(Self::ClientSeqNumber(seqid.id))
+            }
+            _ => Err(ClientIdentifierError::UnknownKind(id.kind())),
         }
     }
 
-    /// Re-construct the enum from bytes
-    pub fn from_tagged_bytes(tagged_data: &[u8]) -> Result<Self> {
-        // The length of the pointed data should be at least as long as the tag +
-        // the size of the smallest variant
-        let (tag_bytes, data) =
-            tagged_data.split_at_checked(Self::TAG_LEN).ok_or(TipcError::InvalidData)?;
-        let tag = u64::from_ne_bytes(tag_bytes.try_into().map_err(|_e| TipcError::InvalidData)?);
-        match (tag, data.len()) {
-            (Self::UUID_TAG, Uuid::UUID_BYTE_LEN) => {
-                Ok(ClientIdentifier::UUID(Uuid::try_from_bytes(data)?))
-            }
-            (Self::CLIENT_SEQ_NUM_TAG, Self::I64_LEN) => {
-                let client_seq_num =
-                    i64::read_from_bytes(data).map_err(|_e| TipcError::InvalidData)?;
-                Ok(ClientIdentifier::ClientSeqNumber(client_seq_num))
-            }
-            (Self::VMID_TAG, Self::U16_LEN) => {
-                let vm_id = u16::read_from_bytes(data).map_err(|_e| TipcError::InvalidData)?;
-                Ok(ClientIdentifier::VMID(VmIdentifier::Ffa(vm_id)))
-            }
-            (_, _) => Err(TipcError::InvalidData),
-        }
+    /// Convert a `trusty_peer_id` into a ClientIdentifier.
+    ///
+    /// # Panics
+    ///
+    ///   If the conversion fails. This probably means you're reading an uninitialized
+    ///   `trusty_peer_id`, or that you need to add a variant to the ClientIdentifier enum.
+    pub fn from_c_repr(id: trusty_sys::TrustyPeerIdRef<'_>) -> Self {
+        Self::try_from_c_repr(id).expect("Conversion failure due to programmer error.")
     }
 }
 
@@ -1655,71 +1691,23 @@ mod uuid_tests {
 #[cfg(test)]
 mod client_id_tests {
     use super::{ClientIdentifier, Uuid, VmIdentifier};
-    use alloc::slice;
-    use std::ffi::c_void;
-    use test::assert_eq;
+    use test::{assert_eq, assert_ok};
 
     #[test]
-    fn client_id_len() {
-        let uuid_string = "4b4127e1-ca5c-4367-bdb5-05164005b7c4".to_string();
-        let uuid = Uuid::new_from_string(&uuid_string).unwrap();
-        let uuid_client_id = ClientIdentifier::UUID(uuid);
-        let client_seq_num_client_id = ClientIdentifier::ClientSeqNumber(2);
-        let vm_id_client_id = ClientIdentifier::VMID(VmIdentifier::Ffa(5));
-        assert_eq!(Uuid::UUID_BYTE_LEN, std::mem::size_of::<Uuid>());
-        assert_eq!(
-            Uuid::UUID_BYTE_LEN,
-            uuid_client_id.as_tagged_bytes().len() - ClientIdentifier::TAG_LEN
-        );
-        assert_eq!(
-            ClientIdentifier::I64_LEN,
-            client_seq_num_client_id.as_tagged_bytes().len() - ClientIdentifier::TAG_LEN
-        );
-        assert_eq!(
-            ClientIdentifier::U16_LEN,
-            vm_id_client_id.as_tagged_bytes().len() - ClientIdentifier::TAG_LEN
-        );
-    }
-
-    #[test]
-    fn client_id_to_from_ptr() {
+    fn client_id_round_trip() {
         let uuid_string = "4b4127e1-ca5c-4367-bdb5-05164005b7c4".to_string();
         let uuid = Uuid::new_from_string(&uuid_string).unwrap();
         let uuid_client_id = ClientIdentifier::UUID(uuid.clone());
-        let client_seq_num_client_id = ClientIdentifier::ClientSeqNumber(2);
-        let vm_id_client_id = ClientIdentifier::VMID(VmIdentifier::Ffa(5));
+        let client_seq_num_client_id = ClientIdentifier::ClientSeqNumber(0x0123_4567_89ab_cedf);
+        let vm_id_client_id = ClientIdentifier::VMID(VmIdentifier::Ffa(0x1234));
 
         // Simulate the steps taken place when ClientIdentifier is used with
         // rpc-binder C++ interface
-        let tagged_uuid = uuid_client_id.as_tagged_bytes();
-        let len = tagged_uuid.len();
-        let tagged_uuid_ptr = Box::into_raw(tagged_uuid);
-        let tagged_uuid_void_ptr: *const c_void = tagged_uuid_ptr.cast();
-        let tagged_uuid_ptr_back: *const u8 = tagged_uuid_void_ptr.cast();
-        let tagged_uuid_data = unsafe { slice::from_raw_parts(tagged_uuid_ptr_back, len) };
-        let uuid_client_id_expected =
-            ClientIdentifier::from_tagged_bytes(tagged_uuid_data).unwrap();
-        assert_eq!(uuid_client_id, uuid_client_id_expected);
-        let _ = unsafe { Box::from_raw(tagged_uuid_ptr) };
+        for cid in [uuid_client_id, client_seq_num_client_id, vm_id_client_id] {
+            let c_repr = cid.c_repr();
+            let reconstructed = assert_ok!(ClientIdentifier::try_from_c_repr(c_repr.as_generic()));
 
-        let tagged_csn = client_seq_num_client_id.as_tagged_bytes();
-        let len = tagged_csn.len();
-        let tagged_csn_ptr = Box::into_raw(tagged_csn);
-        let tagged_csn_void_ptr: *const c_void = tagged_csn_ptr.cast();
-        let tagged_csn_ptr_back: *const u8 = tagged_csn_void_ptr.cast();
-        let tagged_csn_data = unsafe { slice::from_raw_parts(tagged_csn_ptr_back, len) };
-        let csn_expected = ClientIdentifier::from_tagged_bytes(tagged_csn_data).unwrap();
-        assert_eq!(client_seq_num_client_id, csn_expected);
-        let _ = unsafe { Box::from_raw(tagged_csn_ptr) };
-
-        let tagged_vm_id = vm_id_client_id.as_tagged_bytes();
-        let len = tagged_vm_id.len();
-        let tagged_vm_id_ptr = Box::into_raw(tagged_vm_id);
-        let tagged_vm_id_void_ptr: *const c_void = tagged_vm_id_ptr.cast();
-        let tagged_vm_id_ptr_back: *const u8 = tagged_vm_id_void_ptr.cast();
-        let tagged_vm_id_data = unsafe { slice::from_raw_parts(tagged_vm_id_ptr_back, len) };
-        let vm_id_expected = ClientIdentifier::from_tagged_bytes(tagged_vm_id_data).unwrap();
-        assert_eq!(vm_id_client_id, vm_id_expected);
-        let _ = unsafe { Box::from_raw(tagged_vm_id_ptr) };
+            assert_eq!(cid, reconstructed);
+        }
     }
 }
