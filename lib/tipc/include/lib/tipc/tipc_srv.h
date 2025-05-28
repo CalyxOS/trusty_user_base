@@ -20,6 +20,7 @@
 #include <lk/compiler.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <uapi/trusty_peer_id.h>
 #include <uapi/trusty_uuid.h>
 
 __BEGIN_CDECLS
@@ -102,9 +103,14 @@ struct tipc_port {
 
 /**
  * struct tipc_srv_ops - service specific ops (callbacks)
- * @on_connect:    is invoked when a new connection is established.
- * @on_message:    is invoked when a new message is available
- * @on_disconnect: is invoked when the peer terminates connection
+ * @on_connect:         is invoked when a new connection is established. Only
+ *                      invoked when the connecting peer is identified by a
+ *                      uuid.
+ *                      Deprecated to allow a wider set of peer types; use
+ *                      @on_connect_peer_id instead.
+ * @on_connect_peer_id: is invoked when a new connection is established.
+ * @on_message:         is invoked when a new message is available
+ * @on_disconnect:      is invoked when the peer terminates connection
  * @on_channel_cleanup: is invoked to cleanup user allocated state
  *
  * The overall call flow is as follow:
@@ -147,6 +153,12 @@ struct tipc_srv_ops {
                       handle_t chan,
                       const struct uuid* peer,
                       void** ctx_p);
+
+    int (*on_connect_peer_id)(const struct tipc_port* port,
+                              handle_t chan,
+                              const struct trusty_peer_id* peer,
+                              size_t peer_len,
+                              void** ctx_p);
 
     int (*on_message)(const struct tipc_port* port, handle_t chan, void* ctx);
 

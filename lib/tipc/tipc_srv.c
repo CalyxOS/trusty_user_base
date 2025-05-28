@@ -212,15 +212,17 @@ static bool client_is_allowed(const struct tipc_port_acl* acl,
 static void handle_connect(struct tipc_port_ctx* port) {
     int rc;
     handle_t hchan;
-    struct uuid peer;
     void* user_ctx = NULL;
     struct tipc_chan_ctx* chan;
+    struct trusty_peer_id_uuid peer = {
+            .kind = TRUSTY_PEER_ID_KIND_UUID,
+    };
     struct tipc_srv* srv = port->srv;
 
     TLOGD("Incoming connection on %s\n", port->cfg->name);
 
     /* incoming connection: accept it */
-    rc = accept(port->handle, &peer);
+    rc = accept(port->handle, &peer.id);
     if (rc < 0) {
         TLOGE("failed (%d) to accept on port %s\n", rc, port->cfg->name);
         return;
@@ -234,7 +236,7 @@ static void handle_connect(struct tipc_port_ctx* port) {
     }
 
     /* do access control */
-    if (!client_is_allowed(port->cfg->acl, &peer)) {
+    if (!client_is_allowed(port->cfg->acl, &peer.id)) {
         TLOGE("access denied on port %s\n", port->cfg->name);
         goto err_access;
     }
@@ -260,9 +262,19 @@ static void handle_connect(struct tipc_port_ctx* port) {
 
     /* invoke on_connect handler if any */
     if (srv->ops->on_connect) {
-        rc = srv->ops->on_connect(port->cfg, chan->handle, &peer, &user_ctx);
+        rc = srv->ops->on_connect(port->cfg, chan->handle, &peer.id, &user_ctx);
         if (rc < 0) {
             TLOGE("on_connect failed (%d) on port %s\n", rc, port->cfg->name);
+            goto err_on_connect;
+        }
+    }
+    if (srv->ops->on_connect_peer_id) {
+        rc = srv->ops->on_connect_peer_id(port->cfg, chan->handle,
+                                          (struct trusty_peer_id*)&peer,
+                                          sizeof(peer), &user_ctx);
+        if (rc < 0) {
+            TLOGE("on_connect_peer_id failed (%d) on port %s\n", rc,
+                  port->cfg->name);
             goto err_on_connect;
         }
     }
@@ -323,6 +335,12 @@ static bool is_valid_tipc_srv_ops(const struct tipc_srv_ops* ops) {
 
     if (!ops->on_message) {
         TLOGE("on_message callback is mandatory and cannot be NULL\n");
+        return false;
+    }
+
+    if (ops->on_connect && ops->on_connect_peer_id) {
+        TLOGE("Setting both on_connect and on_connect_peer_id is not "
+              "allowed\n");
         return false;
     }
 
