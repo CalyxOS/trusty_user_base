@@ -20,7 +20,6 @@
 #include <lk/list.h>
 #include <stddef.h>
 #include <stdint.h>
-
 #include <trusty_ipc.h>
 
 __BEGIN_CDECLS

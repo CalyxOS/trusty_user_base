@@ -13,18 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#define TLOG_TAG "libtipc"
+
+#include <lib/tipc/tipc.h>
+
 #include <assert.h>
 #include <lk/err_ptr.h>
 #include <lk/macros.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <trusty/time.h>
-#include <uapi/err.h>
-
-#define TLOG_TAG "libtipc"
 #include <trusty_log.h>
-
-#include <lib/tipc/tipc.h>
+#include <uapi/err.h>
 
 #include "tipc_priv.h"
 

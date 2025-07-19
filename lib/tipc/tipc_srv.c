@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 
-#include <lib/coverage/common/cov_shm.h>
-#include <interface/line-coverage/aggregator.h>
-#include <lib/line-coverage/shm.h>
-#include <lib/coverage/common/ipc.h>
+#define TLOG_TAG "tipc-srv"
+
+#include <lib/tipc/tipc_srv.h>
+
 #include <assert.h>
+#include <interface/line-coverage/aggregator.h>
+#include <lib/coverage/common/cov_shm.h>
+#include <lib/coverage/common/ipc.h>
+#include <lib/line-coverage/shm.h>
 #include <lk/err_ptr.h>
 #include <lk/list.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <trusty_log.h>
 #include <uapi/err.h>
 #include <uapi/mm.h>
-
-#define TLOG_TAG "tipc-srv"
-#include <lib/tipc/tipc_srv.h>
-#include <trusty_log.h>
 
 #include "tipc_priv.h"
 
