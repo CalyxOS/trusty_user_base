@@ -242,6 +242,19 @@ static inline int tipc_add_service(struct tipc_hset* hset,
 }
 
 /**
+ * tipc_add_connection() - Add a new connection for an existing port.
+ * @port: The port to add a connection to.
+ * @chan: Handle for the opened channel to connect on.
+ * @peer: Identifier of the client to connect to.
+ *
+ * Return: 0 on success, negative error code otherwise
+ */
+int tipc_add_connection(struct tipc_port_ctx* port,
+                        handle_t chan,
+                        const struct trusty_peer_id* peer,
+                        size_t peer_len);
+
+/**
  * tipc_get_hset() - Get the handle set that manages an existing port.
  * @port: The port to get the managing handle set for.
  *
