@@ -226,19 +226,47 @@ struct ffa_mapd {
 STATIC_ASSERT(sizeof(struct ffa_mapd) == 4);
 
 /**
- * struct ffa_emad - Endpoint memory access descriptor.
+ * struct ffa_emad_common - Endpoint memory access descriptor.
  * @mapd:  &struct ffa_mapd.
  * @comp_mrd_offset:
  *         Offset of &struct ffa_comp_mrd form start of &struct ffa_mtd_common.
+ */
+struct ffa_emad_common {
+    struct ffa_mapd mapd;
+    uint32_t comp_mrd_offset;
+};
+STATIC_ASSERT(sizeof(struct ffa_emad_common) == 8);
+
+/**
+ * struct ffa_emad_v1_0 - Endpoint memory access descriptor for FF-A versions
+ *                        v1.0 and v1.1.
+ * @common:
+ *         The common part of descriptor (shared with v1.2).
  * @reserved_8_15:
  *         Reserved bytes 8-15. Must be 0.
  */
-struct ffa_emad {
-    struct ffa_mapd mapd;
-    uint32_t comp_mrd_offset;
+struct ffa_emad_v1_0 {
+    struct ffa_emad_common common;
     uint64_t reserved_8_15;
 };
-STATIC_ASSERT(sizeof(struct ffa_emad) == 16);
+STATIC_ASSERT(sizeof(struct ffa_emad_v1_0) == 16);
+
+/**
+ * struct ffa_emad_v1_2 - Endpoint memory access descriptor for FF-A
+ *                        versions v1.2 and higher.
+ * @common:
+ *         The common part of descriptor (shared with v1.2).
+ * @impdef:
+ *         Implementation-defined information.
+ * @reserved_24_31:
+ *         Reserved bytes 24-31. Must be 0.
+ */
+struct ffa_emad_v1_2 {
+    struct ffa_emad_common common;
+    uint64_t impdef[2];
+    uint64_t reserved_24_31;
+};
+STATIC_ASSERT(sizeof(struct ffa_emad_v1_2) == 32);
 
 /**
  * struct ffa_mtd_common - Memory transaction descriptor.
@@ -274,13 +302,13 @@ STATIC_ASSERT(sizeof(struct ffa_mtd_common) == 24);
  *         Number of entries in @emad. Must be 1 in current implementation.
  *         FFA spec allows more entries.
  * @emad:
- *         Endpoint memory access descriptor array (see @struct ffa_emad).
+ *         Endpoint memory access descriptor array (see @struct ffa_emad_v1_0).
  */
 struct ffa_mtd_v1_0 {
     struct ffa_mtd_common common;
     uint32_t reserved_24_27;
     uint32_t emad_count;
-    struct ffa_emad emad[];
+    struct ffa_emad_v1_0 emad[];
 };
 STATIC_ASSERT(sizeof(struct ffa_mtd_v1_0) == 32);
 
@@ -296,7 +324,7 @@ STATIC_ASSERT(sizeof(struct ffa_mtd_v1_0) == 32);
  *         FFA spec allows more entries.
  * @emad_offset:
  *         Offset from the base address of this descriptor to the
- *         endpoint memory access descriptor array (see @struct ffa_emad).
+ *         endpoint memory access descriptor array (see @struct ffa_emad_v1_2).
  * @reserved_36: Reserved bytes at offset 36. Must be 0.
  * @reserved_40: Reserved bytes at offset 40. Must be 0.
  */
