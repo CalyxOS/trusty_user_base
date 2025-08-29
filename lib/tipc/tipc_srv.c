@@ -453,3 +453,7 @@ err_no_acl:
 
     return rc;
 }
+
+struct tipc_hset* tipc_get_hset(struct tipc_port_ctx* port) {
+    return port->srv->hset;
+}

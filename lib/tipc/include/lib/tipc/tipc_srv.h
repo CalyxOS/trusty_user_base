@@ -241,4 +241,12 @@ static inline int tipc_add_service(struct tipc_hset* hset,
                                   NULL);
 }
 
+/**
+ * tipc_get_hset() - Get the handle set that manages an existing port.
+ * @port: The port to get the managing handle set for.
+ *
+ * Return: A pointer to the handle set this port's service is running on.
+ */
+struct tipc_hset* tipc_get_hset(struct tipc_port_ctx* port);
+
 __END_CDECLS
