@@ -30,6 +30,8 @@
 #[allow(non_camel_case_types)]
 #[allow(unused)]
 mod sys {
+    use peer_id::trusty_peer_id_kind_t;
+
     include!(env!("BINDGEN_INC_FILE"));
 }
 
