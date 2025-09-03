@@ -41,10 +41,9 @@ mod service;
 
 pub use err::{ConnectResult, MessageResult, Result, TipcError};
 pub use handle::{Handle, MMapFlags, UnsafeSharedBuf, MAX_MSG_HANDLES};
+pub use peer_id::{Uuid, UuidFromBytesError, UuidFromStrError};
 pub use serialization::{Deserialize, Serialize, Serializer};
-pub use service::{
-    ClientIdentifier, Dispatcher, Manager, PortCfg, Service, UnbufferedService, Uuid,
-};
+pub use service::{ClientIdentifier, Dispatcher, Manager, PortCfg, Service, UnbufferedService};
 
 #[cfg(test)]
 mod test {

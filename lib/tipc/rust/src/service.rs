@@ -17,8 +17,8 @@
 use alloc::rc::{Rc, Weak};
 use core::fmt;
 use core::mem::{ManuallyDrop, MaybeUninit};
-use core::num::ParseIntError;
 use log::{debug, error, warn};
+use peer_id::Uuid;
 use trusty_std::alloc::{AllocError, Vec};
 use trusty_std::ffi::{CString, FallibleCString};
 use trusty_std::TryClone;
@@ -28,7 +28,7 @@ use crate::handle::MAX_MSG_HANDLES;
 use crate::sys;
 use crate::{ConnectResult, Deserialize, Handle, MessageResult, Result, TipcError};
 use handle_set::HandleSet;
-use zerocopy::{FromBytes, Immutable, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes};
 mod handle_set;
 
 /// A description of a server-side IPC port.
@@ -258,151 +258,6 @@ impl<D: Dispatcher> Channel<D> {
 
     fn try_new_connection(handle: Handle, data: D::Connection) -> Result<Rc<Self>> {
         Ok(Rc::try_new(Self { handle, ty: ChannelTy::Connection(data) })?)
-    }
-}
-
-/// Trusty APP UUID
-#[derive(Clone, Eq, IntoBytes, Immutable, PartialEq)]
-pub struct Uuid(trusty_sys::uuid);
-
-impl Uuid {
-    pub const UUID_BYTE_LEN: usize = std::mem::size_of::<trusty_sys::uuid>();
-    // UUID_STR_SIZE is a u32, conversion to usize is correct on our targeted architectures
-    // Subtracting 1 from UUID_STR_SIZE because we don't need the null terminator on the RUST
-    // implementation.
-    const UUID_STR_LEN: usize = (trusty_sys::UUID_STR_SIZE as usize) - 1;
-    const HYPHEN_SKIP_POS: [usize; 4] = [8, 4, 4, 4];
-    const CLOCK_SEQ_AND_NODE_NUM_BYTES: usize = 8;
-
-    pub const fn new(
-        time_low: u32,
-        time_mid: u16,
-        time_hi_and_version: u16,
-        clock_seq_and_node: [u8; 8],
-    ) -> Self {
-        Uuid(trusty_sys::uuid { time_low, time_mid, time_hi_and_version, clock_seq_and_node })
-    }
-
-    pub fn from_bytes(bytes: &[u8; Self::UUID_BYTE_LEN]) -> Self {
-        // SAFETY: `bytes` has the exact same size size as `trusty_sys::uuid`, so this transmute
-        //         copy is safe.
-        let uuid = unsafe { std::mem::transmute_copy(bytes) };
-        Uuid(uuid)
-    }
-
-    pub fn try_from_bytes(bytes: &[u8]) -> Result<Self> {
-        let bytes: &[u8; Self::UUID_BYTE_LEN] = bytes.try_into().or(Err(TipcError::OutOfBounds))?;
-        Ok(Self::from_bytes(bytes))
-    }
-
-    pub unsafe fn as_ptr(&self) -> *const trusty_sys::uuid {
-        &self.0
-    }
-
-    pub unsafe fn as_mut_ptr(&mut self) -> *mut trusty_sys::uuid {
-        &mut self.0
-    }
-
-    pub fn new_from_string(uuid_str: &str) -> Result<Self> {
-        // Helper function that first tries to convert the `uuid_element` bytes into a string and
-        // then uses the provided `conversion_fn` to try to convert it into an integer, interpreting
-        // the string as a hex number
-        fn convert_uuid_element<T>(
-            uuid_element: Option<&str>,
-            conversion_fn: fn(&str, u32) -> core::result::Result<T, ParseIntError>,
-        ) -> Result<T> {
-            let uuid_element = uuid_element.ok_or(TipcError::InvalidData)?;
-            conversion_fn(uuid_element, 16).map_err(|_| TipcError::InvalidData)
-        }
-        // Splitting a string into chunks using only std Rust facilities is not stable yet, so
-        // providing a function for `Uuid` usage until it is stabilized.
-        fn split_convert_string_byte_chunks(
-            string_to_split: &str,
-            result_buffer: &mut [u8],
-        ) -> Result<()> {
-            // Because our input is in hexadecimal format, to get a byte we need a string of size 2.
-            let chunk_size = 2;
-            if (string_to_split.len() % chunk_size) != 0 {
-                return Err(TipcError::InvalidData);
-            }
-            let mut chunk;
-            let mut remainder = string_to_split;
-            for i in 0..(string_to_split.len() / chunk_size) {
-                (chunk, remainder) = remainder.split_at(chunk_size);
-                let converted_byte = convert_uuid_element(Some(chunk), u8::from_str_radix)?;
-                result_buffer[i] = converted_byte;
-            }
-            Ok(())
-        }
-        // checking first that provided string is ASCII, so we can later split clock_seq_and_node in
-        // byte chunks.
-        if !uuid_str.is_ascii() {
-            return Err(TipcError::InvalidData);
-        }
-        // Check that string has the correct length
-        if uuid_str.len() != Self::UUID_STR_LEN {
-            return Err(TipcError::InvalidData);
-        }
-        // Check that hyphens are in the correct positions.
-        let mut uuid_chr_itr = uuid_str.chars();
-        for skip_pos in Self::HYPHEN_SKIP_POS {
-            if uuid_chr_itr.nth(skip_pos) != Some('-') {
-                return Err(TipcError::InvalidData);
-            }
-        }
-        // Splitting by the hyphens and checking that we do not end up with more elements than
-        // expected. This checks that we didn't have some unexpected hyphens in the middle of the
-        // string. This, along with the previous 2 checks should also check that all the elements
-        // have the correct number of digits.
-        let uuid_elements = uuid_str.split(|c| c == '-');
-        if uuid_elements.count() != 5 {
-            return Err(TipcError::InvalidData);
-        }
-        // separating uuid at the '-' now that we know that the string is of the correct length and
-        // has the expected number of hyphens.
-        let mut uuid_elements = uuid_str.split(|c| c == '-');
-        let time_low = convert_uuid_element(uuid_elements.next(), u32::from_str_radix)?;
-        let time_mid = convert_uuid_element(uuid_elements.next(), u16::from_str_radix)?;
-        let time_hi_and_version = convert_uuid_element(uuid_elements.next(), u16::from_str_radix)?;
-        // The last 8 bytes are split in 2 elements. RFC 4122 states that it is stored in Big Endian
-        // format, so we are just going to concatenate the individual byte chunks of the 2 elements.
-        let mut clock_seq_and_node = [0u8; Self::CLOCK_SEQ_AND_NODE_NUM_BYTES];
-        let clock_seq = uuid_elements.next().ok_or(TipcError::InvalidData)?;
-        // clock_seq contains the first 2 bytes
-        split_convert_string_byte_chunks(clock_seq, &mut clock_seq_and_node[..2])?;
-        let node = uuid_elements.next().ok_or(TipcError::InvalidData)?;
-        // node contains the remaining 6 bytes
-        split_convert_string_byte_chunks(node, &mut clock_seq_and_node[2..])?;
-        Ok(Self::new(time_low, time_mid, time_hi_and_version, clock_seq_and_node))
-    }
-}
-
-impl fmt::Debug for Uuid {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{:08x}-{:04x}-{:04x}-",
-            self.0.time_low, self.0.time_mid, self.0.time_hi_and_version
-        )?;
-        for (idx, b) in self.0.clock_seq_and_node.iter().enumerate() {
-            write!(f, "{:02x}", b)?;
-            if idx == 1 {
-                write!(f, "-")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl From<trusty_sys::uuid> for Uuid {
-    fn from(uuid: trusty_sys::uuid) -> Self {
-        Self(uuid)
-    }
-}
-
-impl alloc::string::ToString for Uuid {
-    fn to_string(&self) -> String {
-        format!("{:?}", self)
     }
 }
 
@@ -1315,7 +1170,7 @@ impl<
     }
 
     fn handle_connect(&mut self, handle: &Handle, cfg: &PortCfg) -> Result<()> {
-        let mut peer = MaybeUninit::zeroed();
+        let mut peer = MaybeUninit::<peer_id::uuid>::zeroed();
         // SAFETY: syscall. The port owns its handle, so it is still valid as
         // a raw fd. The peer structure outlives this call and is mutably
         // borrowed by the call to initialize the structure's data.
@@ -1323,7 +1178,7 @@ impl<
         let connection_handle = Handle::from_raw(rc)?;
         // SAFETY: accept did not return an error, so it has successfully
         // initialized the peer structure.
-        let peer = unsafe { Uuid(peer.assume_init()) };
+        let peer = unsafe { peer.assume_init() }.into();
 
         // Check against access control list if we were given one
         if let Some(uuids) = cfg.uuid_allow_list {
