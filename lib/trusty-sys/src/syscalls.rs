@@ -2,6 +2,7 @@
 
 mod inc {
     use crate::sys::*;
+    use crate::trusty_peer_id;
     use crate::types::c_char as char;
     use crate::types::c_int as int;
     use crate::types::c_int16_t as int16_t;
@@ -22,6 +23,7 @@ mod inc {
 }
 
 pub use inc::_trusty_accept as accept;
+pub use inc::_trusty_accept2 as accept2;
 pub use inc::_trusty_brk as brk;
 pub use inc::_trusty_close as close;
 pub use inc::_trusty_connect as connect;
