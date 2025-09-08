@@ -33,6 +33,10 @@ handle_t accept(handle_t handle, struct uuid* peer_uuid) {
     return _trusty_accept(handle, peer_uuid);
 }
 
+handle_t accept2(handle_t handle, struct trusty_peer_id *peer_id, uint32_t* peer_id_size) {
+    return _trusty_accept2(handle, peer_id, peer_id_size);
+}
+
 int close(handle_t handle) {
     return _trusty_close(handle);
 }
