@@ -105,13 +105,25 @@ MODULE_COMPILEFLAGS += \
 	-fsanitize-cfi-icall-experimental-normalize-integers \
 	-DCFI_ENABLED
 MODULE_LIBRARY_DEPS += trusty/kernel/lib/ubsan
-MODULE_RUSTFLAGS += -Zsanitizer=cfi
+
+ifeq (true,$(call TOBOOL,$(ARCH_$(ARCH)_SUPPORTS_RUST_CFI)))
+# CFI rust <-> C cfi
+MODULE_RUSTFLAGS += \
+	-Zsanitizer=cfi \
+	-Zsanitizer-cfi-normalize-integers \
+	-C linker-plugin-lto \
+	-Zsplit-lto-unit \
+
+endif
 
 ifeq (true,$(call TOBOOL,$(CFI_DIAGNOSTICS)))
 MODULE_COMPILEFLAGS += -fno-sanitize-trap=cfi
 endif
 endif # MODULE_CFI_ENABLED
 
+ifeq (,$(filter linker-plugin-lto,$(MODULE_RUSTFLAGS)))
+MODULE_RUST_FLAGS += -C lto=thin
+endif
 endif # !MODULE_DISABLE_LTO
 
 # Branch Target Identification
