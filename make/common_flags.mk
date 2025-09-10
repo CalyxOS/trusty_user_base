@@ -102,6 +102,7 @@ ifeq (true,$(call TOBOOL,$(MODULE_CFI_ENABLED)))
 MODULE_COMPILEFLAGS += \
 	-fsanitize-blacklist=trusty/kernel/lib/ubsan/exemptlist \
 	-fsanitize=cfi \
+	-fsanitize-cfi-icall-experimental-normalize-integers \
 	-DCFI_ENABLED
 MODULE_LIBRARY_DEPS += trusty/kernel/lib/ubsan
 MODULE_RUSTFLAGS += -Zsanitizer=cfi
