@@ -47,7 +47,7 @@ pub use peer_id::{Uuid, UuidFromBytesError, UuidFromStrError};
 pub use serialization::{Deserialize, Serialize, Serializer};
 pub use service::{
     ClientIdentifier, ClientIdentifierError, Dispatcher, Manager, PortCfg, Service,
-    UnbufferedService,
+    UnbufferedService, VmIdentifier,
 };
 
 // Safety:

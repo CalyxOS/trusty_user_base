@@ -29,6 +29,7 @@ MODULE_INCLUDES += \
 MODULE_LIBRARY_DEPS += \
 	$(call FIND_CRATE,zerocopy) \
 	$(call FIND_CRATE,zerocopy-derive) \
+	trusty/kernel/lib/shared/peer_id \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	$(call FIND_CRATE,arrayvec) \

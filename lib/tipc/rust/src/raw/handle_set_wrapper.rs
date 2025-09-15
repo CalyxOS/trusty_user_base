@@ -19,7 +19,7 @@
 use crate::raw::{service_handle::PortWrapper, HandleType, RawHandleSet, ServiceHandle};
 use crate::{
     ClientIdentifier, ConnectResult, Handle, MessageResult, PortCfg, Result, TipcError,
-    UnbufferedService, Uuid,
+    UnbufferedService,
 };
 use alloc::sync::Arc;
 use log::error;
@@ -127,23 +127,40 @@ impl<S: UnbufferedService> HandleSetWrapper<S> {
     /// Dispatch an event on a port handle
     pub fn handle_connect(&self, service_handle: Arc<ServiceHandle<S>>) -> Result<()> {
         if let HandleType::Port(cfg) = &service_handle.ty {
-            let mut peer = Uuid::from_bytes(&[0; Uuid::UUID_BYTE_LEN]);
+            let mut peer_id = peer_id::TrustyPeerIdStorageSized::invalid();
+            let (id_ptr, len_ptr) = peer_id.as_ptrs();
             // SAFETY: syscall. The port owns its handle, so it is still valid as
             // a raw fd. The peer structure outlives this call and is mutably
             // borrowed by the call to initialize the structure's data.
-            let rc =
-                unsafe { trusty_sys::accept(service_handle.handle.as_raw_fd(), &mut peer) as i32 };
+            let rc = unsafe {
+                trusty_sys::accept2(service_handle.handle.as_raw_fd(), id_ptr, len_ptr) as i32
+            };
             let connection_handle = Handle::from_raw(rc)?;
+            let client_id =
+                ClientIdentifier::try_from_c_repr(peer_id.as_generic()).map_err(|e| {
+                    error!("Failed to convert peer ID to ClientIdentifier: {:?}", e);
+                    TipcError::InvalidData
+                })?;
 
-            // Check against access control list if we were given one
+            // If the service has provided an uuid-allow-list, and if the client id is not of UUID
+            // type, reject the connection.
             if let Some(uuids) = cfg.get_uuid_allow_list() {
-                if !uuids.contains(&peer) {
-                    error!("UUID {peer:?} isn't supported.\n");
+                if let ClientIdentifier::UUID(ref uuid) = client_id {
+                    if !uuids.contains(&uuid) {
+                        error!("Peer UUID {:?} isn't allowed.", uuid);
+                        return Err(TipcError::SystemError(trusty_sys::Error::NotAllowed));
+                    }
+                } else {
+                    error!(
+                        "Non-UUID peer-ID ({:?}) types are not allowed when a uuild-allow-list is
+                     specified.",
+                        client_id
+                    );
                     return Err(TipcError::SystemError(trusty_sys::Error::NotAllowed));
                 }
             }
             let connect_result =
-                service_handle.service.on_connect(&cfg, &connection_handle, &peer)?;
+                service_handle.service.on_new_connection(&cfg, &connection_handle, &client_id)?;
             if let ConnectResult::Accept(conn) = connect_result {
                 self.add_connection(conn, connection_handle, Arc::clone(&service_handle.service))
                     .map(|_| ())
