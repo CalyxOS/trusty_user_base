@@ -26,8 +26,9 @@
 #
 SYSCALL_MODULE := $(GET_LOCAL_DIR)
 
-# Location of generated sources
-SYSCALL_SRCS_DIR := $(TRUSTY_TOP_LEVEL_BUILDDIR)/generated/$(SYSCALL_MODULE)
+# Location of generated sources. This path must be under the BUILDDIR.
+# when SYSCALL_S gets compiled to get the correct flags and .o path.
+SYSCALL_SRCS_DIR := $(TRUSTY_LIBRARY_BUILDDIR)/generated/$(SYSCALL_MODULE)
 
 # Need to generate these
 SYSCALL_H := $(SYSCALL_SRCS_DIR)/trusty_syscalls.h
