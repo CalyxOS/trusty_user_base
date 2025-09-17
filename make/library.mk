@@ -196,13 +196,7 @@ $(error $(MODULE) cannot be built as both a proc-macro and a target crate)
 endif
 endif
 
-ifeq ($(call TOBOOL,$(TRUSTY_APP)),false)
-ifeq ($(call TOBOOL,$(MODULE_RUST_HOST_LIB)),false)
-BUILDDIR := $(TRUSTY_LIBRARY_BUILDDIR)
-else
-BUILDDIR := $(TRUSTY_HOST_LIBRARY_BUILDDIR)
-endif
-endif
+include make/set_library_builddir.mk
 
 # Skip docs for apps because dependencies for apps are setup differently than
 # for rlibs (apps do use $MODULE_RSOBJS which is the variable we use as an input

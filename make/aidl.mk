@@ -70,6 +70,9 @@ ifeq ($(AIDL_TOOL),)
 $(error No AIDL_TOOL. Please build the AIDL compiler or checkout the main-trusty branch)
 endif
 
+# The rules below require library BUILDDIR to be set
+include make/set_library_builddir.mk
+
 MODULE_AIDL_INCLUDES ?=
 AIDL_SRCS := $(call TOBUILDDIR,$(patsubst %.aidl,%.$(AIDL_EXT),$(MODULE_AIDLS)))
 AIDL_RUST_GLUE_TOOL ?= system/tools/aidl/build/aidl_rust_glue.py
