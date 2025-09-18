@@ -22,7 +22,7 @@ MODULE_SRCS := $(LOCAL_DIR)/src/lib.rs
 MODULE_CRATE_NAME := trusty_sys
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
-	trusty/kernel/lib/shared/peer_id \
+	trusty/kernel/lib/shared/peer_id/rust \
 	trusty/user/base/lib/libcompiler_builtins-rust \
 	trusty/user/base/lib/libcore-rust \
 	trusty/user/base/lib/syscall-stubs \
