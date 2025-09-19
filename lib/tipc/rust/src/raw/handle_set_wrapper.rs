@@ -131,9 +131,8 @@ impl<S: UnbufferedService> HandleSetWrapper<S> {
             // SAFETY: syscall. The port owns its handle, so it is still valid as
             // a raw fd. The peer structure outlives this call and is mutably
             // borrowed by the call to initialize the structure's data.
-            let rc = unsafe {
-                trusty_sys::accept(service_handle.handle.as_raw_fd(), peer.as_mut_ptr()) as i32
-            };
+            let rc =
+                unsafe { trusty_sys::accept(service_handle.handle.as_raw_fd(), &mut peer) as i32 };
             let connection_handle = Handle::from_raw(rc)?;
 
             // Check against access control list if we were given one

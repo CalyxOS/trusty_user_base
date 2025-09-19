@@ -332,7 +332,7 @@ impl ClientIdentifier {
             Self::UUID(uuid) => trusty_sys::TrustyPeerIdStorageSized::from_concrete(
                 &trusty_sys::trusty_peer_id_uuid {
                     kind: trusty_sys::TRUSTY_PEER_ID_KIND_UUID,
-                    id: *uuid.as_ref(),
+                    id: *uuid,
                 },
             ),
             Self::VMID(VmIdentifier::Ffa(vm_id)) => {
