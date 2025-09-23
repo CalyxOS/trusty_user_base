@@ -29,4 +29,7 @@ enum Error {
 
     /** Failed to allocate memory */
     MEMORY_ALLOCATION_FAILED = -2,
+
+    /** Invalid DICE policy */
+    INVALID_DICE_POLICY = -3,
 }
