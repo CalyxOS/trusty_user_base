@@ -108,11 +108,11 @@ AIDL_DEFINES += MODULE_AIDL_LANGUAGE=\"$(call clean_defines,$(MODULE_AIDL_LANGUA
 AIDL_DEFINES += MODULE_AIDL_FLAGS=\"$(call clean_defines,$(MODULE_AIDL_FLAGS))\"
 AIDL_DEFINES += MODULE_AIDL_INCLUDES=\"$(call clean_defines,$(MODULE_AIDL_INCLUDES))\"
 
-AIDL_CONFIG := $(call TOBUILDDIR, $(call GET_AIDL_PACKAGE_ROOT,$(firstword $(MODULE_AIDLS)))/AIDL_CONFIG.h)
+AIDL_CONFIG := $(call TOBUILDDIR, $(MODULE))/aidlflags.config
 $(AIDL_CONFIG): AIDL_DEFINES:=$(AIDL_DEFINES)
 $(AIDL_CONFIG): MODULE:=$(MODULE)
 $(AIDL_CONFIG): configheader
-	@$(call INFO_DONE,$(MODULE),generating aidl config header, $@)
+	@$(call INFO_DONE,$(MODULE),generating module aidlflags.config, $@)
 	@$(call MAKECONFIGHEADER,$@,AIDL_DEFINES)
 
 # TODO: support multiple, disparate packages; for AIDL interfaces with package paths,
