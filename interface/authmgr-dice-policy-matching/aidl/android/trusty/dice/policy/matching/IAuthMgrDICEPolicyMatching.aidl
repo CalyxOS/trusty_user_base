@@ -17,13 +17,17 @@
 package android.trusty.dice.policy.matching;
 
 import android.trusty.dice.policy.matching.PolicyMatchingResult;
+import android.trusty.dice.policy.matching.ClientMetaData;
 
 /**
- * An internal AIDL interface implemented by AuthMgr-BE to provide the following two services to the
+ * An internal AIDL interface implemented by AuthMgr-BE to provide the following services to the
  * trusted services:
  * 1) retrieving the latest DICE policy of a client (identified by the client sequence number)
  * 2) matching and comparing a given DICE policy of a client against the client's latest DICE chain
  *    and the policy respectively, that are held in the cache of the AuthMgr-BE.
+ * 3) retrieving the metadata of a client (identified by the client sequence number)
+ * If an error occurred in the invocation of any of the API methods, an error code defined in
+ * Error.aidl or a generic binder error code will be returned as applicable.
  */
 interface IAuthMgrDICEPolicyMatching {
     /**
@@ -59,4 +63,13 @@ interface IAuthMgrDICEPolicyMatching {
      *         and comparing the given DICE policy with the latest DICE policy of the client
      */
     PolicyMatchingResult matchPolicy(in long clientSeqNumber, in byte[] dicePolicy);
+
+    /**
+     * Returns the metadata of the client identified by the client sequence number.
+     *
+     * @param clientSeqNumber - a unique identifier assigned to a client by the AuthMgr BE
+     *
+     * @return metadata of the client identified by the client sequence number.
+     */
+    ClientMetaData getClientMetaData(in long clientSeqNumber);
 }
