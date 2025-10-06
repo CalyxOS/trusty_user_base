@@ -162,16 +162,13 @@ impl<S: UnbufferedService> HandleSetWrapper<S> {
             let connect_result =
                 service_handle.service.on_new_connection(&cfg, &connection_handle, &client_id)?;
             if let ConnectResult::Accept(conn) = connect_result {
-                self.add_connection(conn, connection_handle, Arc::clone(&service_handle.service))
-                    .map(|_| ())
-            } else {
-                error!("Connection closed");
-                return Err(TipcError::ChannelClosed);
+                self.add_connection(conn, connection_handle, Arc::clone(&service_handle.service))?;
             }
         } else {
             error!("A port type handle is expected. Received: {:?}", &service_handle.ty);
             return Err(TipcError::InvalidData);
         }
+        Ok(())
     }
 
     /// Register a connection handle in the handle set
