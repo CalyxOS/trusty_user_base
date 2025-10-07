@@ -100,7 +100,7 @@ impl<S: UnbufferedService> HandleSetWrapper<S> {
     }
 
     /// Add a port type connection to the handle set wrapper
-    pub fn add_port(&self, cfg: &PortCfg, service: Arc<S>) -> Result<PortWrapper<S>> {
+    pub fn add_port(&self, cfg: &PortCfg, service: Arc<S>) -> Result<PortWrapper<'_, S>> {
         // SAFETY: syscall, config path is borrowed and outlives the call.
         // Return value is either a negative error code or a valid handle.
         let rc = unsafe {

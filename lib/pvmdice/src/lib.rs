@@ -261,7 +261,7 @@ fn config_descriptor_for_trusty_user_app(
     Ok(retry_bcc_format_config_descriptor(&config_values)?)
 }
 
-fn dice_input_values_for_trusty_user_app(config_descriptor: &[u8]) -> InputValues {
+fn dice_input_values_for_trusty_user_app(config_descriptor: &[u8]) -> InputValues<'_> {
     InputValues::new(
         TRUSTY_NON_LOADABLE_CODE_HASH,
         Config::Descriptor(config_descriptor),
