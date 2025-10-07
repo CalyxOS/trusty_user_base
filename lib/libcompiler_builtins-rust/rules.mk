@@ -26,7 +26,7 @@ MODULE_CRATE_NAME := compiler_builtins
 MODULE_LIBRARY_DEPS += \
 	trusty/user/base/lib/libcore-rust \
 
-MODULE_RUST_EDITION := 2018
+MODULE_RUST_EDITION := 2024
 
 MODULE_RUSTFLAGS += \
 	--cfg 'feature="weak-intrinsics"' \
