@@ -22,7 +22,7 @@ use crate::{
     UnbufferedService,
 };
 use alloc::sync::Arc;
-use log::error;
+use log::{debug, error};
 use std::collections::vec_deque::VecDeque;
 use std::sync::Mutex;
 use trusty_std::TryClone;
@@ -163,6 +163,8 @@ impl<S: UnbufferedService> HandleSetWrapper<S> {
                 service_handle.service.on_new_connection(&cfg, &connection_handle, &client_id)?;
             if let ConnectResult::Accept(conn) = connect_result {
                 self.add_connection(conn, connection_handle, Arc::clone(&service_handle.service))?;
+            } else {
+                debug!("Connection closed by the service in on_connect.");
             }
         } else {
             error!("A port type handle is expected. Received: {:?}", &service_handle.ty);
