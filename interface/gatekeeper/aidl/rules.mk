@@ -22,6 +22,8 @@ MODULE_AIDL_STABLE := true
 MODULE_AIDL_VERSION := 1
 
 GATEKEEPER_AIDL_DIR = hardware/interfaces/gatekeeper/aidl/aidl_api/android.hardware.gatekeeper/$(MODULE_AIDL_VERSION)
+KEYMINT_AIDL_DIR := hardware/interfaces/security/keymint/aidl
+SECURECLOCK_AIDL_DIR := hardware/interfaces/security/secureclock/aidl
 
 MODULE_CRATE_NAME := android_hardware_gatekeeper
 
@@ -31,6 +33,8 @@ MODULE_AIDL_PACKAGE := android/hardware/gatekeeper
 
 MODULE_AIDL_INCLUDES := \
 	-I $(GATEKEEPER_AIDL_DIR) \
+	-I $(KEYMINT_AIDL_DIR) \
+	-I $(SECURECLOCK_AIDL_DIR) \
 
 MODULE_AIDL_FLAGS := \
 	--stability=vintf \
@@ -39,5 +43,11 @@ MODULE_AIDLS := \
     $(GATEKEEPER_AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/GatekeeperEnrollResponse.aidl    \
     $(GATEKEEPER_AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/GatekeeperVerifyResponse.aidl    \
     $(GATEKEEPER_AIDL_DIR)/$(MODULE_AIDL_PACKAGE)/IGatekeeper.aidl                 \
+
+MODULE_AIDL_RUST_DEPS := \
+	android_hardware_security_keymint
+
+MODULE_LIBRARY_DEPS := \
+	hardware/interfaces/security/keymint/aidl \
 
 include make/aidl.mk
