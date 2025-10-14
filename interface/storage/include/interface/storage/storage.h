@@ -232,6 +232,18 @@ enum storage_file_list_flag {
  *                                          unless accessing files where partial
  *                                          rollback of file system state is
  *                                          acceptable.
+ * @STORAGE_MSG_FLAG_STAGE_IF_CHECKPOINT:   if the underlying filesystem is
+ *                                          checkpointing, stage the pending
+ *                                          changes to be committed after
+ *                                          checkpoint finishes and before the
+ *                                          first post-checkpoint commit (on any
+ *                                          filesystem). If the checkpoint is
+ *                                          rolled back, the changes will not be
+ *                                          committed at all. Only valid along
+ *                                          with
+ *                                          @STORAGE_MSG_FLAG_TRANSACT_COMPLETE.
+ *                                          Not valid together with
+ *                                          @STORAGE_MSG_FLAG_PRE_COMMIT_CHECKPOINT.
  */
 enum storage_msg_flag {
     STORAGE_MSG_FLAG_BATCH = 0x1,
@@ -241,6 +253,7 @@ enum storage_msg_flag {
     STORAGE_MSG_FLAG_PRE_COMMIT_CHECKPOINT = 0x8,
     STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT = 0x10,
     STORAGE_MSG_FLAG_FS_REPAIRED_ACK = 0x20,
+    STORAGE_MSG_FLAG_STAGE_IF_CHECKPOINT = 0x40,
 };
 
 /*
