@@ -86,7 +86,10 @@ pub fn wait_for_interface<T: FromIBinder + ?Sized>(name: &str) -> Result<Strong<
             let service_fd = fd_from_accessor(&accessor, name)?;
 
             return rpcbinder_from_parcel_fd(service_fd).inspect_err(|&status_code| {
-                log::error!(
+                // Avoid making this an error log since when wait_for_interface is called
+                // for a local service (i.e. one without an accessor), this will log an error
+                // for every attempt to connect to the service, which is noisy and not useful.
+                log::debug!(
                     "Failed to setup binder on fd returned from ITrustyAccessor for {:?} {}",
                     &port_name,
                     status_code
