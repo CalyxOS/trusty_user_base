@@ -216,7 +216,7 @@ impl HwBccOps for PvmDice {
         // have no impact because the rust hwbcc client opens a new connection for each operation.
         let dice_artifacts = self.derive_next_dice_artifacts(request_ctx)?;
 
-        Ok(retry_sign_cose_sign1_with_cdi_leaf_priv(data, aad, &dice_artifacts)?)
+        Ok(retry_sign_cose_sign1_with_cdi_leaf_priv(None, data, aad, &dice_artifacts)?)
     }
 }
 
@@ -261,7 +261,7 @@ fn config_descriptor_for_trusty_user_app(
     Ok(retry_bcc_format_config_descriptor(&config_values)?)
 }
 
-fn dice_input_values_for_trusty_user_app(config_descriptor: &[u8]) -> InputValues {
+fn dice_input_values_for_trusty_user_app(config_descriptor: &[u8]) -> InputValues<'_> {
     InputValues::new(
         TRUSTY_NON_LOADABLE_CODE_HASH,
         Config::Descriptor(config_descriptor),

@@ -29,6 +29,7 @@ MODULE_INCLUDES += \
 MODULE_LIBRARY_DEPS += \
 	$(call FIND_CRATE,zerocopy) \
 	$(call FIND_CRATE,zerocopy-derive) \
+	trusty/kernel/lib/shared/peer_id \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	$(call FIND_CRATE,arrayvec) \
@@ -39,6 +40,7 @@ MODULE_LIBRARY_EXPORTED_DEPS += \
 
 MODULE_BINDGEN_ALLOW_TYPES := \
 	handle_t \
+	trusty_peer_id_sequence_id \
 
 MODULE_BINDGEN_ALLOW_VARS := \
 	HSET_.* \
@@ -46,8 +48,12 @@ MODULE_BINDGEN_ALLOW_VARS := \
 	INFINITE_TIME \
 	MAX_USER_HANDLES \
 	USER_BASE_HANDLE \
+	TRUSTY_PEER_ID_KIND_SEQUENCE_ID \
 
 MODULE_BINDGEN_SRC_HEADER := $(LOCAL_DIR)/bindings.h
+
+MODULE_BINDGEN_BLOCK_TYPES := \
+	trusty_peer_id_kind_t \
 
 MODULE_RUST_TESTS := true
 

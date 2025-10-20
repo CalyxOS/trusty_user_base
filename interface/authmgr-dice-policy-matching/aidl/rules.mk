@@ -23,6 +23,7 @@ MODULE_AIDL_LANGUAGE := rust
 MODULE_AIDL_PACKAGE := android/trusty/dice/policy/matching
 
 MODULE_AIDLS := \
+	$(LOCAL_DIR)/$(MODULE_AIDL_PACKAGE)/ClientMetaData.aidl \
 	$(LOCAL_DIR)/$(MODULE_AIDL_PACKAGE)/Error.aidl \
 	$(LOCAL_DIR)/$(MODULE_AIDL_PACKAGE)/IAuthMgrDICEPolicyMatching.aidl \
 	$(LOCAL_DIR)/$(MODULE_AIDL_PACKAGE)/PolicyMatchingResult.aidl \

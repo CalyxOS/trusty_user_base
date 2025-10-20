@@ -78,7 +78,7 @@ impl Hwkey {
     /// let request_builder = hwkey_session.derive_key_req();
     /// ```
     ///
-    pub fn derive_key_req(&self) -> DerivedKeyRequest {
+    pub fn derive_key_req(&self) -> DerivedKeyRequest<'_> {
         DerivedKeyRequest::new(&self)
     }
 

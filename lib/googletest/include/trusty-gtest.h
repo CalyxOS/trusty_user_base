@@ -67,6 +67,13 @@ public:
         }
     }
 
+    void OnTestProgramStart(const testing::UnitTest& unit_test) override {
+        /* Initialized by __init_libc in ./trusty/musl/src/env/__libc_start_main.c */
+        extern char* __progname;
+        trusty_unittest_printf("[==========] Running %d tests from program %s.\n",
+                               unit_test.test_to_run_count(), __progname);
+    }
+
     void OnTestProgramEnd(const testing::UnitTest& unit_test) override {
         trusty_unittest_printf("[==========] %d tests ran.\n",
                                unit_test.test_to_run_count());

@@ -70,6 +70,9 @@ ifeq ($(AIDL_TOOL),)
 $(error No AIDL_TOOL. Please build the AIDL compiler or checkout the main-trusty branch)
 endif
 
+# The rules below require library BUILDDIR to be set
+include make/set_library_builddir.mk
+
 MODULE_AIDL_INCLUDES ?=
 AIDL_SRCS := $(call TOBUILDDIR,$(patsubst %.aidl,%.$(AIDL_EXT),$(MODULE_AIDLS)))
 AIDL_RUST_GLUE_TOOL ?= system/tools/aidl/build/aidl_rust_glue.py
@@ -99,6 +102,19 @@ GET_AIDL_HASH_FLAG = $(if $(filter-out 0 false,$(MODULE_AIDL_STABLE)),\
 		$(foreach hf,$(wildcard $(call GET_AIDL_PACKAGE_ROOT,$1)/.hash),$(shell tail -1 $(hf))),\
 		notfrozen),)
 
+AIDL_DEFINES := MODULE_AIDL_PACKAGE=\"$(call clean_defines,$(MODULE_AIDL_PACKAGE))\"
+AIDL_DEFINES += MODULE_AIDL_STABLE=\"$(call clean_defines,$(MODULE_AIDL_STABLE))\"
+AIDL_DEFINES += MODULE_AIDL_LANGUAGE=\"$(call clean_defines,$(MODULE_AIDL_LANGUAGE))\"
+AIDL_DEFINES += MODULE_AIDL_FLAGS=\"$(call clean_defines,$(MODULE_AIDL_FLAGS))\"
+AIDL_DEFINES += MODULE_AIDL_INCLUDES=\"$(call clean_defines,$(MODULE_AIDL_INCLUDES))\"
+
+AIDL_CONFIG := $(call TOBUILDDIR, $(MODULE))/aidlflags.config
+$(AIDL_CONFIG): AIDL_DEFINES:=$(AIDL_DEFINES)
+$(AIDL_CONFIG): MODULE:=$(MODULE)
+$(AIDL_CONFIG): configheader
+	@$(call INFO_DONE,$(MODULE),generating module aidlflags.config, $@)
+	@$(call MAKECONFIGHEADER,$@,AIDL_DEFINES)
+
 # TODO: support multiple, disparate packages; for AIDL interfaces with package paths,
 # the output directory for the tool should be at the root of
 # the package path. The compiler creates one subdirectory
@@ -115,7 +131,7 @@ $(AIDL_SRCS): MODULE_AIDL_LANGUAGE := $(MODULE_AIDL_LANGUAGE)
 $(AIDL_SRCS): MODULE_AIDL_PACKAGE := $(MODULE_AIDL_PACKAGE)
 $(AIDL_SRCS): MODULE_AIDL_STABLE := $(MODULE_AIDL_STABLE)
 $(AIDL_SRCS): MODULE := $(MODULE)
-$(AIDL_SRCS): $(BUILDDIR)/%.$(AIDL_EXT): %.aidl $(AIDL_TOOL) $(AIDL_HASHES)
+$(AIDL_SRCS): $(BUILDDIR)/%.$(AIDL_EXT): %.aidl $(AIDL_TOOL) $(AIDL_HASHES) $(AIDL_CONFIG)
 	@$(MKDIR)
 	@if [ -n "$(AIDL_HEADER_DIR)" ]; then mkdir -p $(AIDL_HEADER_DIR); fi
 	@$(call ECHO,$(MODULE),generating from AIDL,$@)
@@ -186,3 +202,5 @@ AIDL_HASHES :=
 AIDL_HEADER_DIR :=
 AIDL_SRCS :=
 AIDL_ROOT_RS :=
+AIDL_DEFINES :=
+AIDL_CONFIG :=

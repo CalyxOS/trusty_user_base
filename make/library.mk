@@ -196,13 +196,7 @@ $(error $(MODULE) cannot be built as both a proc-macro and a target crate)
 endif
 endif
 
-ifeq ($(call TOBOOL,$(TRUSTY_APP)),false)
-ifeq ($(call TOBOOL,$(MODULE_RUST_HOST_LIB)),false)
-BUILDDIR := $(TRUSTY_LIBRARY_BUILDDIR)
-else
-BUILDDIR := $(TRUSTY_HOST_LIBRARY_BUILDDIR)
-endif
-endif
+include make/set_library_builddir.mk
 
 # Skip docs for apps because dependencies for apps are setup differently than
 # for rlibs (apps do use $MODULE_RSOBJS which is the variable we use as an input
@@ -313,7 +307,11 @@ $(foreach include_dir,$(MODULE_EXPORT_INCLUDES),$(eval $(call copy-headers-rule,
 
 # Copy any generated headers explicitly listed in MODULE_SDK_HEADERS
 ifneq ($(strip $(MODULE_SDK_HEADERS)),)
-OUTPUT_HEADERS := $(foreach header,$(MODULE_SDK_HEADERS),$(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/$(notdir $(header)))
+OUTPUT_HEADERS_DIR := $(TRUSTY_SDK_INCLUDE_DIR)
+ifneq ($(strip $(MODULE_SDK_HEADER_INSTALL_DIR)),)
+OUTPUT_HEADERS_DIR := $(OUTPUT_HEADERS_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)
+endif
+OUTPUT_HEADERS := $(foreach header,$(MODULE_SDK_HEADERS),$(OUTPUT_HEADERS_DIR)/$(notdir $(header)))
 MODULE_EXPORT_SDK_HEADERS += $(OUTPUT_HEADERS)
 $(OUTPUT_HEADERS): MODULE_SDK_HEADERS := $(MODULE_SDK_HEADERS)
 $(OUTPUT_HEADERS): MODULE_SDK_HEADER_INSTALL_DIR := $(MODULE_SDK_HEADER_INSTALL_DIR)
@@ -321,6 +319,7 @@ $(OUTPUT_HEADERS): $(MODULE_SDK_HEADERS) $(MODULE_SRCDEPS)
 	@$(MKDIR)
 	$(NOECHO)cp $(MODULE_SDK_HEADERS) $(TRUSTY_SDK_INCLUDE_DIR)/$(MODULE_SDK_HEADER_INSTALL_DIR)/
 OUTPUT_HEADERS :=
+OUTPUT_HEADERS_DIR :=
 endif
 
 # Make sure we copy all SDK headers even if they are not needed by the build
@@ -491,6 +490,7 @@ endif # MODULE_IS_RUST
 LIB_SAVED_MODULE := $(MODULE)
 LIB_SAVED_MODULE_LIBRARY_DEPS := $(MODULE_LIBRARY_DEPS)
 LIB_SAVED_MODULE_SRCDEPS := $(MODULE_SRCDEPS)
+LIB_SAVED_MODULE_LIBRARIES := $(MODULE_LIBRARIES)
 
 # Save the rust flags for use in trusted_app.mk. userspace_recurse.mk will clean
 # up after us.
@@ -509,6 +509,7 @@ include make/module.mk
 include make/recurse.mk
 
 MODULE_LIBRARY_DEPS := $(LIB_SAVED_MODULE_LIBRARY_DEPS)
+MODULE_LIBRARIES := $(LIB_SAVED_MODULE_LIBRARIES)
 MODULE_SRCDEPS := $(LIB_SAVED_MODULE_SRCDEPS)
 MODULE := $(LIB_SAVED_MODULE)
 MODULE_RUSTFLAGS := $(LIB_SAVED_MODULE_RUSTFLAGS)

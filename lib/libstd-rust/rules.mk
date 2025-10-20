@@ -23,7 +23,7 @@ MODULE_SRCS := $(LIBSTD_DIR)/src/lib.rs
 
 MODULE_CRATE_NAME := std
 
-MODULE_RUST_EDITION := 2021
+MODULE_RUST_EDITION := 2024
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	$(call FIND_CRATE,cfg-if) \
@@ -49,6 +49,12 @@ MODULE_RUSTFLAGS += \
 	-A unused-variables \
 	-A non-fmt-panics \
 	-A deprecated \
+
+# In rust 1.88.0, the compiler claims the functions erff128 and erfcf128 in
+# std/src/sys/cmath.rs are never used. Instead of patching the rust src, we can
+# just disable this warning
+MODULE_RUSTFLAGS += \
+	-A dead_code \
 
 MODULE_ADD_IMPLICIT_DEPS := false
 
