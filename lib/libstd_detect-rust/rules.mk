@@ -17,7 +17,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-SRC_DIR = $(RUST_BINDIR)/../lib/rustlib/src/rust/library/stdarch/crates/std_detect
+SRC_DIR = $(RUST_BINDIR)/../lib/rustlib/src/rust/library/std_detect
 
 MODULE_SRCS := $(SRC_DIR)/src/lib.rs
 
