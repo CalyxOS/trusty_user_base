@@ -47,10 +47,19 @@ struct storage_open_dir_state;
  *                              have occurred. Do not use this flag unless
  *                              accessing files where partial rollback of file
  *                              system state is acceptable.
+ * @STORAGE_OP_STAGE_IF_CHECKPOINT: if the underlying filesystem is
+ *                                  checkpointing, stage the pending changes to
+ *                                  be committed after checkpoint finishes and
+ *                                  before the first post-checkpoint commit (on
+ *                                  any filesystem). If the checkpoint is rolled
+ *                                  back, the changes will not be committed at
+ *                                  all. Only valid along with
+ *                                  @STORAGE_OP_COMPLETE.
  */
 #define STORAGE_OP_COMPLETE 0x1U
 #define STORAGE_OP_CHECKPOINT 0x2U
 #define STORAGE_OP_FS_REPAIRED_ACK 0x4U
+#define STORAGE_OP_STAGE_IF_CHECKPOINT 0x8U
 
 /**
  * storage_open_session() - Opens a storage session.
@@ -246,6 +255,17 @@ int storage_get_file_size(file_handle_t handle, storage_off_t* size);
  * Return: 0 on success, negative error code on failure.
  */
 int storage_end_transaction(storage_session_t session, bool complete);
+
+/**
+ * storage_stage_transaction() - Stage current transaction to be committed after
+ * the current checkpoint completes. If there isn't one, commit the transaction
+ * normally.
+ *
+ * @session: the storage_session_t returned from a call to storage_open_session
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int storage_stage_transaction(storage_session_t session);
 
 /**
  * storage_commit_checkpoint: Commit current transaction and add to checkpoint
