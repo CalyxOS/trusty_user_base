@@ -23,6 +23,7 @@
 #include <trusty/time.h>
 #include <trusty_ipc.h>
 #include <uapi/err.h>
+#include <uapi/trusty_peer_id.h>
 
 #define TLOG_TAG "ipc-unittest-srv"
 
@@ -732,9 +733,10 @@ close_it:
  *  echo service port event handler
  */
 static void echo_handle_port(const uevent_t* ev) {
-    uuid_t peer_uuid;
     struct echo_chan_state* chan_st;
     const struct tipc_srv* srv = get_srv_state(ev)->service;
+    struct trusty_peer_id_storage peer_id = TRUSTY_PEER_ID_STORAGE_INITIAL_VALUE();
+    uint32_t peer_id_size = sizeof(peer_id);
 
     if (handle_port_errors(ev))
         return;
@@ -742,8 +744,8 @@ static void echo_handle_port(const uevent_t* ev) {
     if (ev->event & IPC_HANDLE_POLL_READY) {
         handle_t chan;
 
-        /* incomming connection: accept it */
-        int rc = accept(ev->handle, &peer_uuid);
+        /* incoming connection: accept it */
+        int rc = accept2(ev->handle, (struct trusty_peer_id*)&peer_id, &peer_id_size);
         if (rc < 0) {
             TLOGI("failed (%d) to accept on port %d\n", rc, ev->handle);
             return;
