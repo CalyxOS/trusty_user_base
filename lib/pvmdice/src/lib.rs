@@ -53,6 +53,9 @@ const EMPTY_HIDDEN_INPUTS: Hidden = [0; HIDDEN_SIZE];
 // 5f902ace-5e5c-4cd8-ae54-87b88c22ddaf
 const KEYMINT_UUID: Uuid =
     Uuid::new(0x5f902ace, 0x5e5c, 0x4cd8, [0xae, 0x54, 0x87, 0xb8, 0x8c, 0x22, 0xdd, 0xaf]);
+// c6b5b730-f21c-480b-ad6f-cc197680b76c
+const DESKTOP_STRONGBOX_KEYMINT_UUID: Uuid =
+    Uuid::new(0xc6b5b730, 0xf21c, 0x480b, [0xad, 0x6f, 0xcc, 0x19, 0x76, 0x80, 0xb7, 0x6c]);
 // 19c7289c-5004-4a30-b85a-2a22a76e6327
 const WIDEVINE_UUID: Uuid =
     Uuid::new(0x19c7289c, 0x5004, 0x4a30, [0xb8, 0x5a, 0x2a, 0x22, 0xa7, 0x6e, 0x63, 0x27]);
@@ -280,6 +283,9 @@ fn dice_component_specific_config_values(
 ) -> ComponentSpecificConfigValues {
     match request_ctx.peer {
         KEYMINT_UUID => {
+            ComponentSpecificConfigValues { component_name: c"keymint".into(), rkp_vm_marker: true }
+        }
+        DESKTOP_STRONGBOX_KEYMINT_UUID => {
             ComponentSpecificConfigValues { component_name: c"keymint".into(), rkp_vm_marker: true }
         }
         WIDEVINE_UUID => ComponentSpecificConfigValues {

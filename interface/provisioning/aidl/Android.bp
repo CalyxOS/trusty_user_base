@@ -1,0 +1,17 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+aidl_interface {
+    name: "android.trusty.provisioning",
+    unstable: true,
+    host_supported: true,
+    srcs: [
+        "android/trusty/provisioning/*.aidl",
+    ],
+    backend: {
+        rust: {
+            enabled: true,
+        },
+    },
+}

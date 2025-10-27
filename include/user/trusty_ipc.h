@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <sys/uio.h>
 #include <uapi/trusty_ipc.h>
+#include <uapi/trusty_peer_id.h>
 #include <uapi/trusty_uuid.h>
 
 __BEGIN_CDECLS
@@ -143,6 +144,7 @@ handle_t port_create(const char* path,
                      uint32_t flags);
 handle_t connect(const char* path, uint32_t flags);
 handle_t accept(handle_t handle, uuid_t* peer_uuid);
+handle_t accept2(handle_t handle, struct trusty_peer_id *peer_id, uint32_t* peer_id_size);
 int close(handle_t handle);
 int set_cookie(handle_t handle, void* cookie);
 handle_t handle_set_create(void);

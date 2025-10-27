@@ -390,6 +390,24 @@ impl ClientIdentifier {
     pub fn from_c_repr(id: trusty_sys::TrustyPeerIdRef<'_>) -> Self {
         Self::try_from_c_repr(id).expect("Conversion failure due to programmer error.")
     }
+
+    /// A helper function to check and retrieve the FFA VM-ID, if the ClientIdentifier carries it.
+    pub fn try_ffa_vm_id(&self) -> Result<u16> {
+        if let ClientIdentifier::VMID(VmIdentifier::Ffa(vm_id)) = self {
+            Ok(*vm_id)
+        } else {
+            Err(TipcError::InvalidData)
+        }
+    }
+
+    /// A helper function to check and retrieve the UUID, if the ClientIdentifier carries it.
+    pub fn try_uuid(&self) -> Result<Uuid> {
+        if let ClientIdentifier::UUID(uuid) = self {
+            Ok(*uuid)
+        } else {
+            Err(TipcError::InvalidData)
+        }
+    }
 }
 
 /// A service which handles IPC messages for a collection of ports.
