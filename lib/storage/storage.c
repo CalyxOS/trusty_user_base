@@ -69,6 +69,13 @@ static inline uint32_t _to_msg_flags(uint32_t opflags) {
         msg_flags |= STORAGE_MSG_FLAG_FS_REPAIRED_ACK;
     }
 
+    if (opflags & STORAGE_OP_STAGE_IF_CHECKPOINT) {
+        if ((msg_flags & STORAGE_MSG_FLAG_TRANSACT_COMPLETE) == 0) {
+            TLOGE("STORAGE_OP_STAGE_IF_CHECKPOINT only valid when completing a transaction\n");
+        }
+        msg_flags |= STORAGE_MSG_FLAG_STAGE_IF_CHECKPOINT;
+    }
+
     return msg_flags;
 }
 
@@ -621,15 +628,27 @@ int storage_get_file_size(file_handle_t fh, storage_off_t* size_p) {
     return NO_ERROR;
 }
 
-int storage_end_transaction(storage_session_t session, bool complete) {
+static int storage_end_transaction_etc(storage_session_t session,
+                                       bool complete,
+                                       bool stage_if_checkpoint) {
     struct storage_msg msg = {
             .cmd = STORAGE_END_TRANSACTION,
-            .flags = complete ? STORAGE_MSG_FLAG_TRANSACT_COMPLETE : 0,
+            .flags = (complete ? STORAGE_MSG_FLAG_TRANSACT_COMPLETE : 0) |
+                     (stage_if_checkpoint ? STORAGE_MSG_FLAG_STAGE_IF_CHECKPOINT
+                                          : 0),
     };
     struct iovec iov = {&msg, sizeof(msg)};
 
     ssize_t rc = send_reqv(session, &iov, 1, &iov, 1);
     return (int)check_response(&msg, rc);
+}
+
+int storage_end_transaction(storage_session_t session, bool complete) {
+    return storage_end_transaction_etc(session, complete, false);
+}
+
+int storage_stage_transaction(storage_session_t session) {
+    return storage_end_transaction_etc(session, true, true);
 }
 
 int storage_commit_checkpoint(storage_session_t session) {

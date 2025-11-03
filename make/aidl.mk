@@ -45,16 +45,6 @@ ifeq ($(MODULE_AIDL_LANGUAGE),)
 MODULE_AIDL_LANGUAGE := cpp
 endif
 
-ifeq ($(MODULE_AIDL_LANGUAGE),cpp)
-AIDL_EXT := cpp
-AIDL_HEADER_DIR := $(BUILDDIR)/include
-else ifeq ($(MODULE_AIDL_LANGUAGE),rust)
-AIDL_EXT := rs
-AIDL_HEADER_DIR :=
-else
-$(error "Unsupported AIDL language: $(MODULE_AIDL_LANGUAGE)")
-endif
-
 # TODO: this implies all sources are in MODULE_AIDL_PACKAGE or are subpackages
 # of MODULE_AIDL_PACKAGE; support multiple packages
 GET_AIDL_PACKAGE_ROOT = $(if $(MODULE_AIDL_PACKAGE),$(firstword $(subst $(MODULE_AIDL_PACKAGE), ,$1)),$(dir $1))
@@ -72,6 +62,16 @@ endif
 
 # The rules below require library BUILDDIR to be set
 include make/set_library_builddir.mk
+
+ifeq ($(MODULE_AIDL_LANGUAGE),cpp)
+AIDL_EXT := cpp
+AIDL_HEADER_DIR := $(BUILDDIR)/include
+else ifeq ($(MODULE_AIDL_LANGUAGE),rust)
+AIDL_EXT := rs
+AIDL_HEADER_DIR :=
+else
+$(error "Unsupported AIDL language: $(MODULE_AIDL_LANGUAGE)")
+endif
 
 MODULE_AIDL_INCLUDES ?=
 AIDL_SRCS := $(call TOBUILDDIR,$(patsubst %.aidl,%.$(AIDL_EXT),$(MODULE_AIDLS)))
@@ -107,6 +107,7 @@ AIDL_DEFINES += MODULE_AIDL_STABLE=\"$(call clean_defines,$(MODULE_AIDL_STABLE))
 AIDL_DEFINES += MODULE_AIDL_LANGUAGE=\"$(call clean_defines,$(MODULE_AIDL_LANGUAGE))\"
 AIDL_DEFINES += MODULE_AIDL_FLAGS=\"$(call clean_defines,$(MODULE_AIDL_FLAGS))\"
 AIDL_DEFINES += MODULE_AIDL_INCLUDES=\"$(call clean_defines,$(MODULE_AIDL_INCLUDES))\"
+AIDL_DEFINES += AIDL_HEADER_DIR=\"$(call clean_defines,$(AIDL_HEADER_DIR))\"
 
 AIDL_CONFIG := $(call TOBUILDDIR, $(MODULE))/aidlflags.config
 $(AIDL_CONFIG): AIDL_DEFINES:=$(AIDL_DEFINES)
