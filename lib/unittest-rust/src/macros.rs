@@ -329,6 +329,68 @@ macro_rules! assert_ok {
     });
 }
 
+/// Asserts that a `Result` expression is `Err`
+///
+/// On failure, this macro will print an error message containing the `Ok`
+/// value and signal the failure to the test framework. On success, the macro
+/// expression will evaluate to the unwrapped `Err` value.
+///
+/// Like [`assert!`], this macro has a second form, where a custom error
+/// message can be provided with or without arguments for formatting. See
+/// [`core::fmt`] for syntax for this form. Expressions used as format arguments
+/// will only be evaluated if the assertion fails.
+///
+/// Failures will include a best-effort representation of the `Ok` value in the
+/// error message. It will use the [std::fmt::Display], [std::fmt::Debug], or
+/// [std::any::type_name] in that order of priority, depending on which ones are
+/// implemented for the okay type. (This is implemented with
+/// [autoderef specialization], so it will work for concrete types, but using it
+/// for unconstrained generic `T` will always use the [std::any::type_name]
+/// impl, regardless of what traits the type actually implements. Similarly, if
+/// the type is declared as `T: Debug`, the [std::fmt::Debug] impl will be
+/// invoked, even if the concrete type implements [std::fmt::Display] as well.)
+///
+/// # Examples
+///
+/// ```
+/// let x: Result<usize, String> = Err(String::from("something wrong"));
+/// let x: String = assert_err!(x);
+///
+/// let y: Result<usize, String> = Err(x.clone());
+/// assert_err!(y, "unexpected success; should have gotten Err({})", x);
+/// ```
+///
+/// [autoderef specialization]: https://lukaskalbertodt.github.io/2019/12/05/generalized-autoref-based-specialization.html
+#[macro_export]
+macro_rules! assert_err {
+    ($result:expr $(,)?) => ({
+        match ($result) {
+            Ok(t) => {
+                $crate::__internal_macro_utils::assert_err_failed(
+                    core::stringify!($result),
+                    $crate::__internal_macro_utils::display_best_effort!(t),
+                    core::option::Option::None
+                );
+                return;
+            }
+            Err(e) => e,
+        }
+    });
+    ($result:expr, $($arg:tt)+) => ({
+        match ($result) {
+            Ok(t) => {
+                $crate::__internal_macro_utils::assert_err_failed(
+                    core::stringify!($result),
+                    $crate::__internal_macro_utils::display_best_effort!(t),
+                    core::option::Option::Some(core::format_args!($($arg)+))
+                );
+                return;
+            }
+            Err(e) => e,
+        }
+    });
+}
+
 /// Expects that a boolean expression is `true` at runtime.
 ///
 /// On failure, this macro will print an error message and signal the failure to
