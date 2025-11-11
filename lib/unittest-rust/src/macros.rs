@@ -305,16 +305,9 @@ macro_rules! assert_ok {
         match ($result) {
             Ok(t) => t,
             Err(e) => {
-                use $crate::__internal_macro_utils::{
-                    DisplayKind as _,
-                    DebugKind as _,
-                    TypenameKind as _,
-                };
                 $crate::__internal_macro_utils::assert_ok_failed(
                     core::stringify!($result),
-                    (&&&$crate::__internal_macro_utils::BestEffortDisplay(&e))
-                        .display_kind()
-                        .wrap(e),
+                    $crate::__internal_macro_utils::display_best_effort!(e),
                     core::option::Option::None
                 );
                 return;
@@ -325,16 +318,9 @@ macro_rules! assert_ok {
         match ($result) {
             Ok(t) => t,
             Err(e) => {
-                use $crate::__internal_macro_utils::{
-                    DisplayKind as _,
-                    DebugKind as _,
-                    TypenameKind as _,
-                };
                 $crate::__internal_macro_utils::assert_ok_failed(
                     core::stringify!($result),
-                    (&&&$crate::__internal_macro_utils::BestEffortDisplay(&e))
-                        .display_kind()
-                        .wrap(e),
+                    $crate::__internal_macro_utils::display_best_effort!(e),
                     core::option::Option::Some(core::format_args!($($arg)+))
                 );
                 return;

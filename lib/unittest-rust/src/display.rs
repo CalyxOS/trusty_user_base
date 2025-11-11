@@ -19,6 +19,25 @@ use std::{
     fmt::{self, Debug, Display, Formatter},
 };
 
+/// Creates a value, wrapping `val` that implements [Display].
+///
+/// The [Display] implementation uses [BestEffortDisplay] to to forward to
+/// `val`'s [Display] if it exists, `val`'s [Debug] if that exists, or print
+/// `val`'s type name if `val` implements neither trait.
+///
+/// See [BestEffortDisplay] for more details.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! display_best_effort {
+    ($val:ident) => {{
+        #[allow(unused_imports)]
+        use $crate::__internal_macro_utils::{DebugKind as _, DisplayKind as _, TypenameKind as _};
+        (&&&$crate::__internal_macro_utils::BestEffortDisplay(&$val)).display_kind().wrap($val)
+    }};
+}
+
+pub use crate::display_best_effort;
+
 /// Provides access to a best-effort implementation of [Display].
 ///
 /// [BestEffortDisplay] creates a wrapper that implements [Display] for the
