@@ -148,6 +148,46 @@ fn assert_result_failed_inner(
     CONTEXT.fail(false);
 }
 
+#[cold]
+#[track_caller]
+pub fn assert_matches_failed<T: fmt::Display>(
+    actual_expr: &'static str,
+    pattern: &'static str,
+    actual: T,
+    args: Option<fmt::Arguments<'_>>,
+) {
+    assert_matches_failed_inner(actual_expr, pattern, &actual, args);
+}
+
+#[track_caller]
+fn assert_matches_failed_inner(
+    actual_expr: &'static str,
+    pattern: &'static str,
+    actual: &dyn fmt::Display,
+    args: Option<fmt::Arguments<'_>>,
+) {
+    match args {
+        Some(args) => eprintln!(
+            r#"assertion failed: `{}` does not match {}
+value: `{}` : {}, {}`"#,
+            actual_expr,
+            pattern,
+            actual,
+            args,
+            Location::caller(),
+        ),
+        None => eprintln!(
+            r#"assertion failed: `{}` does not match {}
+value: `{}`, {}`"#,
+            actual_expr,
+            pattern,
+            actual,
+            Location::caller(),
+        ),
+    }
+    CONTEXT.fail(false);
+}
+
 #[track_caller]
 pub fn simple_assert_failed(cond: &'static str, args: Option<fmt::Arguments<'_>>) {
     match args {

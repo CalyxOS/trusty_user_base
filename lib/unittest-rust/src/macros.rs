@@ -430,6 +430,62 @@ macro_rules! expect {
     });
 }
 
+/// Expects that a value matches the given pattern at runtime.
+///
+/// On failure, this macro will print an error message and signal the failure to
+/// the test framework. The test will continue past the failure.
+///
+/// # Custom Messages
+///
+/// This macro has a second form, where a custom error message can
+/// be provided with or without arguments for formatting. See [`core::fmt`]
+/// for syntax for this form. Expressions used as format arguments will only
+/// be evaluated if the assertion fails.
+///
+/// # Exampples
+/// ```
+/// use test::expect_matches;
+/// let a = Some(15);
+/// let b = Some(2112);
+///
+/// expect_matches!(a, Some(_));
+/// expect_matches!(a, Some(x) if x < 100);
+/// expect_matches!(b, Some(2000..3000), "Missing or out of range");
+///
+/// // Fails test:
+/// expect_matches!(b, None);
+/// expect_matches!(a, Some(16), "Wrong value for {}", "a");
+/// ```
+#[macro_export]
+macro_rules! expect_matches {
+    ($actual:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )? $(,)?) => ({
+        match $actual {
+            $( $pattern )|+ $( if $guard )? => {}
+            actual_val => {
+                $crate::__internal_macro_utils::assert_matches_failed(
+                        core::stringify!($actual),
+                        core::stringify!($( $pattern )|+ $( if $guard )?),
+                        $crate::__internal_macro_utils::display_best_effort!(actual_val),
+                        core::option::Option::None
+                    );
+            }
+        }
+    });
+    ($actual:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )?, $($arg:tt)+) => ({
+        match $actual {
+            $( $pattern )|+ $( if $guard )? => {}
+            actual_val => {
+                $crate::__internal_macro_utils::assert_matches_failed(
+                        core::stringify!($actual),
+                        core::stringify!($( $pattern )|+ $( if $guard )?),
+                        $crate::__internal_macro_utils::display_best_effort!(actual_val),
+                        core::option::Option::Some(core::format_args!($($arg)+))
+                    );
+            }
+        }
+    });
+}
+
 /// Asserts that a boolean expression is `true` at runtime.
 ///
 /// Unlike [`core::assert!`], this macro will not panic, but instead returns
@@ -466,6 +522,64 @@ macro_rules! assert {
                     );
                     return;
                 }
+            }
+        }
+    });
+}
+
+/// Expects that a value matches the given pattern at runtime.
+///
+/// Unlike [`core::assert_matches::assert_matches!`], this macro will not panic,
+/// but instead returns early from a test function.
+///
+/// # Custom Messages
+///
+/// This macro has a second form, where a custom error message can
+/// be provided with or without arguments for formatting. See [`core::fmt`]
+/// for syntax for this form. Expressions used as format arguments will only
+/// be evaluated if the assertion fails.
+///
+/// # Exampples
+/// ```
+/// use test::assert_matches;
+/// let a = Some(15);
+/// let b = Some(2112);
+///
+/// assert_matches!(a, Some(_));
+/// assert_matches!(a, Some(x) if x < 100);
+/// assert_matches!(b, Some(2000..3000), "Missing or out of range");
+///
+/// // Fails test and returns early:
+/// assert_matches!(b, None);
+/// assert_matches!(a, Some(16), "Wrong value for {}", "a");
+/// ```
+#[macro_export]
+macro_rules! assert_matches {
+    ($actual:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )? $(,)?) => ({
+        match $actual {
+            $( $pattern )|+ $( if $guard )? => {}
+            actual_val => {
+                $crate::__internal_macro_utils::assert_matches_failed(
+                        core::stringify!($actual),
+                        core::stringify!($( $pattern )|+ $( if $guard )?),
+                        $crate::__internal_macro_utils::display_best_effort!(actual_val),
+                        core::option::Option::None
+                    );
+                return;
+            }
+        }
+    });
+    ($actual:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )?, $($arg:tt)+) => ({
+        match $actual {
+            $( $pattern )|+ $( if $guard )? => {}
+            actual_val => {
+                $crate::__internal_macro_utils::assert_matches_failed(
+                        core::stringify!($actual),
+                        core::stringify!($( $pattern )|+ $( if $guard )?),
+                        $crate::__internal_macro_utils::display_best_effort!(actual_val),
+                        core::option::Option::Some(core::format_args!($($arg)+))
+                    );
+                return;
             }
         }
     });
