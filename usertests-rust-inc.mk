@@ -29,3 +29,4 @@ TRUSTY_RUST_USER_TESTS += \
 	trusty/user/base/lib/storage/rust \
 	trusty/user/base/lib/service_manager/tests \
 	trusty/user/base/lib/tipc/rust \
+	trusty/kernel/lib/shared/android_firmware \
