@@ -22,6 +22,7 @@
 use binder::{SpIBinder, StatusCode};
 use crate::wait_for_interface;
 use android_hardware_security_see_authmgr::aidl::android::hardware::security::see::authmgr::IAuthMgrAuthorization::IAuthMgrAuthorization;
+use android_hardware_security_see_devicestate::aidl::android::hardware::security::see::devicestate::IDeviceState::IDeviceState;
 use android_hardware_security_see_hwcrypto::aidl::android::hardware::security::see::hwcrypto::IHwCryptoKey::IHwCryptoKey;
 use android_hardware_security_see_storage::aidl::android::hardware::security::see::storage::ISecureStorage::ISecureStorage;
 
@@ -31,10 +32,17 @@ const HWCRYPTO_KEY_SERVICE_NAME: &str =
     "android.hardware.security.see.hwcrypto.IHwCryptoKey/default";
 const AUTHMGR_SERVICE_NAME: &str =
     "android.hardware.security.see.authmgr.IAuthMgrAuthorization/default";
+const DEVICE_STATE_SERVICE_NAME: &str =
+    "android.hardware.security.see.devicestate.IDeviceState/default";
 
 /// Get all supported VINTF services.
 pub fn get_supported_vintf_services() -> &'static [&'static str] {
-    &[SECURE_STORAGE_SERVICE_NAME, HWCRYPTO_KEY_SERVICE_NAME, AUTHMGR_SERVICE_NAME]
+    &[
+        SECURE_STORAGE_SERVICE_NAME,
+        HWCRYPTO_KEY_SERVICE_NAME,
+        AUTHMGR_SERVICE_NAME,
+        DEVICE_STATE_SERVICE_NAME,
+    ]
 }
 
 /// Get an SpIBinder for a given service name.
@@ -51,6 +59,9 @@ pub fn get_vintf_binder(service_name: &str) -> binder::Result<SpIBinder> {
         }
         AUTHMGR_SERVICE_NAME => {
             Ok(wait_for_interface::<dyn IAuthMgrAuthorization>(service_name)?.as_binder())
+        }
+        DEVICE_STATE_SERVICE_NAME => {
+            Ok(wait_for_interface::<dyn IDeviceState>(service_name)?.as_binder())
         }
         _ => Err(StatusCode::NAME_NOT_FOUND)?,
     }
