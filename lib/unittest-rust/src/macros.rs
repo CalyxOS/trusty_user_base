@@ -305,16 +305,9 @@ macro_rules! assert_ok {
         match ($result) {
             Ok(t) => t,
             Err(e) => {
-                use $crate::__internal_macro_utils::{
-                    DisplayKind as _,
-                    DebugKind as _,
-                    TypenameKind as _,
-                };
                 $crate::__internal_macro_utils::assert_ok_failed(
                     core::stringify!($result),
-                    (&&&$crate::__internal_macro_utils::BestEffortDisplay(&e))
-                        .display_kind()
-                        .wrap(e),
+                    $crate::__internal_macro_utils::display_best_effort!(e),
                     core::option::Option::None
                 );
                 return;
@@ -325,20 +318,75 @@ macro_rules! assert_ok {
         match ($result) {
             Ok(t) => t,
             Err(e) => {
-                use $crate::__internal_macro_utils::{
-                    DisplayKind as _,
-                    DebugKind as _,
-                    TypenameKind as _,
-                };
                 $crate::__internal_macro_utils::assert_ok_failed(
                     core::stringify!($result),
-                    (&&&$crate::__internal_macro_utils::BestEffortDisplay(&e))
-                        .display_kind()
-                        .wrap(e),
+                    $crate::__internal_macro_utils::display_best_effort!(e),
                     core::option::Option::Some(core::format_args!($($arg)+))
                 );
                 return;
             }
+        }
+    });
+}
+
+/// Asserts that a `Result` expression is `Err`
+///
+/// On failure, this macro will print an error message containing the `Ok`
+/// value and signal the failure to the test framework. On success, the macro
+/// expression will evaluate to the unwrapped `Err` value.
+///
+/// Like [`assert!`], this macro has a second form, where a custom error
+/// message can be provided with or without arguments for formatting. See
+/// [`core::fmt`] for syntax for this form. Expressions used as format arguments
+/// will only be evaluated if the assertion fails.
+///
+/// Failures will include a best-effort representation of the `Ok` value in the
+/// error message. It will use the [std::fmt::Display], [std::fmt::Debug], or
+/// [std::any::type_name] in that order of priority, depending on which ones are
+/// implemented for the okay type. (This is implemented with
+/// [autoderef specialization], so it will work for concrete types, but using it
+/// for unconstrained generic `T` will always use the [std::any::type_name]
+/// impl, regardless of what traits the type actually implements. Similarly, if
+/// the type is declared as `T: Debug`, the [std::fmt::Debug] impl will be
+/// invoked, even if the concrete type implements [std::fmt::Display] as well.)
+///
+/// # Examples
+///
+/// ```
+/// let x: Result<usize, String> = Err(String::from("something wrong"));
+/// let x: String = assert_err!(x);
+///
+/// let y: Result<usize, String> = Err(x.clone());
+/// assert_err!(y, "unexpected success; should have gotten Err({})", x);
+/// ```
+///
+/// [autoderef specialization]: https://lukaskalbertodt.github.io/2019/12/05/generalized-autoref-based-specialization.html
+#[macro_export]
+macro_rules! assert_err {
+    ($result:expr $(,)?) => ({
+        match ($result) {
+            Ok(t) => {
+                $crate::__internal_macro_utils::assert_err_failed(
+                    core::stringify!($result),
+                    $crate::__internal_macro_utils::display_best_effort!(t),
+                    core::option::Option::None
+                );
+                return;
+            }
+            Err(e) => e,
+        }
+    });
+    ($result:expr, $($arg:tt)+) => ({
+        match ($result) {
+            Ok(t) => {
+                $crate::__internal_macro_utils::assert_err_failed(
+                    core::stringify!($result),
+                    $crate::__internal_macro_utils::display_best_effort!(t),
+                    core::option::Option::Some(core::format_args!($($arg)+))
+                );
+                return;
+            }
+            Err(e) => e,
         }
     });
 }
@@ -382,6 +430,62 @@ macro_rules! expect {
     });
 }
 
+/// Expects that a value matches the given pattern at runtime.
+///
+/// On failure, this macro will print an error message and signal the failure to
+/// the test framework. The test will continue past the failure.
+///
+/// # Custom Messages
+///
+/// This macro has a second form, where a custom error message can
+/// be provided with or without arguments for formatting. See [`core::fmt`]
+/// for syntax for this form. Expressions used as format arguments will only
+/// be evaluated if the assertion fails.
+///
+/// # Exampples
+/// ```
+/// use test::expect_matches;
+/// let a = Some(15);
+/// let b = Some(2112);
+///
+/// expect_matches!(a, Some(_));
+/// expect_matches!(a, Some(x) if x < 100);
+/// expect_matches!(b, Some(2000..3000), "Missing or out of range");
+///
+/// // Fails test:
+/// expect_matches!(b, None);
+/// expect_matches!(a, Some(16), "Wrong value for {}", "a");
+/// ```
+#[macro_export]
+macro_rules! expect_matches {
+    ($actual:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )? $(,)?) => ({
+        match $actual {
+            $( $pattern )|+ $( if $guard )? => {}
+            actual_val => {
+                $crate::__internal_macro_utils::assert_matches_failed(
+                        core::stringify!($actual),
+                        core::stringify!($( $pattern )|+ $( if $guard )?),
+                        $crate::__internal_macro_utils::display_best_effort!(actual_val),
+                        core::option::Option::None
+                    );
+            }
+        }
+    });
+    ($actual:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )?, $($arg:tt)+) => ({
+        match $actual {
+            $( $pattern )|+ $( if $guard )? => {}
+            actual_val => {
+                $crate::__internal_macro_utils::assert_matches_failed(
+                        core::stringify!($actual),
+                        core::stringify!($( $pattern )|+ $( if $guard )?),
+                        $crate::__internal_macro_utils::display_best_effort!(actual_val),
+                        core::option::Option::Some(core::format_args!($($arg)+))
+                    );
+            }
+        }
+    });
+}
+
 /// Asserts that a boolean expression is `true` at runtime.
 ///
 /// Unlike [`core::assert!`], this macro will not panic, but instead returns
@@ -418,6 +522,64 @@ macro_rules! assert {
                     );
                     return;
                 }
+            }
+        }
+    });
+}
+
+/// Expects that a value matches the given pattern at runtime.
+///
+/// Unlike [`core::assert_matches::assert_matches!`], this macro will not panic,
+/// but instead returns early from a test function.
+///
+/// # Custom Messages
+///
+/// This macro has a second form, where a custom error message can
+/// be provided with or without arguments for formatting. See [`core::fmt`]
+/// for syntax for this form. Expressions used as format arguments will only
+/// be evaluated if the assertion fails.
+///
+/// # Exampples
+/// ```
+/// use test::assert_matches;
+/// let a = Some(15);
+/// let b = Some(2112);
+///
+/// assert_matches!(a, Some(_));
+/// assert_matches!(a, Some(x) if x < 100);
+/// assert_matches!(b, Some(2000..3000), "Missing or out of range");
+///
+/// // Fails test and returns early:
+/// assert_matches!(b, None);
+/// assert_matches!(a, Some(16), "Wrong value for {}", "a");
+/// ```
+#[macro_export]
+macro_rules! assert_matches {
+    ($actual:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )? $(,)?) => ({
+        match $actual {
+            $( $pattern )|+ $( if $guard )? => {}
+            actual_val => {
+                $crate::__internal_macro_utils::assert_matches_failed(
+                        core::stringify!($actual),
+                        core::stringify!($( $pattern )|+ $( if $guard )?),
+                        $crate::__internal_macro_utils::display_best_effort!(actual_val),
+                        core::option::Option::None
+                    );
+                return;
+            }
+        }
+    });
+    ($actual:expr, $(|)? $( $pattern:pat_param )|+ $( if $guard: expr )?, $($arg:tt)+) => ({
+        match $actual {
+            $( $pattern )|+ $( if $guard )? => {}
+            actual_val => {
+                $crate::__internal_macro_utils::assert_matches_failed(
+                        core::stringify!($actual),
+                        core::stringify!($( $pattern )|+ $( if $guard )?),
+                        $crate::__internal_macro_utils::display_best_effort!(actual_val),
+                        core::option::Option::Some(core::format_args!($($arg)+))
+                    );
+                return;
             }
         }
     });

@@ -95,29 +95,93 @@ pub fn assert_ok_failed<E: fmt::Display>(
     err: E,
     args: Option<fmt::Arguments<'_>>,
 ) {
-    assert_ok_failed_inner(result, &err, args);
+    assert_result_failed_inner(result, ResultVariant::OK, &err, args);
+}
+
+#[cold]
+#[track_caller]
+pub fn assert_err_failed<E: fmt::Display>(
+    result: &'static str,
+    err: E,
+    args: Option<fmt::Arguments<'_>>,
+) {
+    assert_result_failed_inner(result, ResultVariant::ERR, &err, args);
+}
+
+struct ResultVariant {
+    variant_name: &'static str,
+    opposite_name: &'static str,
+}
+impl ResultVariant {
+    const OK: Self = Self { variant_name: "Ok", opposite_name: "error" };
+    const ERR: Self = Self { variant_name: "Err", opposite_name: "value" };
 }
 
 #[track_caller]
-fn assert_ok_failed_inner(
-    result: &'static str,
-    err: &dyn fmt::Display,
+fn assert_result_failed_inner(
+    result_expr: &'static str,
+    expected: ResultVariant,
+    actual: &dyn fmt::Display,
     args: Option<fmt::Arguments<'_>>,
 ) {
     match args {
         Some(args) => eprintln!(
-            r#"assertion failed: `{}` not Ok
-error: `{}` : {}, {}`"#,
-            result,
-            err,
+            r#"assertion failed: `{}` not {}
+{}: `{}` : {}, {}`"#,
+            result_expr,
+            expected.variant_name,
+            expected.opposite_name,
+            actual,
             args,
             Location::caller(),
         ),
         None => eprintln!(
-            r#"assertion failed: `{}` not Ok
-error: `{}`, {}`"#,
-            result,
-            err,
+            r#"assertion failed: `{}` not {}
+{}: `{}`, {}`"#,
+            result_expr,
+            expected.variant_name,
+            expected.opposite_name,
+            actual,
+            Location::caller(),
+        ),
+    }
+    CONTEXT.fail(false);
+}
+
+#[cold]
+#[track_caller]
+pub fn assert_matches_failed<T: fmt::Display>(
+    actual_expr: &'static str,
+    pattern: &'static str,
+    actual: T,
+    args: Option<fmt::Arguments<'_>>,
+) {
+    assert_matches_failed_inner(actual_expr, pattern, &actual, args);
+}
+
+#[track_caller]
+fn assert_matches_failed_inner(
+    actual_expr: &'static str,
+    pattern: &'static str,
+    actual: &dyn fmt::Display,
+    args: Option<fmt::Arguments<'_>>,
+) {
+    match args {
+        Some(args) => eprintln!(
+            r#"assertion failed: `{}` does not match {}
+value: `{}` : {}, {}`"#,
+            actual_expr,
+            pattern,
+            actual,
+            args,
+            Location::caller(),
+        ),
+        None => eprintln!(
+            r#"assertion failed: `{}` does not match {}
+value: `{}`, {}`"#,
+            actual_expr,
+            pattern,
+            actual,
             Location::caller(),
         ),
     }
