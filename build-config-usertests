@@ -27,7 +27,7 @@
     porttest("com.android.ipc-unittest.ctrl"),
     porttest("com.android.libctest"),
     porttest("com.android.libcxxtest"),
-    porttest("com.android.trusty.apploader.test"),
+    porttest("com.android.trusty.apploader.test").needs(storage_boot=True),
     porttest("com.android.trusty.cfitest"),
     porttest("com.android.trusty.confirmationui.test"),
     porttest("com.android.trusty.crashtest"),

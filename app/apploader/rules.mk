@@ -45,6 +45,16 @@ ifeq (true,$(call TOBOOL,$(APPLOADER_ALLOW_NS_CONNECT)))
 MODULE_COMPILEFLAGS += -DAPPLOADER_ALLOW_NS_CONNECT
 endif
 
+# Builds that don't support TP set SECURE_STORAGE_USE_TDP to tell apps that
+# don't have a strong reason to use TP to use TDP for secure storage instead of
+# TP.
+ifeq (true,$(call TOBOOL,$(SECURE_STORAGE_USE_TDP)))
+APPLOADER_STORAGE_PORT ?= STORAGE_CLIENT_TDP_PORT
+else
+APPLOADER_STORAGE_PORT ?= STORAGE_CLIENT_TP_PORT
+endif
+MODULE_DEFINES += APPLOADER_STORAGE_PORT=$(APPLOADER_STORAGE_PORT)
+
 # Indicate to user-tasks.mk that this build supports loadable apps
 TRUSTY_APPLOADER_ENABLED := true
 
