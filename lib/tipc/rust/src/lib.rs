@@ -66,6 +66,12 @@ unsafe impl peer_id::TrustyPeerId for sys::trusty_peer_id_sequence_id {
     }
 }
 
+impl sys::trusty_peer_id_sequence_id {
+    fn new(id: i64) -> Self {
+        Self { kind: sys::TRUSTY_PEER_ID_KIND_SEQUENCE_ID, id }
+    }
+}
+
 #[cfg(test)]
 mod test {
     #[test]

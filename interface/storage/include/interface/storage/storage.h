@@ -67,8 +67,10 @@ enum storage_cmd {
     STORAGE_FILE_MOVE = 10 << STORAGE_REQ_SHIFT,
     STORAGE_FILE_LIST = 11 << STORAGE_REQ_SHIFT,
     STORAGE_FILE_GET_MAX_SIZE = 12 << STORAGE_REQ_SHIFT,
-
     STORAGE_CHECKPOINTING_STATE = 13 << STORAGE_REQ_SHIFT,
+
+    /* Indication that the client ports have been created */
+    STORAGE_READY_FOR_CLIENTS = 15 << STORAGE_REQ_SHIFT,
 };
 
 /**

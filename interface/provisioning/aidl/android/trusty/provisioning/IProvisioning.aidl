@@ -59,4 +59,11 @@ interface IProvisioning {
      * @param attestIds A parcelable containing all the device identifiers.
      */
     void provisionAttestationIds(in AttestationIds attestIds);
+
+    /**
+     * Fetches the device's unique attestation identifiers from the secure storage
+     *
+     * @return AttestationIds on success.
+     */
+    AttestationIds getAttestationIds();
 }

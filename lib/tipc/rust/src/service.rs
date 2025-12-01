@@ -330,27 +330,16 @@ impl ClientIdentifier {
     pub fn c_repr(&self) -> trusty_sys::TrustyPeerIdStorageSized {
         match self {
             Self::UUID(uuid) => trusty_sys::TrustyPeerIdStorageSized::from_concrete(
-                &trusty_sys::trusty_peer_id_uuid {
-                    kind: trusty_sys::TRUSTY_PEER_ID_KIND_UUID,
-                    id: *uuid,
-                },
+                &trusty_sys::trusty_peer_id_uuid::new(*uuid),
             ),
             Self::VMID(VmIdentifier::Ffa(vm_id)) => {
                 trusty_sys::TrustyPeerIdStorageSized::from_concrete(
-                    &trusty_sys::trusty_peer_id_vmid_ffa {
-                        kind: trusty_sys::TRUSTY_PEER_ID_KIND_VMID_FFA,
-                        reserved_1: 1, // Mandated by doccomment in trusty_peer_id.h
-                        id: (*vm_id).into(),
-                        padding: Default::default(),
-                    },
+                    &trusty_sys::trusty_peer_id_vmid_ffa::new(*vm_id),
                 )
             }
             Self::ClientSeqNumber(sequence_num) => {
                 trusty_sys::TrustyPeerIdStorageSized::from_concrete(
-                    &sys::trusty_peer_id_sequence_id {
-                        kind: sys::TRUSTY_PEER_ID_KIND_SEQUENCE_ID,
-                        id: *sequence_num,
-                    },
+                    &sys::trusty_peer_id_sequence_id::new(*sequence_num),
                 )
             }
         }
