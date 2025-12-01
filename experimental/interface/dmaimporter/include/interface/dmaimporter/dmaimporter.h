@@ -16,12 +16,18 @@
 
 #pragma once
 
+#include <inttypes.h>
+#include <uapi/err.h>
+
 #define DMAIMPORTER_PORT "com.android.trusty.kernel.dmaimporter"
 
 #define MAX_DMAIMPORTER_MSG_SIZE 128
 
 #define MAP_IPA 1
 #define RELEASE_IPA 2
+
+#define DMA_IMPORTER_UNRECOVERABLE_ERROR (ERR_USER_BASE - 100)
+#define HYPERVISOR_OPERATION_ERROR (DMA_IMPORTER_UNRECOVERABLE_ERROR - 1)
 
 /**
  * struct dmaimporter_req - Request structure for communicating with the dma
