@@ -18,70 +18,40 @@
 //! VINTF stable services in trusty. It's pretty unlikely that you should be using
 //! these helpers unless you're implementing a TA that facilitates access to services
 //! like authmgr-fe or the VINTF testing TA.
-//!
-//! To get an SpIBinder for each supported VINTF services, you can do the following:
-//!
-//! ```
-//! use service_manager::vintf_services::{VintfServiceImpl, get_supported_vintf_services};
-//!
-//! for service in get_supported_vintf_services() {
-//!     binder = service.get_binder();
-//!     // use `binder` here
-//! }
-//! ```
 
-use binder::{SpIBinder, FromIBinder};
+use binder::{SpIBinder, StatusCode};
 use crate::wait_for_interface;
 use android_hardware_security_see_authmgr::aidl::android::hardware::security::see::authmgr::IAuthMgrAuthorization::IAuthMgrAuthorization;
 use android_hardware_security_see_hwcrypto::aidl::android::hardware::security::see::hwcrypto::IHwCryptoKey::IHwCryptoKey;
 use android_hardware_security_see_storage::aidl::android::hardware::security::see::storage::ISecureStorage::ISecureStorage;
-use std::marker::PhantomData;
 
-pub trait VintfService {
-    /// Get the root SpIBinder for this VINTF service.
-    /// NOTE: the only implementation of this trait will block
-    /// forever if no service is published at the expected port.
-    fn get_binder(&self) -> binder::Result<SpIBinder>;
-
-    /// The name for this service. This name is used to
-    /// publish the service locally. Callers should not depend
-    /// on it to derive class and instance names, but should
-    /// get this information from the binder object itself.
-    fn name(&self) -> &'static str;
-}
-
-pub struct VintfServiceImpl<T: FromIBinder + ?Sized> {
-    name: &'static str,
-    phantom: PhantomData<T>,
-}
-
-impl<T: FromIBinder + ?Sized> VintfServiceImpl<T> {
-    fn new(name: &'static str) -> Self {
-        Self { name, phantom: PhantomData }
-    }
-}
-
-impl<T: FromIBinder + ?Sized> VintfService for VintfServiceImpl<T> {
-    fn get_binder(&self) -> binder::Result<SpIBinder> {
-        Ok(wait_for_interface::<T>(self.name)?.as_binder())
-    }
-
-    fn name(&self) -> &'static str {
-        self.name
-    }
-}
+const SECURE_STORAGE_SERVICE_NAME: &str =
+    "android.hardware.security.see.storage.ISecureStorage/default";
+const HWCRYPTO_KEY_SERVICE_NAME: &str =
+    "android.hardware.security.see.hwcrypto.IHwCryptoKey/default";
+const AUTHMGR_SERVICE_NAME: &str =
+    "android.hardware.security.see.authmgr.IAuthMgrAuthorization/default";
 
 /// Get all supported VINTF services.
-pub fn get_supported_vintf_services() -> Vec<Box<dyn VintfService>> {
-    vec![
-        Box::new(VintfServiceImpl::<dyn ISecureStorage>::new(
-            "android.hardware.security.see.storage.ISecureStorage/default",
-        )),
-        Box::new(VintfServiceImpl::<dyn IHwCryptoKey>::new(
-            "android.hardware.security.see.hwcrypto.IHwCryptoKey/default",
-        )),
-        Box::new(VintfServiceImpl::<dyn IAuthMgrAuthorization>::new(
-            "android.hardware.security.see.authmgr.IAuthMgrAuthorization/default",
-        )),
-    ]
+pub fn get_supported_vintf_services() -> &'static [&'static str] {
+    &[SECURE_STORAGE_SERVICE_NAME, HWCRYPTO_KEY_SERVICE_NAME, AUTHMGR_SERVICE_NAME]
+}
+
+/// Get an SpIBinder for a given service name.
+/// This function will block until the service is available (the trusty port is exposed).
+/// TODO: b/432264083 -This is exposed for the VINTF TA to work around the lack of Rust RpcBinder
+/// support for retrieving an SpIBinder during session setup.
+pub fn get_vintf_binder(service_name: &str) -> binder::Result<SpIBinder> {
+    match service_name {
+        SECURE_STORAGE_SERVICE_NAME => {
+            Ok(wait_for_interface::<dyn ISecureStorage>(service_name)?.as_binder())
+        }
+        HWCRYPTO_KEY_SERVICE_NAME => {
+            Ok(wait_for_interface::<dyn IHwCryptoKey>(service_name)?.as_binder())
+        }
+        AUTHMGR_SERVICE_NAME => {
+            Ok(wait_for_interface::<dyn IAuthMgrAuthorization>(service_name)?.as_binder())
+        }
+        _ => Err(StatusCode::NAME_NOT_FOUND)?,
+    }
 }
