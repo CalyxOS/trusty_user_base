@@ -71,7 +71,7 @@ static int get_app_storage_version(const uuid_t* app_uuid,
 
     int rc;
     storage_session_t session;
-    rc = storage_open_session(&session, STORAGE_CLIENT_TP_PORT);
+    rc = storage_open_session(&session, APPLOADER_STORAGE_PORT);
     if (rc < 0) {
         TLOGE("Error opening storage session (%d)\n", rc);
         goto err_open_session;
@@ -113,7 +113,7 @@ static int update_app_version(const uuid_t* app_uuid, uint32_t new_version) {
     int rc;
     auto file_name = get_storage_file_name(app_uuid);
     storage_session_t session;
-    rc = storage_open_session(&session, STORAGE_CLIENT_TP_PORT);
+    rc = storage_open_session(&session, APPLOADER_STORAGE_PORT);
     if (rc < 0) {
         TLOGE("Error opening storage session (%d)\n", rc);
         goto err_open_session;

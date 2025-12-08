@@ -16,7 +16,7 @@
 
 mod vintf_services;
 
-pub use vintf_services::{get_supported_vintf_services, VintfService};
+pub use vintf_services::{get_supported_vintf_services, get_vintf_binder};
 
 use alloc::ffi::CString;
 use authmgr_common::CMD_RPC;
