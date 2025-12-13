@@ -179,6 +179,8 @@ MODULE_LIBRARY_DEPS += \
 	frameworks/native/libs/binder/trusty/rust \
 	$(call FIND_CRATE,async-trait) \
 	$(call FIND_CRATE,lazy_static) \
+	$(call FIND_CRATE,zerocopy) \
+	$(call FIND_CRATE,zerocopy-derive) \
 
 # Disable all lints for auto-generated Rust sources
 MODULE_RUSTFLAGS += --cap-lints allow
