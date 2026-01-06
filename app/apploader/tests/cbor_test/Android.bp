@@ -1,0 +1,24 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+    default_team: "trendy_team_trusty",
+}
+
+cc_test_host {
+    name: "trusty_user_base_app_apploader_tests_cbor_test",
+    srcs: ["cbor_test.cpp"],
+    cflags: [
+        "-UNDEBUG", // The EXPECT_DEATH tests in cbor_test.cpp fail with NDEBUG.
+        "-Wno-unused-parameter",
+    ],
+    shared_libs: [
+        "libcppbor",
+    ],
+    static_libs: [
+        "libgmock",
+        "libopen_dice_android",
+        "libopen_dice_cbor",
+    ],
+    header_libs: [
+        "trusty_user_base_lib_apploader_package_headers",
+    ],
+}
