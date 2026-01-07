@@ -22,11 +22,11 @@ MODULE_SRCS := system/keymint/boringssl/src/lib.rs
 MODULE_CRATE_NAME := kmr_crypto_boring
 
 MODULE_RUSTFLAGS += \
+	--cfg 'feature="nightly"' \
 	--cfg 'soong' \
 
 MODULE_LIBRARY_EXPORTED_DEPS += \
 	trusty/user/base/lib/bssl-sys-rust \
-	trusty/user/base/lib/bssl-crypto-rust \
 	$(call FIND_CRATE,foreign-types) \
 	trusty/user/base/lib/keymint-rust/common \
 	$(call FIND_CRATE,libc) \
