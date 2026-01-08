@@ -24,3 +24,9 @@ cc_library_static {
     system_ext_specific: true,
     export_include_dirs: ["include"],
 }
+
+cc_library_headers {
+    name: "trusty_user_base_interface_storage_headers",
+    host_supported: true,
+    export_include_dirs: ["include"],
+}
