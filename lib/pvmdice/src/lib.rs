@@ -59,6 +59,9 @@ const DESKTOP_STRONGBOX_KEYMINT_UUID: Uuid =
 // 19c7289c-5004-4a30-b85a-2a22a76e6327
 const WIDEVINE_UUID: Uuid =
     Uuid::new(0x19c7289c, 0x5004, 0x4a30, [0xb8, 0x5a, 0x2a, 0x22, 0xa7, 0x6e, 0x63, 0x27]);
+// 598c7f41-167b-4df6-9cc3-4491b119d335
+const RKP_TA_UUID: Uuid =
+    Uuid::new(0x598c7f41, 0x167b, 0x4df6, [0x9c, 0xc3, 0x44, 0x91, 0xb1, 0x19, 0xd3, 0x35]);
 
 struct ComponentSpecificConfigValues {
     component_name: CString,
@@ -292,6 +295,9 @@ fn dice_component_specific_config_values(
             component_name: c"widevine".into(),
             rkp_vm_marker: true,
         },
+        RKP_TA_UUID => {
+            ComponentSpecificConfigValues { component_name: c"rkp_ta".into(), rkp_vm_marker: true }
+        }
         _ => ComponentSpecificConfigValues {
             component_name: CString::new(request_ctx.peer.to_string()).unwrap(),
             rkp_vm_marker: false,
