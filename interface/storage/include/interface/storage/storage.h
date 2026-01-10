@@ -248,6 +248,9 @@ enum storage_file_list_flag {
  *                                          @STORAGE_MSG_FLAG_TRANSACT_COMPLETE.
  *                                          Not valid together with
  *                                          @STORAGE_MSG_FLAG_PRE_COMMIT_CHECKPOINT.
+ * @STORAGE_MSG_FLAG_TA_MASK:               union of all flags supported for
+ *                                          clients of Storage TA under the
+ *                                          current protocol
  */
 enum storage_msg_flag {
     STORAGE_MSG_FLAG_BATCH = 0x1,
@@ -258,6 +261,11 @@ enum storage_msg_flag {
     STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT = 0x10,
     STORAGE_MSG_FLAG_FS_REPAIRED_ACK = 0x20,
     STORAGE_MSG_FLAG_STAGE_IF_CHECKPOINT = 0x40,
+
+    STORAGE_MSG_FLAG_TA_MASK = (STORAGE_MSG_FLAG_TRANSACT_COMPLETE |
+                             STORAGE_MSG_FLAG_TRANSACT_CHECKPOINT |
+                             STORAGE_MSG_FLAG_FS_REPAIRED_ACK |
+                             STORAGE_MSG_FLAG_STAGE_IF_CHECKPOINT),
 };
 
 /*
