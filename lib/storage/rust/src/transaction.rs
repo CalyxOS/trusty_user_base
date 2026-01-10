@@ -23,6 +23,31 @@ impl Transaction<'_> {
         self.end_transaction(true)
     }
 
+    /// Stages the changes in the current transaction to be committed when the current A/B Update
+    /// completes successfully.
+    ///
+    /// If the A/B Update is rolled back, the changes will be discarded. If no A/B update is
+    /// ongoing, the changes will be committed immediately.
+    ///
+    /// Note: Currently, staged changes will not be committed as soon as the update completes, but
+    /// are guaranteed to be committed by the time the first post-update storage transaction (from
+    /// any client/fs) completes.
+    ///
+    /// If an error occurs, any pending changes in the transaction are lost.
+    pub fn stage_for_commit_on_ab_update_complete(self) -> Result<(), Error> {
+        // SAFETY: FFI call to underlying C API. The raw session handle is guaranteed to
+        // be valid until the `Session` object is dropped, and so is valid at this
+        // point.
+        let result =
+            Error::check_return_code(unsafe { sys::storage_stage_transaction(self.session.raw) });
+
+        // Make sure `self` doesn't get dropped since the `Drop` impl also ends the
+        // transaction.
+        core::mem::forget(self);
+
+        result
+    }
+
     /// Ends the current transaction without committing pending changes to disk.
     ///
     /// Any pending changes made as part of the transaction will be lost.
