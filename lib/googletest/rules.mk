@@ -28,6 +28,11 @@ MODULE_COMPILEFLAGS += \
 # After disabling a bunch of features, there are dead constants.
 MODULE_COMPILEFLAGS += -Wno-unused-const-variable
 
+# TODO(b/418738869): Disable lint to work around around issue with
+# PrintTo(char8_t), PrintTo(char16_t) in gtest-printers.h. Tracked
+# upstream as https://github.com/google/googletest/issues/4762
+MODULE_EXPORT_COMPILEFLAGS += -Wno-character-conversion
+
 # Disable the C unittest macros
 MODULE_EXPORT_COMPILEFLAGS += -DDISABLE_TRUSTY_UNITTEST_MACROS=1
 
