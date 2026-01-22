@@ -52,6 +52,16 @@ interface IProvisioning {
     }
 
     /**
+     * Supported cryptographic algorithms for attestation keys.
+     */
+    enum SigningAlgorithm {
+        /** RSA algorithm. */
+        RSA,
+        /** EC algorithm. */
+        EC,
+    }
+
+    /**
      * Provides the device's unique attestation identifiers to a secure environment.
      * This method is expected to be called during the device's provisioning phase
      * to supply the necessary data for attestation features.
@@ -66,4 +76,16 @@ interface IProvisioning {
      * @return AttestationIds on success.
      */
     AttestationIds getAttestationIds();
+
+    /**
+     * Provisions a cryptographic attestation key to the secure environment.
+     *
+     * This key serves as a fallback factory attestation key, used by the
+     * Trusted Application (TA) to sign attestation certificates only when
+     * Remote Key Provisioning (RKP) is not available on the device.
+     *
+     * @param algo The signing algorithm of the provided key.
+     * @param key The private key material.
+     */
+    void provisionAttestationKey(in SigningAlgorithm algo, in byte[] key);
 }

@@ -22,6 +22,7 @@
 #include <trusty/time.h>
 #include <trusty_ipc.h>
 #include <uapi/err.h>
+#include <uapi/trusty_peer_id.h>
 
 #define TLOG_LVL TLOG_LVL_INFO
 #define TLOG_TAG "ipc-unittest-main"
@@ -1115,6 +1116,61 @@ TEST(IPC_LOCAL, DISABLED_accept) {
         EXPECT_EQ(NO_ERROR, rc, "close port");
         ports[i] = INVALID_IPC_HANDLE;
     }
+}
+
+TEST(ipc, accept2) {
+    int rc, rc1;
+    uevent_t event;
+    char path[MAX_PORT_PATH_LEN];
+    handle_t port;
+    struct trusty_peer_id_storage peer_id =
+            TRUSTY_PEER_ID_STORAGE_INITIAL_VALUE();
+    uint32_t peer_id_size;
+
+    /* create a port */
+    sprintf(path, "%s.port.accept%d", SRV_PATH_BASE, first_free_handle_index);
+    rc = port_create(path, 2, MAX_PORT_BUF_SIZE, IPC_PORT_ALLOW_TA_CONNECT);
+    EXPECT_GT_ZERO(rc, "max ports");
+    port = (handle_t)rc;
+
+    /* set the cookie */
+    rc = set_cookie(port, (void*)(COOKIE_BASE + port));
+    EXPECT_EQ(NO_ERROR, rc, "set cookie on port");
+
+    /* poke connect service to initiate connections to us */
+    sprintf(path, "%s.srv.%s", SRV_PATH_BASE, "connect");
+    rc = connect(path, IPC_CONNECT_WAIT_FOR_PORT);
+    if (rc >= 0)
+        close((handle_t)rc);
+
+    /* handle one incoming connection */
+    rc = wait(port, &event, 3000);
+    EXPECT_EQ(NO_ERROR, rc, "accept test");
+    EXPECT_EQ(IPC_HANDLE_POLL_READY, event.event, "accept test");
+
+    /* check port cookie */
+    void* exp_cookie = (void*)(COOKIE_BASE + event.handle);
+    EXPECT_EQ(exp_cookie, event.cookie, "accept test");
+
+    /* accept the connection */
+    peer_id_size = sizeof(peer_id);
+    rc = accept2(event.handle, (struct trusty_peer_id*)&peer_id, &peer_id_size);
+    EXPECT_EQ(handle_base + first_free_handle_index + 1, rc, "accept test");
+
+    /* check peer id */
+    EXPECT_EQ(TRUSTY_PEER_ID_KIND_UUID, peer_id.kind);
+    EXPECT_EQ(sizeof(struct trusty_peer_id_uuid), peer_id_size);
+    rc1 = memcmp(&peer_id.data, &srv_app_uuid, sizeof(srv_app_uuid));
+    EXPECT_EQ(0, rc1, "accept test")
+
+    /* close the connection */
+    rc = close((handle_t)rc);
+    EXPECT_EQ(NO_ERROR, rc, "accept test");
+
+    /* close the port */
+    rc = close(port);
+    EXPECT_EQ(NO_ERROR, rc, "close port");
+    port = INVALID_IPC_HANDLE;
 }
 
 /****************************************************************************/
