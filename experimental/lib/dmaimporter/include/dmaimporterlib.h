@@ -44,6 +44,7 @@ int create_dma_object(uint64_t ipa, uint64_t len, handle_t* handle);
  * Free a reference to a DMA object created previously by a call to
  * create_dma_object. @ipa is the address provided to the call to
  * create_dma_object and will be used to search for the handle to free.
+ * After the call @handle will have been closed.
  *
  * Return: NO_ERROR on success, error code less than 0 on error.
  */
