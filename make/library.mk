@@ -573,7 +573,6 @@ MODULE_LICENSES += $(wildcard $(MODULE)/LICENSE*) $(wildcard $(MODULE)/NOTICE)
 # Generate the library makefile
 
 SDK_MAKEFILE := $(TRUSTY_SDK_DIR)/make/lib$(MODULE_SDK_LIB_NAME).mk
-$(SDK_MAKEFILE): MODULE_EXPORT_DEFINES := $(MODULE_EXPORT_DEFINES)
 $(SDK_MAKEFILE): MODULE_EXPORT_CFLAGS := \
 	$(MODULE_EXPORT_OPTFLAGS) $(MODULE_EXPORT_COMPILEFLAGS) $(MODULE_EXPORT_CFLAGS)
 $(SDK_MAKEFILE): MODULE_EXPORT_CXXFLAGS := \
@@ -587,7 +586,6 @@ $(SDK_MAKEFILE):
 	@$(MKDIR)
 	@$(call ECHO,sdk,generating makefile,for $(MODULE_SDK_LIB_NAME))
 	$(NOECHO)rm -f $@.tmp
-	$(NOECHO)echo DEFINES += $(call prepare-sdk-flags,$(MODULE_EXPORT_DEFINES)) >> $@.tmp
 	$(NOECHO)echo CFLAGS += $(call prepare-sdk-flags,$(MODULE_EXPORT_CFLAGS)) >> $@.tmp
 	$(NOECHO)echo CXXFLAGS += $(call prepare-sdk-flags,$(MODULE_EXPORT_CXXFLAGS)) >> $@.tmp
 	$(NOECHO)echo ASMFLAGS += $(call prepare-sdk-flags,$(MODULE_EXPORT_ASMFLAGS)) >> $@.tmp
