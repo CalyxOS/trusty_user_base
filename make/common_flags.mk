@@ -81,6 +81,7 @@ MODULE_COMPILEFLAGS += \
 	-fsanitize=cfi \
 	-DCFI_ENABLED
 MODULE_LIBRARY_DEPS += trusty/kernel/lib/ubsan
+MODULE_RUSTFLAGS += -Zsanitizer=cfi
 
 ifeq (true,$(call TOBOOL,$(CFI_DIAGNOSTICS)))
 MODULE_COMPILEFLAGS += -fno-sanitize-trap=cfi

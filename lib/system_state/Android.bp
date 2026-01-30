@@ -25,9 +25,11 @@ cc_library_headers {
         "include",
     ],
     header_libs: [
+        "external_trusty_lk_headers_shared",
         "trusty_user_base_interface_system_state_headers",
     ],
     export_header_lib_headers: [
+        "external_trusty_lk_headers_shared",
         "trusty_user_base_interface_system_state_headers",
     ],
 }
