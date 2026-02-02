@@ -108,4 +108,11 @@ interface IProvisioning {
      */
     void appendAttestationCertChain(in SigningAlgorithm algo, in byte[] certs);
 
+    /**
+     * Injects the UdsCerts map.
+     *
+     * @param udsCerts CBOR-encoded UdsCerts map, as defined in the
+     * IRemotelyProvisionedComponent HAL CDDL.
+     */
+    void setUdsCerts(in byte[] udsCerts);
 }
