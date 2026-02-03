@@ -124,8 +124,9 @@ int storage_open_file(storage_session_t session,
  * storage_close_file() - Closes a file.
  * @handle: the file_handle_t retrieved from storage_open_file
  *
+ * Return: NO_ERROR on success, negative error code on failure.
  */
-void storage_close_file(file_handle_t handle);
+int storage_close_file(file_handle_t handle);
 
 /**
  * storage_move_file - Moves/renames a file.
