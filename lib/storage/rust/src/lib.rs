@@ -932,7 +932,7 @@ impl DirIter {
     /// `try_next().transpose()` to convert the result to the correct form for the
     /// `Iterator` API.
     fn try_next(&mut self) -> Result<Option<(String, FileState)>, Error> {
-        let mut buf = [0; sys::STORAGE_MAX_NAME_LENGTH_BYTES as usize];
+        let mut buf = [0; sys::STORAGE_MAX_NAME_SIZE as usize];
         let mut flags = 0;
 
         // SAFETY: FFI call to underlying C API. The raw session handle is guaranteed to
