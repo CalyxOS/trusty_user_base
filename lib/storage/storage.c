@@ -307,7 +307,7 @@ int storage_open_file(storage_session_t session,
     return NO_ERROR;
 }
 
-void storage_close_file(file_handle_t fh) {
+int storage_close_file(file_handle_t fh) {
     struct storage_msg msg = {.cmd = STORAGE_FILE_CLOSE};
     struct storage_file_close_req req = {.handle = _to_handle(fh)};
     struct iovec tx[2] = {{&msg, sizeof(msg)}, {&req, sizeof(req)}};
@@ -318,6 +318,7 @@ void storage_close_file(file_handle_t fh) {
     if (rc < 0) {
         TLOGE("close file failed (%d)\n", (int)rc);
     }
+    return (int)rc;
 }
 
 int storage_move_file(storage_session_t session,
