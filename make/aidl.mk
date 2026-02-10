@@ -186,6 +186,9 @@ MODULE_LIBRARY_DEPS += \
 # Disable all lints for auto-generated Rust sources
 MODULE_RUSTFLAGS += --cap-lints allow
 
+# Trusty uses the stdlib
+MODULE_RUSTFLAGS += --cfg 'feature="std"'
+
 MODULE_SRCS += $(AIDL_ROOT_RS)
 MODULE_EXPORT_SRCDEPS += $(AIDL_ROOT_RS)
 endif
