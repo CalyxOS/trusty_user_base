@@ -122,6 +122,10 @@ int release_dma_object(handle_t* handle, uint64_t ipa) {
         TLOGE("Received a null handle pointer\n");
         return ERR_INVALID_ARGS;
     }
+    int res = close(*handle);
+    if (res < 0) {
+        TLOGE("close handle failed: %d\n", res);
+    }
     struct dmaimporter_req req_hdr = {.cmd = RELEASE_IPA, .ipa = ipa};
     struct iovec tx_iov = {
             .iov_base = &req_hdr,
@@ -131,8 +135,8 @@ int release_dma_object(handle_t* handle, uint64_t ipa) {
     ipc_msg_t tx_msg = {
             .num_iov = 1,
             .iov = &tx_iov,
-            .num_handles = 1,
-            .handles = handle,
+            .num_handles = 0,
+            .handles = NULL,
     };
 
     struct dmaimporter_res response;
