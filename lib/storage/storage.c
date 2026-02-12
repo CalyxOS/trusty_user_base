@@ -473,7 +473,7 @@ int storage_read_dir(storage_session_t session,
             TLOGE("got invalid filename size %zd >= %zd\n", name_size, rem);
             return ERR_IO;
         }
-        if (name_size >= name_out_size) {
+        if (name_size > name_out_size) {
             return ERR_NOT_ENOUGH_BUFFER;
         }
         strcpy(name, item->name);
