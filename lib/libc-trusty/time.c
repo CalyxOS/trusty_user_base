@@ -35,6 +35,10 @@ int trusty_nanodelay(clockid_t clock_id, uint32_t flags, uint64_t sleep_time) {
     /* TODO validate clock_ids. */
     /* No flags, yet. */
     assert(flags == 0);
+    if (flags != 0) {
+        errno = EINVAL;
+        return -1;
+    }
 
     rc = trusty_gettime(clock_id, &time);
     if (rc)
@@ -106,6 +110,7 @@ int trusty_gettime(clockid_t clock_id, int64_t* time) {
     return _trusty_gettime(clock_id, 0, time);
 }
 
+#if TRUSTY_USERSPACE
 int __clock_gettime(clockid_t clock_id, struct timespec* ts) {
     if (ts == NULL) {
         errno = EFAULT;
@@ -129,3 +134,4 @@ int __clock_gettime(clockid_t clock_id, struct timespec* ts) {
  * internal name for Musl and the external name for the user.
  */
 weak_alias(__clock_gettime, clock_gettime);
+#endif
