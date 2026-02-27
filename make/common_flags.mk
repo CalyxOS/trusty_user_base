@@ -14,6 +14,29 @@
 # limitations under the License.
 #
 
+# TRUSTY_API_LEVEL and TRUSTY_SHIPPING_API_LEVEL should be set to an integer
+# value representing the API level in the following format:
+# <4-digit year><2-digit month>, e.g. 202504 for 2025-04.
+# When a device ships, TRUSTY_API_LEVEL and TRUSTY_SHIPPING_API_LEVEL should be
+# set to the same value. When updating a device TRUSTY_API_LEVEL is expected to
+# be set to the most recent API level, and TRUSTY_SHIPPING_API_LEVEL must be
+# left unchanged. TRUSTY_SHIPPING_API_LEVEL can, for example, be used to control
+# features that require factory provisioning, or change the storage format, and
+# therefore can only be enabled before a device ships. TRUSTY_API_LEVEL can be
+# used to enable features that require source code changes, but do not break
+# compatibility with already stored data.
+#
+# If a product makefile does not set TRUSTY_API_LEVEL or
+# TRUSTY_SHIPPING_API_LEVEL, default to the year of the first Trusty release to
+# select as much legacy support as possible. Note that the codebase is not
+# likely to actually support that old of an API level though.
+TRUSTY_API_LEVEL ?= 201504
+TRUSTY_SHIPPING_API_LEVEL ?= 201504
+
+MODULE_DEFINES += \
+	TRUSTY_API_LEVEL=$(TRUSTY_API_LEVEL) \
+	TRUSTY_SHIPPING_API_LEVEL=$(TRUSTY_SHIPPING_API_LEVEL) \
+
 # Ensure we have frame pointers in Rust, for stack back-tracing and tools
 MODULE_RUSTFLAGS += -C force-frame-pointers=y
 
