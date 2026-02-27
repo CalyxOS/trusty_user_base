@@ -25,11 +25,11 @@ handle_t port_create(const char* path,
     return _trusty_port_create(path, num_recv_bufs, recv_buf_size, flags);
 }
 
-handle_t connect(const char* path, uint32_t flags) {
+handle_t trusty_connect(const char* path, uint32_t flags) {
     return _trusty_connect(path, flags);
 }
 
-handle_t accept(handle_t handle, struct uuid* peer_uuid) {
+handle_t trusty_accept(handle_t handle, struct uuid* peer_uuid) {
     return _trusty_accept(handle, peer_uuid);
 }
 
@@ -53,7 +53,9 @@ int handle_set_ctrl(handle_t handle, uint32_t cmd, struct uevent* evt) {
     return _trusty_handle_set_ctrl(handle, cmd, evt);
 }
 
-int wait(handle_t handle, struct uevent* event, uint32_t timeout_msecs) {
+int trusty_handle_wait(handle_t handle,
+                       struct uevent* event,
+                       uint32_t timeout_msecs) {
     return _trusty_wait(handle, event, timeout_msecs);
 }
 
