@@ -33,3 +33,27 @@ cc_library_headers {
         "trusty_user_base_headers_user",
     ],
 }
+
+// Provide a subset of lib/tipc based on unix domain sockets for host tests.
+cc_library_host_static {
+    name: "trusty_user_base_lib_tipc",
+    srcs: [
+        "tipc.c",
+        "tipc_srv.c",
+        "uds/handle_set_epoll.c",
+        "uds/ipc_uds.c",
+    ],
+    whole_static_libs: [
+        "trusty_user_base_lib_libc_trusty",
+        "trusty_user_base_lib_line_coverage",
+    ],
+    header_libs: [
+        "external_trusty_lk_headers_uapi",
+        "trusty_kernel_headers_uapi",
+        "trusty_user_base_interface_line_coverage_headers",
+        "trusty_user_base_lib_tipc_headers",
+    ],
+    export_header_lib_headers: [
+        "trusty_user_base_lib_tipc_headers",
+    ],
+}
