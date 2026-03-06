@@ -142,14 +142,14 @@ handle_t port_create(const char* path,
                      uint32_t num_recv_bufs,
                      uint32_t recv_buf_size,
                      uint32_t flags);
-handle_t connect(const char* path, uint32_t flags);
-handle_t accept(handle_t handle, uuid_t* peer_uuid);
+handle_t trusty_connect(const char* path, uint32_t flags);
+handle_t trusty_accept(handle_t handle, uuid_t* peer_uuid);
 handle_t accept2(handle_t handle, struct trusty_peer_id *peer_id, uint32_t* peer_id_size);
 int close(handle_t handle);
 int set_cookie(handle_t handle, void* cookie);
 handle_t handle_set_create(void);
 int handle_set_ctrl(handle_t handle, uint32_t cmd, struct uevent* evt);
-int wait(handle_t handle, uevent_t* event, uint32_t timeout_msecs);
+int trusty_handle_wait(handle_t handle, uevent_t* event, uint32_t timeout_msecs);
 int wait_any(uevent_t* event, uint32_t timeout_msecs);
 int get_msg(handle_t handle, ipc_msg_info_t* msg_info);
 ssize_t read_msg(handle_t handle,
@@ -159,5 +159,29 @@ ssize_t read_msg(handle_t handle,
 int put_msg(handle_t handle, uint32_t msg_id);
 ssize_t send_msg(handle_t handle, ipc_msg_t* msg);
 handle_t dup(handle_t handle);
+
+/*
+ * The legacy trusty functions below are incompatible with POSIX. Code that
+ * needs to use or include the POSIX version of these functions should define
+ * TRUSTY_AVOID_POSIX_CONFLICTS before including any headers to disable these
+ * compatibility wrappers.
+ */
+#if !TRUSTY_AVOID_POSIX_CONFLICTS
+
+static inline handle_t accept(handle_t handle, uuid_t* peer_uuid) {
+    return trusty_accept(handle, peer_uuid);
+}
+
+static inline handle_t connect(const char* path, uint32_t flags) {
+    return trusty_connect(path, flags);
+}
+
+static inline int wait(handle_t handle,
+                       uevent_t* event,
+                       uint32_t timeout_msecs) {
+    return trusty_handle_wait(handle, event, timeout_msecs);
+}
+
+#endif
 
 __END_CDECLS

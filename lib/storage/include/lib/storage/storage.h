@@ -25,10 +25,26 @@
 #include <interface/storage/storage.h>
 
 /**
+ * define STORAGE_MAX_NAME_LENGTH_LEGACY - the maximum length (as defined by
+ * strlen()) of a file name in API levels prior to 202604.
+ */
+#define STORAGE_MAX_NAME_LENGTH_LEGACY 158
+
+/**
+ * define STORAGE_MAX_NAME_LENGTH_202604 - the maximum length (as defined by
+ * strlen()) of a file name in API level 202604 and higher.
+ */
+#define STORAGE_MAX_NAME_LENGTH_202604 255
+
+/**
  * define STORAGE_MAX_NAME_LENGTH - the maximum length (as defined by strlen())
  * of a file name.
  */
-#define STORAGE_MAX_NAME_LENGTH 255
+#if TRUSTY_API_LEVEL < 202604
+#define STORAGE_MAX_NAME_LENGTH STORAGE_MAX_NAME_LENGTH_LEGACY
+#else
+#define STORAGE_MAX_NAME_LENGTH STORAGE_MAX_NAME_LENGTH_202604
+#endif
 
 /**
  * define STORAGE_MAX_NAME_SIZE - the size required for a char array to contain
