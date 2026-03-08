@@ -35,3 +35,23 @@ cc_library_headers {
         "trusty_user_base_interface_storage_headers",
     ],
 }
+
+cc_library_host_static {
+    name: "trusty_user_base_lib_storage",
+    srcs: [
+        "storage.c",
+    ],
+    cflags: [
+        "-Wno-unused-parameter",
+    ],
+    whole_static_libs: [
+        "trusty_user_base_lib_tipc",
+    ],
+    header_libs: [
+        "external_trusty_lk_headers_uapi",
+        "trusty_user_base_lib_storage_headers",
+    ],
+    export_header_lib_headers: [
+        "trusty_user_base_lib_storage_headers",
+    ],
+}
