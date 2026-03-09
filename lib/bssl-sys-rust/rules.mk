@@ -26,7 +26,6 @@ MODULE_CRATE_NAME := bssl_sys
 
 MODULE_LIBRARY_DEPS += \
 	external/boringssl \
-	trusty/user/base/lib/bssl-rust-support \
 	trusty/user/base/lib/trusty-sys \
 
 MODULE_BINDGEN_SRC_HEADER := $(BSSL_RUST_DIR)/wrapper.h
