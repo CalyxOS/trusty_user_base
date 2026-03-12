@@ -122,7 +122,7 @@ endif
 endif # MODULE_CFI_ENABLED
 
 ifeq (,$(filter linker-plugin-lto,$(MODULE_RUSTFLAGS)))
-MODULE_RUST_FLAGS += -C lto=thin
+MODULE_RUSTFLAGS += -C lto=thin
 endif
 endif # !MODULE_DISABLE_LTO
 
