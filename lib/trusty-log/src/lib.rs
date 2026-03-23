@@ -22,6 +22,18 @@ use log::{Level, Log, Metadata, Record};
 use std::io::{stderr, Write};
 use std::sync::OnceLock;
 
+/// Gets the log level based on the `debug_level`.
+#[macro_export]
+macro_rules! get_debug_level {
+    () => {{
+        match () {
+            _ if cfg!(debug_level = "5") => log::Level::Trace,
+            _ if cfg!(debug_level = "4") => log::Level::Debug,
+            _ => log::Level::Info,
+        }
+    }};
+}
+
 /// Closure type that can be used by external callers to write a custom log formatter
 ///
 /// # Examples
